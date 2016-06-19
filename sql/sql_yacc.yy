@@ -1026,7 +1026,7 @@ bool LEX::set_bincmp(CHARSET_INFO *cs, bool bin)
 bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %}
 
-%pure_parser                                    /* We have threads */
+%pure-parser                                   /* We have threads */
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
@@ -1048,6 +1048,9 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
    INTERNAL   : Not a real token, lex optimization
    OPERATOR   : SQL operator
    FUTURE-USE : Reserved for future use
+   32N2439    : Reserver keywords per ISO/IEC PDTR 19075-2,
+                http://jtc1sc32.org/doc/N2401-2450/32N2439-text_for_ballot-PDTR_19075-2.pdf
+                System Versioned Tables
 
    This makes the code grep-able, and helps maintenance.
 */
@@ -1464,6 +1467,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  PARTITIONING_SYM
 %token  PASSWORD_SYM
 %token  PERCENT_RANK_SYM
+%token  PERIOD                        /* 32N2439 */
 %token  PERSISTENT_SYM
 %token  PHASE_SYM
 %token  PLUGINS_SYM
@@ -1591,6 +1595,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  SQL_SMALL_RESULT
 %token  SQL_SYM                       /* SQL-2003-R */
 %token  SQL_THREAD
+%token  SYSTEM_TIME                   /* 32N2439 */
 %token  REF_SYSTEM_ID_SYM
 %token  SSL_SYM
 %token  STARTING
@@ -1619,6 +1624,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  SWAPS_SYM
 %token  SWITCHES_SYM
 %token  SYSDATE
+%token  SYSTEM                        /* 32N2439 */
 %token  TABLES
 %token  TABLESPACE
 %token  TABLE_REF_PRIORITY
@@ -1686,6 +1692,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  VARIANCE_SYM
 %token  VARYING                       /* SQL-2003-R */
 %token  VAR_SAMP_SYM
+%token  VERSIONING                    /* 32N2439 */
 %token  VIA_SYM
 %token  VIEW_SYM                      /* SQL-2003-N */
 %token  VIRTUAL_SYM
@@ -1759,6 +1766,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 
 %type <string>
         text_string hex_or_bin_String opt_gconcat_separator
+        period_for_system_time_column_id
 
 %type <field_type> int_type real_type
 
@@ -1991,7 +1999,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         definer_opt no_definer definer get_diagnostics
         parse_vcol_expr vcol_opt_specifier vcol_opt_attribute
         vcol_opt_attribute_list vcol_attribute
-        explainable_command
+        explainable_command period_for_system_time
 END_OF_INPUT
 
 %type <NONE> call sp_proc_stmts sp_proc_stmts1 sp_proc_stmt
@@ -2007,7 +2015,7 @@ END_OF_INPUT
 %type <NONE> case_stmt_specification
 %type <NONE> loop_body while_body repeat_body
 
-%type <num>  sp_decl_idents sp_handler_type sp_hcond_list
+%type <num>  sp_decl_idents sp_handler_type sp_hcond_list start_or_end
 %type <spcondvalue> sp_cond sp_hcond sqlstate signal_value opt_signal_value
 %type <spblock> sp_decls sp_decl
 %type <lex> sp_cursor_stmt
@@ -2049,7 +2057,6 @@ END_OF_INPUT
 %type <with_clause> opt_with_clause with_clause
 
 %type <lex_str_ptr> query_name
-
 %%
 
 
@@ -6035,6 +6042,9 @@ create_table_option:
               engine_option_value($1, &Lex->create_info.option_list,
                                   &Lex->option_list_last);
           }
+        | WITH SYSTEM VERSIONING
+          {
+          }
         ;
 
 default_charset:
@@ -6139,6 +6149,7 @@ field_list:
 field_list_item:
           column_def { }
         | key_def
+        | period_for_system_time
         ;
 
 column_def:
@@ -6230,6 +6241,13 @@ key_def:
         | opt_constraint check_constraint { }
         ;
 
+period_for_system_time:
+          PERIOD FOR_SYM SYSTEM_TIME '(' period_for_system_time_column_id ',' period_for_system_time_column_id ')'
+          {
+            Lex->get_system_versioning_info(thd->mem_root)->set_period_for_system_time($5, $7);
+          }
+        ;
+
 opt_check_constraint:
           /* empty */
         | check_constraint
@@ -6291,6 +6309,31 @@ field_def:
         | opt_generated_always AS
           '(' virtual_column_func ')'
           vcol_opt_specifier vcol_opt_attribute
+        | opt_generated_always AS ROW_SYM start_or_end
+          {
+            System_versioning_info *info =
+              Lex->get_system_versioning_info(thd->mem_root);
+            if (!info)
+              MYSQL_YYABORT;
+            String *field_name = new (thd->mem_root)
+              String(Lex->last_field->field_name, system_charset_info);
+            if (!field_name)
+              MYSQL_YYABORT;
+            switch ($4)
+            {
+            case 1:
+              info->generated_at_row.start.push_back(field_name, thd->mem_root);
+              break;
+            case 0:
+              info->generated_at_row.end.push_back(field_name, thd->mem_root);
+              break;
+            }
+          }
+        ;
+
+start_or_end:
+          START_SYM { $$ = 1; }
+        | END { $$ = 0; }
         ;
 
 opt_generated_always:
@@ -16168,6 +16211,16 @@ opt_column_list:
 column_list:
           column_list ',' column_list_id
         | column_list_id
+        ;
+
+period_for_system_time_column_id:
+          ident
+          {
+            String *new_str= new (thd->mem_root) String((const char*) $1.str,$1.length,system_charset_info);
+            if (new_str == NULL)
+              MYSQL_YYABORT;
+            $$= new_str;
+          }
         ;
 
 column_list_id:
