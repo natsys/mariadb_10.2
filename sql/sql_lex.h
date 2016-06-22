@@ -2462,12 +2462,18 @@ struct System_versioning_info
 
   void set_period_for_system_time(String *start, String *end)
   {
-    set_period_for_system_time(start, end);
+    period_for_system_time.start = start;
+    period_for_system_time.end = end;
   }
+
+  bool with_system_versioning;
 
   System_versioning_info()
   {
     set_period_for_system_time(NULL, NULL);
+    generated_at_row.start.empty();
+    generated_at_row.end.empty();
+    with_system_versioning = false;
   }
 };
 
