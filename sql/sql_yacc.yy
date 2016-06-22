@@ -5897,6 +5897,10 @@ create_table_option:
           }
         | WITH SYSTEM VERSIONING
           {
+            System_versioning_info *info = Lex->get_system_versioning_info(thd->mem_root);
+            if (!info)
+              MYSQL_YYABORT;
+            info->with_system_versioning = true;
           }
         ;
 
@@ -6100,7 +6104,10 @@ constraint_def:
 period_for_system_time:
           PERIOD FOR_SYM SYSTEM_TIME '(' period_for_system_time_column_id ',' period_for_system_time_column_id ')'
           {
-            Lex->get_system_versioning_info(thd->mem_root)->set_period_for_system_time($5, $7);
+            System_versioning_info *info = Lex->get_system_versioning_info(thd->mem_root);
+            if (!info)
+              MYSQL_YYABORT;
+            info->set_period_for_system_time($5, $7);
           }
         ;
 
@@ -6178,7 +6185,7 @@ field_def:
             if (!info)
               MYSQL_YYABORT;
             String *field_name = new (thd->mem_root)
-              String(Lex->last_field->field_name, system_charset_info);
+              String((const char*)Lex->last_field->field_name, system_charset_info);
             if (!field_name)
               MYSQL_YYABORT;
             switch ($4)
@@ -6188,6 +6195,10 @@ field_def:
               break;
             case 0:
               info->generated_at_row.end.push_back(field_name, thd->mem_root);
+              break;
+            default:
+              /* Not Reachable */
+              MYSQL_YYABORT;
               break;
             }
           }
