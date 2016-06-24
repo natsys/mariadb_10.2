@@ -1278,6 +1278,23 @@ int MYSQLlex(YYSTYPE *yylval, THD *thd)
       return WITH;
     }
     break;
+  case FOR_SYM:
+    token= lex_one_token(yylval, thd);
+    switch(token) {
+    case SYSTEM_TIME:
+      lip->add_digest_token(FOR_SYSTEM_TIME_SYM, yylval);
+      return FOR_SYSTEM_TIME_SYM;
+    default:
+      /*
+        Save the token following 'FOR_SYM'
+      */
+      lip->lookahead_yylval= lip->yylval;
+      lip->yylval= NULL;
+      lip->lookahead_token= token;
+      lip->add_digest_token(FOR_SYM, yylval);
+      return FOR_SYM;
+    }
+    break;
   default:
     break;
   }
