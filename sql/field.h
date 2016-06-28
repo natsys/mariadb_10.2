@@ -1348,6 +1348,56 @@ public:
   }
 
   /*
+    System versioning support.
+   */
+
+  bool is_generated()
+  {
+    return flags & (GENERATED_ROW_START_FLAG | GENERATED_ROW_END_FLAG);
+  }
+
+  bool is_generated_row_start()
+  {
+    return flags & GENERATED_ROW_START_FLAG;
+  }
+
+  bool is_generated_row_end()
+  {
+    return flags & GENERATED_ROW_END_FLAG;
+  }
+
+  bool is_versioning_disabled()
+  {
+    return flags & WITHOUT_SYSTEM_VERSIONING_FLAG;
+  }
+
+  /* Mark a field as auto-generated row start column. */
+  void set_generated_row_start()
+  {
+    DBUG_ASSERT((flags & GENERATED_ROW_END_FLAG) == 0);
+    flags |= GENERATED_ROW_START_FLAG;
+  }
+
+  /* Mark a field as auto-generated row start column. */
+  void set_generated_row_end()
+  {
+    DBUG_ASSERT((flags & GENERATED_ROW_START_FLAG) == 0);
+    flags |= GENERATED_ROW_END_FLAG;
+  }
+
+  /* Disable a field versioning for a versioned table. */
+  void disable_versioning()
+  {
+    flags |= WITHOUT_SYSTEM_VERSIONING_FLAG;
+  }
+
+  /* Inherit a field versioning status from the table. */
+  void inherit_versioning()
+  {
+    flags &= ~WITHOUT_SYSTEM_VERSIONING_FLAG;
+  }
+
+  /*
     Validate a non-null field value stored in the given record
     according to the current thread settings, e.g. sql_mode.
     @param thd     - the thread
@@ -2456,6 +2506,27 @@ public:
   uint size_of() const { return sizeof(*this); }
 };
 
+/**
+ Timestamp for automatically generated columns with versioning info.
+ */
+class Field_timestamp_generated :public Field_timestamp_with_dec {
+public:
+  static const uint DECIMALS = 6;
+
+  Field_timestamp_generated(uchar *ptr_arg,
+	                    uchar *null_ptr_arg, uchar null_bit_arg,
+			    bool gen_arg,
+	                    const char *field_name_arg,
+	                    TABLE_SHARE *share) :
+    Field_timestamp_with_dec(ptr_arg, null_ptr_arg, null_bit_arg,
+	                     NONE, field_name_arg, share, DECIMALS)
+    {
+	  if (gen_arg)
+		  set_generated_row_start();
+	  else
+		  set_generated_row_end();
+    }
+};
 
 class Field_year :public Field_tiny {
 public:
