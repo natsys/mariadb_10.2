@@ -1009,6 +1009,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   uint len;
   uint ext_key_parts= 0;
   plugin_ref se_plugin= 0;
+  const uchar *system_period = 0;
+
   MEM_ROOT *old_root= thd->mem_root;
   Virtual_column_info **table_check_constraints;
   DBUG_ENTER("TABLE_SHARE::init_from_binary_frm_image");
@@ -1101,6 +1103,11 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           gis_options_len= length;
         }
 #endif /*HAVE_SPATIAL*/
+        break;
+      case EXTRA2_PERIOD_FOR_SYSTEM_TIME:
+        if (system_period || length != 2 * sizeof(uint16))
+          goto err;
+        system_period = extra2;
         break;
       default:
         /* abort frm parsing if it's an unknown but important extra2 value */
@@ -2291,6 +2298,22 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       if ((*ptr)->flags & BLOB_FLAG)
 	(*save++)= k;
     }
+  }
+
+  /* Set system versioning information. */
+  if (system_period == NULL)
+  {
+    share->disable_system_versioning();
+  }
+  else
+  {
+    uint16 row_start = uint2korr(system_period);
+    uint16 row_end =  uint2korr(system_period + sizeof(uint16));
+    if (row_start >= share->fields || row_end >= share->fields)
+      goto err;
+    share->enable_system_versioning(row_start, row_end);
+    get_row_start_field()->set_generated_row_start();
+    get_row_end_field()->set_generated_row_end();
   }
 
   /*
