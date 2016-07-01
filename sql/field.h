@@ -2506,28 +2506,6 @@ public:
   uint size_of() const { return sizeof(*this); }
 };
 
-/**
- Timestamp for automatically generated columns with versioning info.
- */
-class Field_timestamp_generated :public Field_timestamp_with_dec {
-public:
-  static const uint DECIMALS = 6;
-
-  Field_timestamp_generated(uchar *ptr_arg,
-	                    uchar *null_ptr_arg, uchar null_bit_arg,
-			    bool gen_arg,
-	                    const char *field_name_arg,
-	                    TABLE_SHARE *share) :
-    Field_timestamp_with_dec(ptr_arg, null_ptr_arg, null_bit_arg,
-	                     NONE, field_name_arg, share, DECIMALS)
-    {
-	  if (gen_arg)
-		  set_generated_row_start();
-	  else
-		  set_generated_row_end();
-    }
-};
-
 class Field_year :public Field_tiny {
 public:
   Field_year(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
