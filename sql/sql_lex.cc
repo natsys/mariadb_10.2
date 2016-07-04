@@ -1276,6 +1276,11 @@ int MYSQLlex(YYSTYPE *yylval, THD *thd)
     }
     break;
   case FOR_SYM:
+    /*
+     * Additional look-ahead to resolve doubtful cases like:
+     * SELECT ... FOR UPDATE
+     * SELECT ... FOR SYSTEM_TIME ... .
+     */
     token= lex_one_token(yylval, thd);
     lip->add_digest_token(token, yylval);
     switch(token) {
