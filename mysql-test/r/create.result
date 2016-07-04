@@ -1919,3 +1919,56 @@ create table t1 (i int, j int, key(i), key(i)) as select 1 as i, 2 as j;
 Warnings:
 Note	1831	Duplicate index `i_2`. This is deprecated and will be disallowed in a future release
 drop table t1;
+#
+# Test for SYSTEM VERSIONING CREATE
+#
+create table t1 (
+XNo INT UNSIGNED,
+Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
+Sys_end TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
+PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
+) WITH SYSTEM VERSIONING;
+drop table if exists t1;
+create table t1 (
+XNo INT UNSIGNED,
+Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
+Sys_start2 TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
+Sys_end TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
+PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
+) WITH SYSTEM VERSIONING;
+drop table if exists t1;
+create table t1 (
+XNo INT UNSIGNED,
+Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
+Sys_end2 TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
+PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
+) WITH SYSTEM VERSIONING;
+drop table if exists t1;
+create table t1 (
+XNo INT UNSIGNED,
+Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
+Sys_end TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
+Sys_end2 TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
+PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
+) WITH SYSTEM VERSIONING;
+drop table if exists t1;
+create table t1 (
+XNo INT UNSIGNED,
+PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
+) WITH SYSTEM VERSIONING;
+drop table if exists t1;
+create table t1 (
+XNo INT UNSIGNED,
+Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
+Sys_end TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
+Sys_end2 TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
+PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
+);
+drop table if exists t1;
+create table t1 (
+XNo INT UNSIGNED,
+Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
+Sys_end TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
+PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
+);
+drop table if exists t1;
