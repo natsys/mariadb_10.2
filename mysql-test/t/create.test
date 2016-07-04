@@ -1763,3 +1763,74 @@ drop function f1;
 #
 --error ER_TABLE_MUST_HAVE_COLUMNS
 create table t1;
+
+#
+# Create table SYSTEM VERSIONING
+#
+--echo #
+--echo # Test for SYSTEM VERSIONING CREATE
+--echo #
+
+create table t1 (
+  XNo INT UNSIGNED,
+  Sys_start TIMESTAMP(12) GENERATED ALWAYS AS ROW START,
+  Sys_end TIMESTAMP(12) GENERATED ALWAYS AS ROW END,
+  PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
+) WITH SYSTEM VERSIONING;
+
+drop table if exists t1;
+
+create table t1 (
+  XNo INT UNSIGNED,
+  Sys_start TIMESTAMP(12) GENERATED ALWAYS AS ROW START,
+  Sys_start2 TIMESTAMP(12) GENERATED ALWAYS AS ROW START,
+  Sys_end TIMESTAMP(12) GENERATED ALWAYS AS ROW END,
+  PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
+) WITH SYSTEM VERSIONING;
+
+drop table if exists t1;
+
+create table t1 (
+  XNo INT UNSIGNED,
+  Sys_start TIMESTAMP(12) GENERATED ALWAYS AS ROW START,
+  Sys_end2 TIMESTAMP(12) GENERATED ALWAYS AS ROW END,
+  PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
+) WITH SYSTEM VERSIONING;
+
+drop table if exists t1;
+
+create table t1 (
+  XNo INT UNSIGNED,
+  Sys_start TIMESTAMP(12) GENERATED ALWAYS AS ROW START,
+  Sys_end TIMESTAMP(12) GENERATED ALWAYS AS ROW END,
+  Sys_end2 TIMESTAMP(12) GENERATED ALWAYS AS ROW END,
+  PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
+) WITH SYSTEM VERSIONING;
+
+drop table if exists t1;
+
+create table t1 (
+  XNo INT UNSIGNED,
+  PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
+) WITH SYSTEM VERSIONING;
+
+drop table if exists t1;
+
+create table t1 (
+  XNo INT UNSIGNED,
+  Sys_start TIMESTAMP(12) GENERATED ALWAYS AS ROW START,
+  Sys_end TIMESTAMP(12) GENERATED ALWAYS AS ROW END,
+  Sys_end2 TIMESTAMP(12) GENERATED ALWAYS AS ROW END,
+  PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
+);
+
+drop table if exists t1;
+
+create table t1 (
+  XNo INT UNSIGNED,
+  Sys_start TIMESTAMP(12) GENERATED ALWAYS AS ROW START,
+  Sys_end TIMESTAMP(12) GENERATED ALWAYS AS ROW END,
+  PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
+);
+
+drop table if exists t1;
