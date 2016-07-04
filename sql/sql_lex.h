@@ -2447,37 +2447,6 @@ public:
   Explain_delete* save_explain_delete_data(MEM_ROOT *mem_root, THD *thd);
 };
 
-struct System_versioning_info
-{
-  struct
-  {
-    String *start, *end;
-  } period_for_system_time;
-
-  struct
-  {
-    List<String> start;
-    List<String> end;
-  } generated_at_row;
-
-  void set_period_for_system_time(String *start, String *end)
-  {
-    period_for_system_time.start = start;
-    period_for_system_time.end = end;
-  }
-
-  bool with_system_versioning;
-
-  System_versioning_info()
-  {
-    set_period_for_system_time(NULL, NULL);
-    generated_at_row.start.empty();
-    generated_at_row.end.empty();
-    with_system_versioning = false;
-  }
-};
-
-
 class Query_arena_memroot;
 /* The state of the lex parsing. This is saved in the THD struct */
 
@@ -2551,7 +2520,6 @@ struct LEX: public Query_tables_list
   List<set_var_base>  var_list;
   List<set_var_base>  stmt_var_list; //SET_STATEMENT values
   List<set_var_base>  old_var_list; // SET STATEMENT old values
-  System_versioning_info *system_versioning_info;
 private:
   Query_arena_memroot *arena_for_set_stmt;
   MEM_ROOT *mem_root_for_set_stmt;
@@ -3052,14 +3020,10 @@ public:
   bool tmp_table() const { return create_info.tmp_table(); }
   bool if_exists() const { return create_info.if_exists(); }
 
-  System_versioning_info *get_system_versioning_info(MEM_ROOT *memroot)
+  System_versioning_info *get_system_versioning_info()
   {
-    if (!system_versioning_info)
-    {
-      system_versioning_info = new (memroot) System_versioning_info;
-    }
-
-    return system_versioning_info;
+    create_info.system_versioning_info.with_system_versioning = true;
+    return &create_info.system_versioning_info;
   }
 };
 

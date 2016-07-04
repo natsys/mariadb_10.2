@@ -1619,6 +1619,32 @@ struct Schema_specification_st
 };
 
 
+struct System_versioning_info
+{
+  struct
+  {
+    String *start, *end;
+  } period_for_system_time;
+
+  struct
+  {
+    String *start;
+    String *end;
+  } generated_at_row;
+
+  void set_period_for_system_time(String *start, String *end)
+  {
+    period_for_system_time.start = start;
+    period_for_system_time.end = end;
+  }
+  void set_period_for_system_time()
+  {
+    set_period_for_system_time(NULL, NULL);
+  }
+  bool is_declared_with_system_versioning;
+  bool with_system_versioning;
+};
+
 /**
   A helper struct for table DDL statements, e.g.:
   CREATE [OR REPLACE] [TEMPORARY]
@@ -1685,6 +1711,8 @@ struct Table_scope_and_contents_source_st
   TABLE_LIST *pos_in_locked_tables;
   MDL_ticket *mdl_ticket;
   bool table_was_deleted;
+
+  System_versioning_info system_versioning_info;
 
   void init()
   {

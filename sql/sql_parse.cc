@@ -7162,6 +7162,16 @@ bool check_fk_parent_table_access(THD *thd,
 }
 
 
+
+/****************************************************************************
+  Checks related to system versioning
+****************************************************************************/
+
+bool check_system_versioning()
+{
+  return false; // false means no error
+}
+
 /****************************************************************************
 	Check stack size; Send error if there isn't enough stack to continue
 ****************************************************************************/

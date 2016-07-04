@@ -1469,7 +1469,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  PARTITIONING_SYM
 %token  PASSWORD_SYM
 %token  PERCENT_RANK_SYM
-%token  PERIOD                        /* 32N2439 */
+%token  PERIOD_SYM                    /* 32N2439 */
 %token  PERSISTENT_SYM
 %token  PHASE_SYM
 %token  PLUGINS_SYM
@@ -1626,7 +1626,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  SWITCHES_SYM
 %token  SYSDATE
 %token  SYSTEM                        /* 32N2439 */
-%token  SYSTEM_TIME                   /* 32N2439 */
+%token  SYSTEM_TIME_SYM               /* 32N2439 */
 %token  TABLES
 %token  TABLESPACE
 %token  TABLE_REF_PRIORITY
@@ -6046,10 +6046,10 @@ create_table_option:
           }
         | WITH SYSTEM VERSIONING
           {
-            System_versioning_info *info = Lex->get_system_versioning_info(thd->mem_root);
+            System_versioning_info *info = Lex->get_system_versioning_info();
             if (!info)
               MYSQL_YYABORT;
-            info->with_system_versioning = true;
+            info->is_declared_with_system_versioning = true;
           }
         ;
 
@@ -6248,12 +6248,13 @@ key_def:
         ;
 
 period_for_system_time:
-          PERIOD FOR_SYM SYSTEM_TIME '(' period_for_system_time_column_id ',' period_for_system_time_column_id ')'
+          // If FOR_SYM is followed by SYSTEM_TIME_SYM then they are merged to: FOR_SYSTEM_TIME_SYM .
+          PERIOD_SYM FOR_SYSTEM_TIME_SYM '(' period_for_system_time_column_id ',' period_for_system_time_column_id ')'
           {
-            System_versioning_info *info = Lex->get_system_versioning_info(thd->mem_root);
+            System_versioning_info *info = Lex->get_system_versioning_info();
             if (!info)
               MYSQL_YYABORT;
-            info->set_period_for_system_time($5, $7);
+            info->set_period_for_system_time($4, $6);
           }
         ;
 
@@ -6321,7 +6322,7 @@ field_def:
         | opt_generated_always AS ROW_SYM start_or_end
           {
             System_versioning_info *info =
-              Lex->get_system_versioning_info(thd->mem_root);
+              Lex->get_system_versioning_info();
             if (!info)
               MYSQL_YYABORT;
             String *field_name = new (thd->mem_root)
@@ -6331,10 +6332,10 @@ field_def:
             switch ($4)
             {
             case 1:
-              info->generated_at_row.start.push_back(field_name, thd->mem_root);
+              info->generated_at_row.start = field_name;
               break;
             case 0:
-              info->generated_at_row.end.push_back(field_name, thd->mem_root);
+              info->generated_at_row.end = field_name;
               break;
             default:
               /* Not Reachable */
@@ -8829,7 +8830,6 @@ opt_for_system_time_clause:
           /* empty */
           {}
         | FOR_SYSTEM_TIME_SYM
-          SYSTEM_TIME
           AS
           OF_SYM
           TIMESTAMP
