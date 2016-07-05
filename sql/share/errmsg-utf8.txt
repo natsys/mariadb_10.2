@@ -7224,3 +7224,9 @@ ER_MISSING_PERIOD_FOR_SYSTEM_TIME
 
 ER_MISSING_WITH_SYSTEM_VERSIONING
         eng "Missing with system versioning"
+
+ER_PERIOD_FOR_SYSTEM_TIME_CONTAINS_WRONG_START_COLUMN
+        eng "First column in 'period for system time' must be 'generated as row start' column"
+
+ER_PERIOD_FOR_SYSTEM_TIME_CONTAINS_WRONG_END_COLUMN
+        eng "First column in 'period for system time' must be 'generated as row start' column"
