@@ -7180,6 +7180,12 @@ static bool check_system_versioning(Table_scope_and_contents_source_st *create_i
 
   bool r = false;
 
+  if (!versioning_info->is_declared_with_system_versioning)
+  {
+    r = true;
+    my_error(ER_MISSING_WITH_SYSTEM_VERSIONING, MYF(0));
+  }
+
   if (!versioning_info->generated_at_row.start)
   {
     r = true;
