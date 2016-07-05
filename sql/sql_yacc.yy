@@ -6329,19 +6329,30 @@ field_def:
               String((const char*)Lex->last_field->field_name, system_charset_info);
             if (!field_name)
               MYSQL_YYABORT;
+
+            String **p = NULL;
+            int err_nr = 0;
             switch ($4)
             {
             case 1:
-              info->generated_at_row.start = field_name;
+              p = &info->generated_at_row.start;
+              err_nr = ER_SYS_START_MORE_THAN_ONCE;
               break;
             case 0:
-              info->generated_at_row.end = field_name;
+              p = &info->generated_at_row.end;
+              err_nr = ER_SYS_END_MORE_THAN_ONCE;
               break;
             default:
               /* Not Reachable */
               MYSQL_YYABORT;
               break;
             }
+            if (*p)
+            {
+              my_error(err_nr, MYF(0), field_name->c_ptr());
+              MYSQL_YYABORT;
+            }
+            *p = field_name;
           }
         ;
 

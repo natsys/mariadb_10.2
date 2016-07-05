@@ -1931,7 +1931,16 @@ Sys_start2 TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
 Sys_end TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
 PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
 ) WITH SYSTEM VERSIONING;
+mysqltest: At line 1783: query 'create table t1 (
+XNo INT UNSIGNED,
+Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
+Sys_start2 TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
+Sys_end TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
+PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
+) WITH SYSTEM VERSIONING' failed: 4018: Generated as row start specified more than once
 drop table if exists t1;
+Warnings:
+Note	1051	Unknown table 'test.t1'
 create table t1 (
 XNo INT UNSIGNED,
 Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
@@ -1946,7 +1955,16 @@ Sys_end TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
 Sys_end2 TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
 PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
 ) WITH SYSTEM VERSIONING;
+mysqltest: At line 1802: query 'create table t1 (
+XNo INT UNSIGNED,
+Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
+Sys_end TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
+Sys_end2 TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
+PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
+) WITH SYSTEM VERSIONING' failed: 4019: Generated as row end specified more than once
 drop table if exists t1;
+Warnings:
+Note	1051	Unknown table 'test.t1'
 create table t1 (
 XNo INT UNSIGNED,
 PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
@@ -1959,7 +1977,16 @@ Sys_end TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
 Sys_end2 TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
 PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
 );
+mysqltest: At line 1819: query 'create table t1 (
+XNo INT UNSIGNED,
+Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
+Sys_end TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
+Sys_end2 TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
+PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
+)' failed: 4019: Generated as row end specified more than once
 drop table if exists t1;
+Warnings:
+Note	1051	Unknown table 'test.t1'
 create table t1 (
 XNo INT UNSIGNED,
 Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
