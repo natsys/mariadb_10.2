@@ -7440,3 +7440,24 @@ ER_JSON_ONE_OR_ALL
         eng "Argument 2 to function '%s' must be "one" or "all"."
 ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
         eng "Illegal parameter data types %s and %s for operation '%s'"
+
+
+# MariaDB error numbers related to System Versioning
+
+ER_SYS_START_NOT_SPECIFIED
+        eng "Generated as row start not specified"
+
+ER_SYS_END_NOT_SPECIFIED
+        eng "Generated as row end not specified"
+
+ER_SYS_START_MORE_THAN_ONCE
+        eng "Generated as row start specified more than once"
+
+ER_SYS_END_MORE_THAN_ONCE
+        eng "Generated as row end specified more than once"
+
+ER_MISSING_PERIOD_FOR_SYSTEM_TIME
+        eng "Period for system time is missing"
+
+ER_MISSING_WITH_SYSTEM_VERSIONING
+        eng "Missing with system versioning"
