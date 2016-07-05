@@ -7230,3 +7230,24 @@ ER_EXPRESSION_REFERS_TO_UNINIT_FIELD 01000
 ER_PARTITION_DEFAULT_ERROR
         eng "Only one DEFAULT partition allowed"
         ukr "Припустимо мати тільки один DEFAULT розділ" 
+
+
+# MariaDB error numbers related to System Versioning
+
+ER_SYS_START_NOT_SPECIFIED
+        eng "Generated as row start not specified"
+
+ER_SYS_END_NOT_SPECIFIED
+        eng "Generated as row end not specified"
+
+ER_SYS_START_MORE_THAN_ONCE
+        eng "Generated as row start specified more than once"
+
+ER_SYS_END_MORE_THAN_ONCE
+        eng "Generated as row end specified more than once"
+
+ER_MISSING_PERIOD_FOR_SYSTEM_TIME
+        eng "Period for system time is missing"
+
+ER_MISSING_WITH_SYSTEM_VERSIONING
+        eng "Missing with system versioning"
