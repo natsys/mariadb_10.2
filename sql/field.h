@@ -1348,6 +1348,56 @@ public:
   }
 
   /*
+    System versioning support.
+   */
+
+  bool is_generated()
+  {
+    return flags & (GENERATED_ROW_START_FLAG | GENERATED_ROW_END_FLAG);
+  }
+
+  bool is_generated_row_start()
+  {
+    return flags & GENERATED_ROW_START_FLAG;
+  }
+
+  bool is_generated_row_end()
+  {
+    return flags & GENERATED_ROW_END_FLAG;
+  }
+
+  bool is_versioning_disabled()
+  {
+    return flags & WITHOUT_SYSTEM_VERSIONING_FLAG;
+  }
+
+  /* Mark a field as auto-generated row start column. */
+  void set_generated_row_start()
+  {
+    DBUG_ASSERT((flags & GENERATED_ROW_END_FLAG) == 0);
+    flags |= GENERATED_ROW_START_FLAG;
+  }
+
+  /* Mark a field as auto-generated row start column. */
+  void set_generated_row_end()
+  {
+    DBUG_ASSERT((flags & GENERATED_ROW_START_FLAG) == 0);
+    flags |= GENERATED_ROW_END_FLAG;
+  }
+
+  /* Disable a field versioning for a versioned table. */
+  void disable_versioning()
+  {
+    flags |= WITHOUT_SYSTEM_VERSIONING_FLAG;
+  }
+
+  /* Inherit a field versioning status from the table. */
+  void inherit_versioning()
+  {
+    flags &= ~WITHOUT_SYSTEM_VERSIONING_FLAG;
+  }
+
+  /*
     Validate a non-null field value stored in the given record
     according to the current thread settings, e.g. sql_mode.
     @param thd     - the thread
@@ -2455,7 +2505,6 @@ public:
   my_time_t get_timestamp(const uchar *pos, ulong *sec_part) const;
   uint size_of() const { return sizeof(*this); }
 };
-
 
 class Field_year :public Field_tiny {
 public:

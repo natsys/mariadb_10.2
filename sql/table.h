@@ -720,6 +720,38 @@ struct TABLE_SHARE
 #endif
 
   /**
+    System versioning support.
+   */
+
+  bool with_system_versioning;
+  uint16 row_start_field;
+  uint16 row_end_field;
+
+  void enable_system_versioning(uint16 row_start, uint row_end)
+  {
+    with_system_versioning = true;
+    row_start_field = row_start;
+    row_end_field = row_end;
+  }
+
+  void disable_system_versioning()
+  {
+    with_system_versioning = false;
+    row_start_field = 0;
+    row_end_field = 0;
+  }
+
+  Field *get_row_start_field()
+  {
+    return with_system_versioning ? field[row_start_field] : NULL;
+  }
+
+  Field *get_row_end_field()
+  {
+    return with_system_versioning ? field[row_end_field] : NULL;
+  }
+
+  /**
     Cache the checked structure of this table.
 
     The pointer data is used to describe the structure that
@@ -1423,6 +1455,25 @@ public:
 
   inline Field **field_to_fill();
   bool validate_default_values_of_unset_fields(THD *thd) const;
+
+  /**
+    System versioning support.
+   */
+
+  bool is_with_system_versioning()
+  {
+    return s->with_system_versioning;
+  }
+
+  Field *get_row_start_field()
+  {
+    return is_with_system_versioning() ? field[s->row_start_field] : NULL;
+  }
+
+  Field *get_row_end_field()
+  {
+    return is_with_system_versioning() ? field[s->row_end_field] : NULL;
+  }
 };
 
 

@@ -83,6 +83,27 @@ static uchar *extra2_write(uchar *pos, enum extra2_frm_value_type type,
   return extra2_write(pos, type, reinterpret_cast<LEX_STRING *>(str));
 }
 
+static bool
+is_with_system_versioning(HA_CREATE_INFO *create_info)
+{
+  // TODO: fill this stub with real code.
+  return false;
+}
+
+static uint16
+get_row_start_field(HA_CREATE_INFO *create_info, List<Create_field> &create_fields)
+{
+  // TODO: fill this stub with real code.
+  return 0;
+}
+
+static uint16
+get_row_end_field(HA_CREATE_INFO *create_info, List<Create_field> &create_fields)
+{
+  // TODO: fill this stub with real code.
+  return 0;
+}
+
 /**
   Create a frm (table definition) file
 
@@ -204,6 +225,10 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
   if (gis_extra2_len)
     extra2_size+= 1 + (gis_extra2_len > 255 ? 3 : 1) + gis_extra2_len;
 
+  if (is_with_system_versioning(create_info))
+  {
+    extra2_size+= 1 + 1 + 2 * sizeof(uint16);
+  }
 
   key_buff_length= uint4korr(fileinfo+47);
 
@@ -257,6 +282,16 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
     pos+= gis_field_options_image(pos, create_fields);
   }
 #endif /*HAVE_SPATIAL*/
+
+  if (is_with_system_versioning(create_info))
+  {
+    *pos++= EXTRA2_PERIOD_FOR_SYSTEM_TIME;
+    *pos++= 2 * sizeof(uint16);
+    int2store(pos, get_row_start_field(create_info, create_fields));
+    pos+= sizeof(uint16);
+    int2store(pos, get_row_end_field(create_info, create_fields));
+    pos+= sizeof(uint16);
+  }
 
   int4store(pos, filepos); // end of the extra2 segment
   pos+= 4;
