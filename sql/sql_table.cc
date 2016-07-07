@@ -3231,6 +3231,9 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   create_info->varchar= 0;
   max_key_length= file->max_key_length();
 
+  const System_versioning_info *versioning_info =
+    create_info->get_system_versioning_info();
+
   for (field_no=0; (sql_field=it++) ; field_no++)
   {
     CHARSET_INFO *save_cs;
@@ -3537,6 +3540,26 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     */
     if (sql_field->stored_in_db())
       record_offset+= sql_field->pack_length;
+
+    if (versioning_info)
+    {
+      const bool is_generated_at_row_start =
+        my_strcasecmp(system_charset_info,
+                      versioning_info->generated_at_row.start->c_ptr(),
+                      sql_field->field_name);
+      const bool is_generated_at_row_end =
+        my_strcasecmp(system_charset_info,
+                      versioning_info->generated_at_row.end->c_ptr(),
+                      sql_field->field_name);
+      const bool is_generated =
+        is_generated_at_row_start || is_generated_at_row_end;
+
+      if (is_generated_at_row_start && is_generated_at_row_end)
+      {
+        my_error(ER_SYS_START_AND_SYS_END_SAME, MYF(0), sql_field->field_name);
+        DBUG_RETURN(TRUE);
+      }
+    }
   }
   /* Update virtual fields' offset*/
   it.rewind();

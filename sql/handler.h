@@ -1724,6 +1724,12 @@ struct Table_scope_and_contents_source_st
     db_type= tmp_table() ? ha_default_tmp_handlerton(thd)
                          : ha_default_handlerton(thd);
   }
+  const System_versioning_info *get_system_versioning_info()
+  {
+    if (!system_versioning_info.with_system_versioning)
+      return NULL;
+    return &system_versioning_info;
+  }
 };
 
 

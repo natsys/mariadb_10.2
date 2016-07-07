@@ -6254,6 +6254,11 @@ period_for_system_time:
             System_versioning_info *info = Lex->get_system_versioning_info();
             if (!info)
               MYSQL_YYABORT;
+            if (!my_strcasecmp(system_charset_info, $4->c_ptr(), $6->c_ptr()))
+            {
+              my_error(ER_SYS_START_AND_SYS_END_SAME, MYF(0), $4->c_ptr());
+              MYSQL_YYABORT;
+            }
             info->set_period_for_system_time($4, $6);
           }
         ;

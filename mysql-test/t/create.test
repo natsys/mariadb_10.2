@@ -1843,3 +1843,12 @@ create table t1 (
 );
 
 drop table if exists t1;
+
+create table t1 (
+  XNo INT UNSIGNED,
+  Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
+  Sys_end TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
+  PERIOD FOR SYSTEM_TIME (Sys_start, Sys_start)
+);
+
+drop table if exists t1;

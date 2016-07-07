@@ -617,13 +617,6 @@ struct TABLE_SHARE
   /* Stored record length. No generated-only virtual fields are included */
   ulong   stored_rec_length;            
 
-  struct generated_as_row
-  {
-    Field *start; /* This field is set when row is inserted */
-    Field *end;  /* This field is set when row is updated/removed */
-  } period_for_system_time_info;
-  bool with_system_versioning;
-
   plugin_ref db_plugin;			/* storage engine plugin */
   inline handlerton *db_type() const	/* table_type for handler */
   { 
