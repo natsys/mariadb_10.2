@@ -2031,3 +2031,18 @@ PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
 drop table if exists t1;
 Warnings:
 Note	1051	Unknown table 'test.t1'
+create table t1 (
+XNo INT UNSIGNED,
+Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
+Sys_end TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
+PERIOD FOR SYSTEM_TIME (Sys_start, Sys_start)
+);
+mysqltest: At line 1847: query 'create table t1 (
+XNo INT UNSIGNED,
+Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
+Sys_end TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
+PERIOD FOR SYSTEM_TIME (Sys_start, Sys_start)
+)' failed: 4024: 'Period for system_time' must contain two different columns
+drop table if exists t1;
+Warnings:
+Note	1051	Unknown table 'test.t1'

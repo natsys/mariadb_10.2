@@ -3544,11 +3544,11 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     if (versioning_info)
     {
       const bool is_generated_at_row_start =
-        my_strcasecmp(system_charset_info,
+        !my_strcasecmp(system_charset_info,
                       versioning_info->generated_at_row.start->c_ptr(),
                       sql_field->field_name);
       const bool is_generated_at_row_end =
-        my_strcasecmp(system_charset_info,
+        !my_strcasecmp(system_charset_info,
                       versioning_info->generated_at_row.end->c_ptr(),
                       sql_field->field_name);
       const bool is_generated =
