@@ -1641,7 +1641,11 @@ struct System_versioning_info
   {
     set_period_for_system_time(NULL, NULL);
   }
+
+  /** User has added 'WITH SYSTEM VERSIONING' to table definition */
   bool is_declared_with_system_versioning;
+
+  /** Table described by this structure is with enabled system versioning */
   bool with_system_versioning;
 };
 
@@ -1724,9 +1728,14 @@ struct Table_scope_and_contents_source_st
     db_type= tmp_table() ? ha_default_tmp_handlerton(thd)
                          : ha_default_handlerton(thd);
   }
+
+  bool is_with_system_versioning()
+  {
+    return system_versioning_info.with_system_versioning;
+  }
   const System_versioning_info *get_system_versioning_info()
   {
-    if (!system_versioning_info.with_system_versioning)
+    if (!is_with_system_versioning())
       return NULL;
     return &system_versioning_info;
   }

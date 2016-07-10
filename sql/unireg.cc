@@ -86,21 +86,66 @@ static uchar *extra2_write(uchar *pos, enum extra2_frm_value_type type,
 static bool
 is_with_system_versioning(HA_CREATE_INFO *create_info)
 {
-  // TODO: fill this stub with real code.
-  return false;
+  return create_info->is_with_system_versioning();
 }
 
 static uint16
 get_row_start_field(HA_CREATE_INFO *create_info, List<Create_field> &create_fields)
 {
-  // TODO: fill this stub with real code.
+  DBUG_ASSERT(is_with_system_versioning(create_info));
+
+  List_iterator<Create_field> it(create_fields);
+  Create_field*sql_field = NULL;
+
+  const System_versioning_info *versioning_info =
+    create_info->get_system_versioning_info();
+  DBUG_ASSERT(versioning_info);
+
+  const char *row_start_field = versioning_info->generated_at_row.start->c_ptr();
+  DBUG_ASSERT(row_start_field);
+
+  for (unsigned field_no = 0; (sql_field = it++); ++field_no)
+  {
+    if (!my_strcasecmp(system_charset_info,
+                       row_start_field,
+                       sql_field->field_name))
+    {
+      DBUG_ASSERT(field_no <= uint16(~0U));
+      return uint16(field_no);
+    }
+  }
+
+  DBUG_ASSERT(0);
   return 0;
 }
 
 static uint16
 get_row_end_field(HA_CREATE_INFO *create_info, List<Create_field> &create_fields)
 {
-  // TODO: fill this stub with real code.
+  DBUG_ASSERT(is_with_system_versioning(create_info));
+
+  List_iterator<Create_field> it(create_fields);
+  Create_field*sql_field = NULL;
+
+  const System_versioning_info *versioning_info =
+    create_info->get_system_versioning_info();
+  DBUG_ASSERT(versioning_info);
+
+  const char *row_start_field = versioning_info->generated_at_row.start->c_ptr();
+  DBUG_ASSERT(row_start_field);
+
+  for (unsigned field_no = 0; (sql_field = it++); ++field_no)
+  {
+    if (!my_strcasecmp(system_charset_info,
+                       row_start_field,
+                       sql_field->field_name))
+    {
+      DBUG_ASSERT(field_no <= uint16(~0U));
+      return uint16(field_no);
+    }
+  }
+
+  DBUG_ASSERT(0);
   return 0;
 }
 
