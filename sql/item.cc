@@ -4131,7 +4131,6 @@ void Item_copy_decimal::copy()
 /* ARGSUSED */
 bool Item::fix_fields(THD *thd, Item **ref)
 {
-
   // We do not check fields which are fixed during construction
   DBUG_ASSERT(fixed == 0 || basic_const_item());
   fixed= 1;
@@ -5038,6 +5037,12 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
     }
     else if (!from_field)
       goto error;
+
+    if (thd->lex->sql_command == SQLCOM_INSERT && from_field->is_generated())
+    {
+      my_error(ER_GENERATED_FIELD_CANNOT_BE_SET_BY_USER, MYF(0));
+      goto error;
+    }
 
     table_list= (cached_table ? cached_table :
                  from_field != view_ref_found ?
