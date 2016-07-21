@@ -32,6 +32,8 @@
 #include "sql_error.h"                          /* Sql_condition */
 #include "compat56.h"
 
+#include <limits>
+
 class Send_field;
 class Copy_field;
 class Protocol;
@@ -642,6 +644,13 @@ public:
   static void operator delete(void *ptr_arg, size_t size) { TRASH(ptr_arg, size); }
   static void operator delete(void *ptr, MEM_ROOT *mem_root)
   { DBUG_ASSERT(0); }
+
+  /*
+     Is used by System Versioning.
+   */
+  virtual bool set_max_timestamp() {
+	  return true;
+  }
 
   uchar		*ptr;			// Position to field in record
   /**
@@ -2501,6 +2510,7 @@ public:
   {
     return memcmp(a_ptr, b_ptr, pack_length());
   }
+  virtual bool set_max_timestamp();
   void store_TIME(my_time_t timestamp, ulong sec_part);
   my_time_t get_timestamp(const uchar *pos, ulong *sec_part) const;
   uint size_of() const { return sizeof(*this); }

@@ -5433,6 +5433,17 @@ void Field_timestampf::store_TIME(my_time_t timestamp, ulong sec_part)
   my_timestamp_to_binary(&tm, ptr, dec);
 }
 
+bool Field_timestampf::set_max_timestamp()
+{
+	DBUG_ENTER("Field_timestampf::set_max_timestamp");
+
+	DBUG_PRINT("info", ("ptr:%p", ptr));
+
+	mi_int4store(ptr, 0x7fffffff);
+	memset(ptr + 4, 0x0, value_length() - 4);
+
+	DBUG_RETURN(FALSE);
+}
 
 my_time_t Field_timestampf::get_timestamp(const uchar *pos,
                                           ulong *sec_part) const
