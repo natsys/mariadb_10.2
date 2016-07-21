@@ -1469,6 +1469,7 @@ public:
   int update_virtual_field(Field *vf);
   int update_virtual_fields(enum_vcol_update_mode update_mode);
   int update_default_fields(bool update, bool ignore_errors);
+  bool update_system_versioning_fields_for_insert();
   void reset_default_fields();
   inline ha_rows stat_records() { return used_stat_records; }
 
