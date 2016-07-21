@@ -2083,10 +2083,12 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   }
   else
   {
+    DBUG_PRINT("info", ("Setting system versioning informations"));
     uint16 row_start = uint2korr(system_period);
     uint16 row_end =  uint2korr(system_period + sizeof(uint16));
     if (row_start >= share->fields || row_end >= share->fields)
       goto err;
+    DBUG_PRINT("info", ("Columns with system versioning: [%d, %d]", row_start, row_end));
     share->enable_system_versioning(row_start, row_end);
     get_row_start_field()->set_generated_row_start();
     get_row_end_field()->set_generated_row_end();
@@ -6999,6 +7001,33 @@ int TABLE::update_default_fields()
     }
   }
   DBUG_RETURN(res);
+}
+
+bool TABLE::update_system_versioning_fields_for_insert()
+{
+  DBUG_ENTER("update_system_versioning_fields_for_insert");
+
+  if (!is_with_system_versioning())
+    DBUG_RETURN(FALSE);
+
+  if (get_row_start_field()->set_time())
+  {
+    DBUG_RETURN(TRUE);
+  }
+
+  if (get_row_end_field()->set_max_timestamp())
+  {
+    DBUG_RETURN(TRUE);
+  }
+
+  Field **dfield_ptr, *dfield;
+  for (dfield_ptr= default_field; *dfield_ptr; dfield_ptr++)
+  {
+    dfield= (*dfield_ptr);
+    bitmap_set_bit(write_set, dfield->field_index);
+  }
+
+  DBUG_RETURN(FALSE);
 }
 
 void TABLE::reset_default_fields()

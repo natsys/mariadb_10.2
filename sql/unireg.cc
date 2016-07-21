@@ -131,13 +131,13 @@ get_row_end_field(HA_CREATE_INFO *create_info, List<Create_field> &create_fields
     create_info->get_system_versioning_info();
   DBUG_ASSERT(versioning_info);
 
-  const char *row_start_field = versioning_info->generated_at_row.start->c_ptr();
-  DBUG_ASSERT(row_start_field);
+  const char *row_end_field = versioning_info->generated_at_row.end->c_ptr();
+  DBUG_ASSERT(row_end_field);
 
   for (unsigned field_no = 0; (sql_field = it++); ++field_no)
   {
     if (!my_strcasecmp(system_charset_info,
-                       row_start_field,
+                       row_end_field,
                        sql_field->field_name))
     {
       DBUG_ASSERT(field_no <= uint16(~0U));
@@ -145,7 +145,7 @@ get_row_end_field(HA_CREATE_INFO *create_info, List<Create_field> &create_fields
     }
   }
 
-  DBUG_ASSERT(0);
+  DBUG_ASSERT(0); /* Not Reachable */
   return 0;
 }
 

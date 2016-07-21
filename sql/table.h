@@ -1439,6 +1439,7 @@ public:
   uint actual_n_key_parts(KEY *keyinfo);
   ulong actual_key_flags(KEY *keyinfo);
   int update_default_fields();
+  bool update_system_versioning_fields_for_insert();
   void reset_default_fields();
   inline ha_rows stat_records() { return used_stat_records; }
 
