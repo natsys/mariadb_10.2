@@ -1383,14 +1383,14 @@ public:
   /* Mark a field as auto-generated row start column. */
   void set_generated_row_start()
   {
-    DBUG_ASSERT((flags & GENERATED_ROW_END_FLAG) == 0);
+    //DBUG_ASSERT((flags & GENERATED_ROW_END_FLAG) == 0);
     flags |= GENERATED_ROW_START_FLAG;
   }
 
   /* Mark a field as auto-generated row start column. */
   void set_generated_row_end()
   {
-    DBUG_ASSERT((flags & GENERATED_ROW_START_FLAG) == 0);
+    //DBUG_ASSERT((flags & GENERATED_ROW_START_FLAG) == 0);
     flags |= GENERATED_ROW_END_FLAG;
   }
 

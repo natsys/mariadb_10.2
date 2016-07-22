@@ -7201,7 +7201,7 @@ static bool check_system_versioning(Table_scope_and_contents_source_st *create_i
   if (!versioning_info->period_for_system_time.start || !versioning_info->period_for_system_time.end)
   {
     r = true;
-    my_error(ER_MISSING_WITH_SYSTEM_VERSIONING, MYF(0));
+    my_error(ER_MISSING_PERIOD_FOR_SYSTEM_TIME, MYF(0));
   }
 
   if (!r)

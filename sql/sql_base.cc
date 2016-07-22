@@ -7848,14 +7848,14 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
   thd->lex->current_select->is_item_list_lookup= 0;
 
   /*
-    To prevent fail on forward lookup we fill it with zerows,
+    To prevent fail on forward lookup we fill it with zeroes,
     then if we got pointer on zero after find_item_in_list we will know
     that it is forward lookup.
 
     There is other way to solve problem: fill array with pointers to list,
     but it will be slower.
 
-    TODO: remove it when (if) we made one list for allfields and
+    TODO: remove it when (if) we made one list for all fields and
     ref_pointer_array
   */
   if (!ref_pointer_array.is_null())

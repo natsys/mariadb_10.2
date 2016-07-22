@@ -173,7 +173,6 @@ error:
   return TRUE;
 }
 
-
 /*
   Check if insert fields are correct.
 
@@ -962,6 +961,12 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
       }
     }
     if (table->default_field && table->update_default_fields())
+    {
+      error= 1;
+      break;
+    }
+
+    if (table->is_with_system_versioning() && table->update_system_versioning_fields_for_insert())
     {
       error= 1;
       break;
