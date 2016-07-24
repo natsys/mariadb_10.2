@@ -3180,6 +3180,39 @@ static void check_duplicate_key(THD *thd,
   }
 }
 
+static void
+copy_info_about_generated_fields(Alter_info *dst_alter_info,
+                                 HA_CREATE_INFO *src_create_info)
+{
+  if (!src_create_info->is_with_system_versioning())
+    return;
+
+  const System_versioning_info *versioning_info =
+    src_create_info->get_system_versioning_info();
+  DBUG_ASSERT(versioning_info);
+  const char *row_start_field = versioning_info->generated_as_row.start->c_ptr();
+  DBUG_ASSERT(row_start_field);
+  const char *row_end_field = versioning_info->generated_as_row.end->c_ptr();
+  DBUG_ASSERT(row_end_field);
+
+  List_iterator<Create_field> it(dst_alter_info->create_list);
+  Create_field *column_definition = NULL;
+  while ( (column_definition = it++) )
+  {
+    if (!my_strcasecmp(system_charset_info,
+                       row_start_field,
+                       column_definition->field_name))
+    {
+      column_definition->flags |= GENERATED_ROW_START_FLAG;
+    }
+    else if (!my_strcasecmp(system_charset_info,
+                       row_end_field,
+                       column_definition->field_name))
+    {
+      column_definition->flags |= GENERATED_ROW_END_FLAG;
+    }
+  }
+}
 
 /*
   Preparation for table creation
@@ -5039,6 +5072,8 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
     create_table_mode= C_ORDINARY_CREATE;
   else
     create_table_mode= C_ASSISTED_DISCOVERY;
+
+  copy_info_about_generated_fields(alter_info, create_info);
 
   if (!opt_explicit_defaults_for_timestamp)
     promote_first_timestamp_column(&alter_info->create_list);

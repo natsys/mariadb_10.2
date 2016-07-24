@@ -115,7 +115,7 @@ get_row_start_field(HA_CREATE_INFO *create_info, List<Create_field> &create_fiel
     }
   }
 
-  DBUG_ASSERT(0);
+  DBUG_ASSERT(0); /* Not Reachable */
   return 0;
 }
 

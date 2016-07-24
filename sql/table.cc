@@ -7020,12 +7020,8 @@ bool TABLE::update_system_versioning_fields_for_insert()
     DBUG_RETURN(TRUE);
   }
 
-  Field **dfield_ptr, *dfield;
-  for (dfield_ptr= default_field; *dfield_ptr; dfield_ptr++)
-  {
-    dfield= (*dfield_ptr);
-    bitmap_set_bit(write_set, dfield->field_index);
-  }
+  bitmap_set_bit(write_set, get_row_start_field()->field_index);
+  bitmap_set_bit(write_set, get_row_end_field()->field_index);
 
   DBUG_RETURN(FALSE);
 }
