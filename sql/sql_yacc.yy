@@ -6340,11 +6340,11 @@ field_def:
             switch ($4)
             {
             case 1:
-              p = &info->generated_at_row.start;
+              p = &info->generated_as_row.start;
               err_nr = ER_SYS_START_MORE_THAN_ONCE;
               break;
             case 0:
-              p = &info->generated_at_row.end;
+              p = &info->generated_as_row.end;
               err_nr = ER_SYS_END_MORE_THAN_ONCE;
               break;
             default:

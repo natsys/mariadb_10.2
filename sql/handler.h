@@ -1630,7 +1630,7 @@ struct System_versioning_info
   {
     String *start;
     String *end;
-  } generated_at_row;
+  } generated_as_row;
 
   void set_period_for_system_time(String *start, String *end)
   {

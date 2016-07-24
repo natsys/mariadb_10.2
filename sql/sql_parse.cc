@@ -7186,13 +7186,13 @@ static bool check_system_versioning(Table_scope_and_contents_source_st *create_i
     my_error(ER_MISSING_WITH_SYSTEM_VERSIONING, MYF(0));
   }
 
-  if (!versioning_info->generated_at_row.start)
+  if (!versioning_info->generated_as_row.start)
   {
     r = true;
     my_error(ER_SYS_START_NOT_SPECIFIED, MYF(0));
   }
 
-  if (!versioning_info->generated_at_row.end)
+  if (!versioning_info->generated_as_row.end)
   {
     r = true;
     my_error(ER_SYS_END_NOT_SPECIFIED, MYF(0));
@@ -7207,7 +7207,7 @@ static bool check_system_versioning(Table_scope_and_contents_source_st *create_i
   if (!r)
   {
     if (my_strcasecmp(system_charset_info,
-                      versioning_info->generated_at_row.start->c_ptr(),
+                      versioning_info->generated_as_row.start->c_ptr(),
                       versioning_info->period_for_system_time.start->c_ptr()))
     {
       r = true;
@@ -7215,7 +7215,7 @@ static bool check_system_versioning(Table_scope_and_contents_source_st *create_i
     }
 
     if (my_strcasecmp(system_charset_info,
-                      versioning_info->generated_at_row.end->c_ptr(),
+                      versioning_info->generated_as_row.end->c_ptr(),
                       versioning_info->period_for_system_time.end->c_ptr()))
     {
       r = true;

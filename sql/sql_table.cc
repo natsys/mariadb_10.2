@@ -3076,10 +3076,12 @@ void promote_first_timestamp_column(List<Create_field> *column_definitions)
     if (is_timestamp_type(column_definition->sql_type) ||              // TIMESTAMP
         column_definition->unireg_check == Field::TIMESTAMP_OLD_FIELD) // Legacy
     {
+      DBUG_PRINT("info", ("field-ptr:%p", column_definition->field));
       if ((column_definition->flags & NOT_NULL_FLAG) != 0 && // NOT NULL,
           column_definition->def == NULL &&            // no constant default,
           column_definition->unireg_check == Field::NONE && // no function default
-          column_definition->vcol_info == NULL)
+          column_definition->vcol_info == NULL &&
+          !(column_definition->flags & (GENERATED_ROW_START_FLAG | GENERATED_ROW_END_FLAG))) // column isn't generated
       {
         DBUG_PRINT("info", ("First TIMESTAMP column '%s' was promoted to "
                             "DEFAULT CURRENT_TIMESTAMP ON UPDATE "
@@ -3545,11 +3547,11 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     {
       const bool is_generated_as_row_start =
         !my_strcasecmp(system_charset_info,
-                      versioning_info->generated_at_row.start->c_ptr(),
+                      versioning_info->generated_as_row.start->c_ptr(),
                       sql_field->field_name);
       const bool is_generated_as_row_end =
         !my_strcasecmp(system_charset_info,
-                      versioning_info->generated_at_row.end->c_ptr(),
+                      versioning_info->generated_as_row.end->c_ptr(),
                       sql_field->field_name);
       const bool is_generated =
         is_generated_as_row_start || is_generated_as_row_end;

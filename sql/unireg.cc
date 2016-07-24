@@ -101,7 +101,7 @@ get_row_start_field(HA_CREATE_INFO *create_info, List<Create_field> &create_fiel
     create_info->get_system_versioning_info();
   DBUG_ASSERT(versioning_info);
 
-  const char *row_start_field = versioning_info->generated_at_row.start->c_ptr();
+  const char *row_start_field = versioning_info->generated_as_row.start->c_ptr();
   DBUG_ASSERT(row_start_field);
 
   for (unsigned field_no = 0; (sql_field = it++); ++field_no)
@@ -131,7 +131,7 @@ get_row_end_field(HA_CREATE_INFO *create_info, List<Create_field> &create_fields
     create_info->get_system_versioning_info();
   DBUG_ASSERT(versioning_info);
 
-  const char *row_end_field = versioning_info->generated_at_row.end->c_ptr();
+  const char *row_end_field = versioning_info->generated_as_row.end->c_ptr();
   DBUG_ASSERT(row_end_field);
 
   for (unsigned field_no = 0; (sql_field = it++); ++field_no)
