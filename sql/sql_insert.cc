@@ -211,7 +211,7 @@ static int check_insert_fields(THD *thd, TABLE_LIST *table_list,
                table_list->view_db.str, table_list->view_name.str);
       DBUG_RETURN(-1);
     }
-    if (values.elements != table->s->fields)
+    if (values.elements != table->s->fields - 2*!!table->s->with_system_versioning)
     {
       my_error(ER_WRONG_VALUE_COUNT_ON_ROW, MYF(0), 1L);
       DBUG_RETURN(-1);
@@ -227,6 +227,11 @@ static int check_insert_fields(THD *thd, TABLE_LIST *table_list,
       Thus we set all bits in the write set.
     */
     bitmap_set_all(table->write_set);
+    if (table->s->with_system_versioning)
+    {
+      bitmap_clear_bit(table->write_set, table->s->get_row_start_field()->field_index);
+      bitmap_clear_bit(table->write_set, table->s->get_row_end_field()->field_index);
+    }
   }
   else
   {						// Part field list
