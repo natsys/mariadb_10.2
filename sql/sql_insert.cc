@@ -227,11 +227,6 @@ static int check_insert_fields(THD *thd, TABLE_LIST *table_list,
       Thus we set all bits in the write set.
     */
     bitmap_set_all(table->write_set);
-    if (table->s->with_system_versioning)
-    {
-      bitmap_clear_bit(table->write_set, table->s->get_row_start_field()->field_index);
-      bitmap_clear_bit(table->write_set, table->s->get_row_end_field()->field_index);
-    }
   }
   else
   {						// Part field list
@@ -908,18 +903,18 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
       if (fill_record_n_invoke_before_triggers(thd, table, fields, *values, 0,
                                                TRG_EVENT_INSERT))
       {
-	if (values_list.elements != 1 && ! thd->is_error())
-	{
-	  info.records++;
-	  continue;
-	}
-	/*
-	  TODO: set thd->abort_on_warning if values_list.elements == 1
-	  and check that all items return warning in case of problem with
-	  storing field.
+        if (values_list.elements != 1 && ! thd->is_error())
+        {
+          info.records++;
+          continue;
+        }
+        /*
+           TODO: set thd->abort_on_warning if values_list.elements == 1
+               and check that all items return warning in case of problem with
+               storing field.
         */
-	error=1;
-	break;
+        error=1;
+        break;
       }
     }
     else
@@ -929,7 +924,7 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
         INSERT INTO t1 VALUES (values)
       */
       if (thd->lex->used_tables)		      // Column used in values()
-	restore_record(table,s->default_values);	// Get empty record
+        restore_record(table,s->default_values);	// Get empty record
       else
       {
         TABLE_SHARE *share= table->s;
@@ -956,13 +951,13 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
       if (fill_record_n_invoke_before_triggers(thd, table, table->field_to_fill(),
                                                *values, 0, TRG_EVENT_INSERT))
       {
-	if (values_list.elements != 1 && ! thd->is_error())
-	{
-	  info.records++;
-	  continue;
-	}
-	error=1;
-	break;
+        if (values_list.elements != 1 && ! thd->is_error())
+        {
+          info.records++;
+          continue;
+        }
+        error=1;
+        break;
       }
     }
     if (table->default_field && table->update_default_fields())
@@ -1057,41 +1052,41 @@ values_loop_end:
 
     if (error <= 0 ||
         thd->transaction.stmt.modified_non_trans_table ||
-	was_insert_delayed)
+        was_insert_delayed)
     {
       if(WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open())
       {
         int errcode= 0;
-	if (error <= 0)
+        if (error <= 0)
         {
-	  /*
-	    [Guilhem wrote] Temporary errors may have filled
-	    thd->net.last_error/errno.  For example if there has
-	    been a disk full error when writing the row, and it was
-	    MyISAM, then thd->net.last_error/errno will be set to
-            "disk full"... and the mysql_file_pwrite() will wait until free
-	    space appears, and so when it finishes then the
-	    write_row() was entirely successful
-	  */
+          /*
+            [Guilhem wrote] Temporary errors may have filled
+              thd->net.last_error/errno.  For example if there has
+              been a disk full error when writing the row, and it was
+              MyISAM, then thd->net.last_error/errno will be set to
+              "disk full"... and the mysql_file_pwrite() will wait until free
+              space appears, and so when it finishes then the
+              write_row() was entirely successful
+	   */
 	  /* todo: consider removing */
 	  thd->clear_error();
-	}
+        }
         else
           errcode= query_error_code(thd, thd->killed == NOT_KILLED);
         
-	/* bug#22725:
+        /* bug#22725:
 
-	A query which per-row-loop can not be interrupted with
-	KILLED, like INSERT, and that does not invoke stored
-	routines can be binlogged with neglecting the KILLED error.
+          A query which per-row-loop can not be interrupted with
+          KILLED, like INSERT, and that does not invoke stored
+          routines can be binlogged with neglecting the KILLED error.
         
-	If there was no error (error == zero) until after the end of
-	inserting loop the KILLED flag that appeared later can be
-	disregarded since previously possible invocation of stored
-	routines did not result in any error due to the KILLED.  In
-	such case the flag is ignored for constructing binlog event.
-	*/
-	DBUG_ASSERT(thd->killed != KILL_BAD_DATA || error > 0);
+          If there was no error (error == zero) until after the end of
+          inserting loop the KILLED flag that appeared later can be
+          disregarded since previously possible invocation of stored
+          routines did not result in any error due to the KILLED.  In
+          such case the flag is ignored for constructing binlog event.
+        */
+        DBUG_ASSERT(thd->killed != KILL_BAD_DATA || error > 0);
         if (was_insert_delayed && table_list->lock_type ==  TL_WRITE)
         {
           /* Binlog INSERT DELAYED as INSERT without DELAYED. */
@@ -3727,12 +3722,16 @@ int select_insert::send_data(List<Item> &values)
 
 void select_insert::store_values(List<Item> &values)
 {
+  DBUG_ENTER("select_insert::store_values");
+
   if (fields->elements)
     fill_record_n_invoke_before_triggers(thd, table, *fields, values, 1,
                                          TRG_EVENT_INSERT);
   else
     fill_record_n_invoke_before_triggers(thd, table, table->field_to_fill(),
                                          values, 1, TRG_EVENT_INSERT);
+
+  DBUG_VOID_RETURN;
 }
 
 bool select_insert::prepare_eof()

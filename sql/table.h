@@ -1085,6 +1085,8 @@ public:
   Field *next_number_field;		/* Set if next_number is activated */
   Field *found_next_number_field;	/* Set on open */
   Field **vfield;                       /* Pointer to virtual fields*/
+  Field **non_generated_field;          /* Like **field but without generated
+					                                 fields */
   /* Fields that are updated automatically on INSERT or UPDATE. */
   Field **default_field;
 

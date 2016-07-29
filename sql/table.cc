@@ -2725,6 +2725,26 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
   }
   (*field_ptr)= 0;                              // End marker
 
+  if (share->with_system_versioning)
+  {
+    Field **fptr = NULL;
+    if (!(fptr = (Field **) alloc_root(&outparam->mem_root,
+                                            (uint) ((share->fields+1)*
+                                                    sizeof(Field*)))))
+      goto err;
+
+    outparam->non_generated_field = fptr;
+    for (i=0 ; i < share->fields; i++)
+    {
+      if (outparam->field[i]->is_generated())
+        continue;
+      *fptr++ = outparam->field[i];
+    }
+    (*fptr)= 0;                                 // End marker
+  }
+  else
+    outparam->non_generated_field= NULL;
+
   if (share->found_next_number_field)
     outparam->found_next_number_field=
       outparam->field[(uint) (share->found_next_number_field - share->field)];
