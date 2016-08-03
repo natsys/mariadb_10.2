@@ -44,6 +44,8 @@
                          // mysql_derived_filling
 
 
+#include "sql_insert.h"  // For write_record() .
+
 /**
    True if the table's input and output record buffers are comparable using
    compare_record(TABLE*).
@@ -355,6 +357,9 @@ int mysql_update(THD *thd,
     DBUG_RETURN(1);
   }
 
+  if (table->default_field)
+    table->mark_default_fields_for_write(false);
+  // XYZ: Mark generated fields for write?
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   /* Check values */
   table_list->grant.want_privilege= table->grant.want_privilege=
@@ -737,19 +742,45 @@ int mysql_update(THD *thd,
 
   while (!(error=info.read_record(&info)) && !thd->killed)
   {
+    if (table->s->with_system_versioning && !table->get_row_end_field()->is_max_timestamp())
+    {
+      continue;
+    }
+
+    // XYZ: Explain for versioned table?
     explain->tracker.on_record_read();
     if (table->vfield)
       table->update_virtual_fields(VCOL_UPDATE_FOR_READ_WRITE);
     thd->inc_examined_row_count(1);
     if (!select || select->skip_record(thd) > 0)
     {
+      // XYZ: Add sys_start/sys_End columns to write(?) set, or do whatever is necessary to read them...
+      // XYZ: Check, that item has sys_end in the future
+      // XYZ: Set sys_end field and perform update
+      // XYZ: Set fields from the request and perform insert...
+      // XYZ: Transactional tables...
       if (table->file->ha_was_semi_consistent_read())
         continue;  /* repeat the read of the same row if it still exists */
 
+      // XYZ: Explain for versioned table?
       explain->tracker.on_record_after_where();
       store_record(table,record[1]);
 
       vblobs.make_orphans();
+
+      if (table->s->with_system_versioning)
+      {
+        COPY_INFO copy_info;
+        bzero(&copy_info, sizeof(copy_info));
+        copy_info.handle_duplicates = DUP_ERROR;
+
+        if (table->get_row_end_field()->set_time())
+          break;
+
+        write_record(thd, table, &copy_info);
+
+        restore_record(table,record[1]);
+      }
 
       if (fill_record_n_invoke_before_triggers(thd, table, fields, values, 0,
                                                TRG_EVENT_UPDATE))
@@ -813,11 +844,11 @@ int mysql_update(THD *thd,
         else
         {
           /* Non-batched update */
-	  error= table->file->ha_update_row(table->record[1],
+          error= table->file->ha_update_row(table->record[1],
                                             table->record[0]);
         }
         if (!error || error == HA_ERR_RECORD_IS_THE_SAME)
-	{
+        {
           if (error != HA_ERR_RECORD_IS_THE_SAME)
             updated++;
           else
@@ -836,10 +867,10 @@ int mysql_update(THD *thd,
             flags|= ME_FATALERROR; /* Other handler errors are fatal */
 
           prepare_record_for_error_message(error, table);
-	  table->file->print_error(error,MYF(flags));
-	  error= 1;
-	  break;
-	}
+          table->file->print_error(error,MYF(flags));
+          error= 1;
+          break;
+        }
       }
 
       if (table->triggers &&
@@ -865,7 +896,7 @@ int mysql_update(THD *thd,
             ((error= table->file->exec_bulk_update(&dup_key_found)) ||
              dup_key_found))
         {
- 	  if (error)
+ 	        if (error)
           {
             /* purecov: begin inspected */
             /*
@@ -888,8 +919,8 @@ int mysql_update(THD *thd,
         }
         else
         {
-	  error= -1;				// Simulate end of file
-	  break;
+          error= -1;				// Simulate end of file
+          break;
         }
       }
     }
@@ -1514,9 +1545,9 @@ int mysql_multi_update_prepare(THD *thd)
       TABLE_LIST *for_update= 0;
       if (tl->check_single_table(&for_update, tables_for_update, tl))
       {
-	my_error(ER_VIEW_MULTIUPDATE, MYF(0),
-		 tl->view_db.str, tl->view_name.str);
-	DBUG_RETURN(-1);
+	      my_error(ER_VIEW_MULTIUPDATE, MYF(0),
+		    tl->view_db.str, tl->view_name.str);
+	      DBUG_RETURN(-1);
       }
     }
   }
