@@ -5437,12 +5437,17 @@ bool Field_timestampf::set_max_timestamp()
 {
 	DBUG_ENTER("Field_timestampf::set_max_timestamp");
 
-	DBUG_PRINT("info", ("ptr:%p", ptr));
-
 	mi_int4store(ptr, 0x7fffffff);
 	memset(ptr + 4, 0x0, value_length() - 4);
 
 	DBUG_RETURN(FALSE);
+}
+
+bool Field_timestampf::is_max_timestamp()
+{
+	DBUG_ENTER("Field_timestampf::is_max_timestamp");
+
+  DBUG_RETURN(mi_sint4korr(ptr) == 0x7fffffff);
 }
 
 my_time_t Field_timestampf::get_timestamp(const uchar *pos,
