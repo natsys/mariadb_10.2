@@ -44,7 +44,8 @@
                          // mysql_derived_filling
 
 
-#include "sql_insert.h"  // For write_record() .
+#include "sql_insert.h"  // For write_record() that may be needed
+                         //   for System Versioning.
 
 /**
    True if the table's input and output record buffers are comparable using
@@ -282,6 +283,12 @@ int mysql_update(THD *thd,
   Explain_update *explain;
   query_plan.index= MAX_KEY;
   query_plan.using_filesort= FALSE;
+
+  // For System Versioning (may need to insert new fields to a table).
+  COPY_INFO copy_info;
+  bzero(&copy_info, sizeof(copy_info));
+  copy_info.handle_duplicates = DUP_ERROR;
+
   DBUG_ENTER("mysql_update");
 
   create_explain_query(thd->lex, thd->mem_root);
@@ -772,21 +779,29 @@ int mysql_update(THD *thd,
 
       if (table->s->with_system_versioning)
       {
-        COPY_INFO copy_info;
-        bzero(&copy_info, sizeof(copy_info));
-        copy_info.handle_duplicates = DUP_ERROR;
-
+        // Set end time to now()
         if (table->get_row_end_field()->set_time())
+        {
+          error= 1;
+          break;
+        }
+
+        if ( (error= write_record(thd, table, &copy_info)) )
           break;
 
-        write_record(thd, table, &copy_info);
-
         restore_record(table,record[1]);
+
       }
 
       if (fill_record_n_invoke_before_triggers(thd, table, fields, values, 0,
                                                TRG_EVENT_UPDATE))
         break; /* purecov: inspected */
+
+      if (table->is_with_system_versioning() && table->update_system_versioning_fields_for_insert())
+      {
+        error= 1;
+        break;
+      }
 
       found++;
 
@@ -1048,9 +1063,15 @@ int mysql_update(THD *thd,
   if (error < 0 && !thd->lex->analyze_stmt)
   {
     char buff[MYSQL_ERRMSG_SIZE];
-    my_snprintf(buff, sizeof(buff), ER_THD(thd, ER_UPDATE_INFO), (ulong) found,
-                (ulong) updated,
-                (ulong) thd->get_stmt_da()->current_statement_warn_count());
+    if (!table->s->with_system_versioning)
+      my_snprintf(buff, sizeof(buff), ER_THD(thd, ER_UPDATE_INFO), (ulong) found,
+                  (ulong) updated,
+                  (ulong) thd->get_stmt_da()->current_statement_warn_count());
+    else
+      my_snprintf(buff, sizeof(buff),
+                  ER_THD(thd, ER_UPDATE_INFO_WITH_SYSTEM_VERSIONING),
+                  (ulong) found, (ulong) copy_info.copied,
+                  (ulong) thd->get_stmt_da()->current_statement_warn_count());
     my_ok(thd, (thd->client_capabilities & CLIENT_FOUND_ROWS) ? found : updated,
           id, buff);
     DBUG_PRINT("info",("%ld records updated", (long) updated));
