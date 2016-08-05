@@ -787,7 +787,6 @@ int mysql_update(THD *thd,
           break;
 
         restore_record(table,record[1]);
-
       }
 
       if (fill_record_n_invoke_before_triggers(thd, table, fields, values, 0,
@@ -1067,7 +1066,7 @@ int mysql_update(THD *thd,
     else
       my_snprintf(buff, sizeof(buff),
                   ER_THD(thd, ER_UPDATE_INFO_WITH_SYSTEM_VERSIONING),
-                  (ulong) found, (ulong) copy_info.copied,
+                  (ulong) found, (ulong) updated, (ulong) copy_info.copied,
                   (ulong) thd->get_stmt_da()->current_statement_warn_count());
     my_ok(thd, (thd->client_capabilities & CLIENT_FOUND_ROWS) ? found : updated,
           id, buff);
@@ -2155,6 +2154,13 @@ int multi_update::send_data(List<Item> &not_used_values)
 
       table->status|= STATUS_UPDATED;
       store_record(table,record[1]);
+
+      // XYZ: Can this happen?
+      if (table->s->with_system_versioning && !table->get_row_end_field()->is_max_timestamp())
+      {
+        continue;
+      }
+
       if (fill_record_n_invoke_before_triggers(thd, table,
                                                *fields_for_table[offset],
                                                *values_for_table[offset], 0,
@@ -2168,10 +2174,22 @@ int multi_update::send_data(List<Item> &not_used_values)
       found++;
       if (!can_compare_record || compare_record(table))
       {
-	int error;
+        int error;
+
+        // For System Versioning (may need to insert new fields to a table).
+        COPY_INFO copy_info;
+        bzero(&copy_info, sizeof(copy_info));
+        copy_info.handle_duplicates = DUP_ERROR;
 
         if (table->default_field && table->update_default_fields(1, ignore))
           DBUG_RETURN(1);
+
+        if (table->s->with_system_versioning &&
+            table->update_system_versioning_fields_for_insert())
+        {
+          error= 1;
+          break;
+        }
 
         if ((error= cur_table->view_check_option(thd, ignore)) !=
             VIEW_CHECK_OK)
@@ -2191,6 +2209,7 @@ int multi_update::send_data(List<Item> &not_used_values)
           */
           main_table->file->extra(HA_EXTRA_PREPARE_FOR_UPDATE);
         }
+
         if ((error=table->file->ha_update_row(table->record[1],
                                               table->record[0])) &&
             error != HA_ERR_RECORD_IS_THE_SAME)
@@ -2219,6 +2238,23 @@ int multi_update::send_data(List<Item> &not_used_values)
           {
             error= 0;
             updated--;
+          }
+          else if (table->s->with_system_versioning)
+          {
+            restore_record(table,record[1]);
+
+            // Set end time to now()
+            if (table->get_row_end_field()->set_time())
+            {
+              error= 1;
+              break;
+            }
+
+            if ( (error= write_record(thd, table, &copy_info)) )
+            {
+              error= 1;
+              break;
+            }
           }
           /* non-transactional or transactional table got modified   */
           /* either multi_update class' flag is raised in its branch */
