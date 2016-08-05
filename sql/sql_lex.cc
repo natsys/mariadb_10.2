@@ -2193,6 +2193,10 @@ void st_select_lex::init_select()
   with_dep= 0;
   join= 0;
   lock_type= TL_READ_DEFAULT;
+  /* Initialize system versioning data. */
+  for_system_time= FOR_SYSTEM_TIME_UNSPECIFIED;
+  system_time_start= 0;
+  system_time_end= 0;
 }
 
 /*
