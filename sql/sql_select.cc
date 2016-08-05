@@ -704,27 +704,27 @@ setup_for_system_time(THD *thd, TABLE_LIST *tables, COND **conds, SELECT_LEX *se
       switch (select_lex->for_system_time)
       {
         case FOR_SYSTEM_TIME_UNSPECIFIED:
-          Item *curr= new (thd->mem_root) Item_func_now_local(thd, 6);
+          curr= new (thd->mem_root) Item_func_now_local(thd, 6);
           cond1= new (thd->mem_root) Item_func_le(thd, istart, curr);
-          cond2= new (thd->mem_root) Item_func_ge(thd, iend, curr);
+          cond2= new (thd->mem_root) Item_func_gt(thd, iend, curr);
           break;
         case FOR_SYSTEM_TIME_AS_OF:
           cond1= new (thd->mem_root) Item_func_le(thd, istart,
                                                   select_lex->system_time_start);
-          cond2= new (thd->mem_root) Item_func_ge(thd, iend,
+          cond2= new (thd->mem_root) Item_func_gt(thd, iend,
                                                   select_lex->system_time_start);
           break;
         case FOR_SYSTEM_TIME_FROM_TO:
-          cond1= new (thd->mem_root) Item_func_le(thd, istart,
-                                                  select_lex->system_time_start);
-          cond2= new (thd->mem_root) Item_func_gt(thd, iend,
+          cond1= new (thd->mem_root) Item_func_lt(thd, istart,
                                                   select_lex->system_time_end);
+          cond2= new (thd->mem_root) Item_func_ge(thd, iend,
+                                                  select_lex->system_time_start);
           break;
         case FOR_SYSTEM_TIME_BETWEEN:
           cond1= new (thd->mem_root) Item_func_le(thd, istart,
-                                                  select_lex->system_time_start);
-          cond2= new (thd->mem_root) Item_func_ge(thd, iend,
                                                   select_lex->system_time_end);
+          cond2= new (thd->mem_root) Item_func_ge(thd, iend,
+                                                  select_lex->system_time_start);
           break;
         default:
           DBUG_ASSERT(0);
