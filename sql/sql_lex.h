@@ -305,6 +305,12 @@ enum olap_type
   UNSPECIFIED_OLAP_TYPE, CUBE_TYPE, ROLLUP_TYPE
 };
 
+enum for_system_time_type
+{
+  FOR_SYSTEM_TIME_UNSPECIFIED, FOR_SYSTEM_TIME_AS_OF,
+  FOR_SYSTEM_TIME_FROM_TO, FOR_SYSTEM_TIME_BETWEEN
+};
+
 /* 
   String names used to print a statement with index hints.
   Keep in sync with index_hint_type.
@@ -946,6 +952,10 @@ public:
 
   /* it is for correct printing SELECT options */
   thr_lock_type lock_type;
+
+  /** System versioning support. */
+  enum for_system_time_type for_system_time;
+  Item *system_time_start, *system_time_end;
 
   void init_query();
   void init_select();
