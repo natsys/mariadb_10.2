@@ -3012,7 +3012,7 @@ ER_UPDATE_INFO
         swe "Rader: %ld  Uppdaterade: %ld  Varningar: %ld"
         ukr "Записів відповідає: %ld  Змінено: %ld  Застережень: %ld"
 ER_UPDATE_INFO_WITH_SYSTEM_VERSIONING
-        eng ""Rows matched: %ld  Changed: %ld  Inserted: %ld  Warnings: %ld""
+        eng "Rows matched: %ld  Changed: %ld  Inserted: %ld  Warnings: %ld"
 ER_CANT_CREATE_THREAD  
         cze "Nemohu vytvořit nový thread (errno %M). Pokud je ještě nějaká volná paměť, podívejte se do manuálu na část o chybách specifických pro jednotlivé operační systémy"
         dan "Kan ikke danne en ny tråd (fejl nr. %M). Hvis computeren ikke er løbet tør for hukommelse, kan du se i brugervejledningen for en mulig operativ-system - afhængig fejl"
