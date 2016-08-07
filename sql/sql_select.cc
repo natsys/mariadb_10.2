@@ -671,6 +671,76 @@ setup_without_group(THD *thd, Ref_ptr_array ref_pointer_array,
   DBUG_RETURN(res);
 }
 
+static int
+setup_for_system_time(THD *thd, TABLE_LIST *tables, COND **conds, SELECT_LEX *select_lex)
+{
+  TABLE_LIST *table;
+  int versioned_tables= 0;
+
+  for (table= tables; table; table= table->next_local)
+  {
+    if (table->table->is_with_system_versioning())
+      versioned_tables++;
+  }
+
+  if (versioned_tables == 0)
+  {
+    if (select_lex->for_system_time == FOR_SYSTEM_TIME_UNSPECIFIED)
+      DBUG_RETURN(0);
+    my_error(ER_MISSING_PERIOD_FOR_SYSTEM_TIME, MYF(0));
+    DBUG_RETURN(-1);
+  }
+
+  COND *system_time_cond= 0;
+  for (table= tables; table; table= table->next_local)
+  {
+    if (table->table->is_with_system_versioning())
+    {
+      Field *fstart = table->table->get_row_start_field();
+      Field *fend = table->table->get_row_end_field();
+      Item *istart= new (thd->mem_root) Item_field(thd, fstart);
+      Item *iend= new (thd->mem_root) Item_field(thd, fend);
+      Item *cond1= 0, *cond2= 0, *curr = 0;
+      switch (select_lex->for_system_time)
+      {
+        case FOR_SYSTEM_TIME_UNSPECIFIED:
+          curr= new (thd->mem_root) Item_func_now_local(thd, 6);
+          cond1= new (thd->mem_root) Item_func_le(thd, istart, curr);
+          cond2= new (thd->mem_root) Item_func_gt(thd, iend, curr);
+          break;
+        case FOR_SYSTEM_TIME_AS_OF:
+          cond1= new (thd->mem_root) Item_func_le(thd, istart,
+                                                  select_lex->system_time_start);
+          cond2= new (thd->mem_root) Item_func_gt(thd, iend,
+                                                  select_lex->system_time_start);
+          break;
+        case FOR_SYSTEM_TIME_FROM_TO:
+          cond1= new (thd->mem_root) Item_func_lt(thd, istart,
+                                                  select_lex->system_time_end);
+          cond2= new (thd->mem_root) Item_func_ge(thd, iend,
+                                                  select_lex->system_time_start);
+          break;
+        case FOR_SYSTEM_TIME_BETWEEN:
+          cond1= new (thd->mem_root) Item_func_le(thd, istart,
+                                                  select_lex->system_time_end);
+          cond2= new (thd->mem_root) Item_func_ge(thd, iend,
+                                                  select_lex->system_time_start);
+          break;
+        default:
+          DBUG_ASSERT(0);
+      }
+
+      if (cond1 && cond2)
+        system_time_cond = new (thd->mem_root) Item_cond_and(thd, cond1, cond2);
+    }
+  }
+
+  if (system_time_cond)
+    *conds = and_items(thd, *conds, system_time_cond);
+
+  DBUG_RETURN(0);
+}
+
 /*****************************************************************************
   Check fields, find best join, do the select and output fields.
   mysql_select assumes that all tables are already opened
@@ -745,7 +815,11 @@ JOIN::prepare(TABLE_LIST *tables_init,
   {
     remove_redundant_subquery_clauses(select_lex);
   }
-  
+
+  /* Handle FOR SYSTEM_TIME clause. */
+  if (setup_for_system_time(thd, tables_list, &conds, select_lex) < 0)
+    return -1;
+
   /*
     TRUE if the SELECT list mixes elements with and without grouping,
     and there is no GROUP BY clause. Mixing non-aggregated fields with
@@ -24929,6 +25003,32 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
       "SELECT 1 WHERE 2": the 1st syntax is valid, but the 2nd is not.
     */
     str->append(STRING_WITH_LEN(" from DUAL "));
+  }
+
+  // system versioning
+  if (for_system_time != FOR_SYSTEM_TIME_UNSPECIFIED)
+  {
+    switch (for_system_time)
+    {
+      case FOR_SYSTEM_TIME_AS_OF:
+        str->append(STRING_WITH_LEN(" for system_time as of timestamp "));
+        system_time_start->print(str, query_type);
+        break;
+      case FOR_SYSTEM_TIME_FROM_TO:
+        str->append(STRING_WITH_LEN(" for system_time from timestamp "));
+        system_time_start->print(str, query_type);
+        str->append(STRING_WITH_LEN(" to "));
+        system_time_end->print(str, query_type);
+        break;
+      case FOR_SYSTEM_TIME_BETWEEN:
+        str->append(STRING_WITH_LEN(" for system_time between timestamp "));
+        system_time_start->print(str, query_type);
+        str->append(STRING_WITH_LEN(" and "));
+        system_time_end->print(str, query_type);
+        break;
+      default:
+        DBUG_ASSERT(0);
+    }
   }
 
   // Where
