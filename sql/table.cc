@@ -6354,6 +6354,16 @@ void TABLE::mark_columns_needed_for_update()
       need_signal= true;
     }
   }
+  /*
+     For System Versioning we have to read all columns since we will store
+     a copy of previous row with modified Sys_end column back to a table.
+  */
+  if (s->with_system_versioning)
+  {
+    bitmap_set_all(read_set);
+    bitmap_set_bit(write_set, s->get_row_start_field()->field_index);
+    bitmap_set_bit(write_set, s->get_row_end_field()->field_index);
+  }
   if (check_constraints)
   {
     mark_check_constraint_columns_for_read();
