@@ -5996,6 +5996,16 @@ void TABLE::mark_columns_needed_for_update()
       file->column_bitmaps_signal();
     }
   }
+  /*
+     For System Versioning we have to read all columns since we will store
+     a copy of previous row with modified Sys_end column back to a table.
+  */
+  if (s->with_system_versioning)
+  {
+    bitmap_set_all(read_set);
+    bitmap_set_bit(write_set, s->get_row_start_field()->field_index);
+    bitmap_set_bit(write_set, s->get_row_end_field()->field_index);
+  }
   /* Mark all virtual columns needed for update */
   mark_virtual_columns_for_write(FALSE);
   DBUG_VOID_RETURN;
