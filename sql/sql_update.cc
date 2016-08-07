@@ -1686,7 +1686,10 @@ multi_update::multi_update(THD *thd_arg, TABLE_LIST *table_list,
    values(value_list), table_count(0), copy_field(0),
    handle_duplicates(handle_duplicates_arg), do_update(1), trans_safe(1),
    transactional_tables(0), ignore(ignore_arg), error_handled(0), prepared(0)
-{}
+{
+  bzero(&copy_info, sizeof(copy_info));
+  copy_info.handle_duplicates = DUP_ERROR;
+}
 
 
 /*
@@ -1920,7 +1923,7 @@ static bool safe_update_on_fly(THD *thd, JOIN_TAB *join_tab,
       return !is_key_used(table, table->s->primary_key, table->write_set);
     return TRUE;
   default:
-    break;					// Avoid compler warning
+    break;					// Avoid compiler warning
   }
   return FALSE;
 
@@ -2176,11 +2179,6 @@ int multi_update::send_data(List<Item> &not_used_values)
       {
         int error;
 
-        // For System Versioning (may need to insert new fields to a table).
-        COPY_INFO copy_info;
-        bzero(&copy_info, sizeof(copy_info));
-        copy_info.handle_duplicates = DUP_ERROR;
-
         if (table->default_field && table->update_default_fields(1, ignore))
           DBUG_RETURN(1);
 
@@ -2344,10 +2342,6 @@ void multi_update::abort_result_set()
     if (do_update && table_count > 1)
     {
       /* Add warning here */
-      /* 
-         todo/fixme: do_update() is never called with the arg 1.
-         should it change the signature to become argless?
-      */
       (void) do_updates();
     }
   }
@@ -2448,16 +2442,16 @@ int multi_update::do_updates()
       if (thd->killed && trans_safe)
       {
         thd->fatal_error();
-	goto err2;
+        goto err2;
       }
       if ((local_error= tmp_table->file->ha_rnd_next(tmp_table->record[0])))
       {
-	if (local_error == HA_ERR_END_OF_FILE)
-	  break;
-	if (local_error == HA_ERR_RECORD_DELETED)
-	  continue;				// May happen on dup key
+        if (local_error == HA_ERR_END_OF_FILE)
+          break;
+        if (local_error == HA_ERR_RECORD_DELETED)
+          continue;				// May happen on dup key
         err_table= tmp_table;
-	goto err;
+        goto err;
       }
 
       /* call rnd_pos() using rowids from temporary table */
@@ -2481,10 +2475,10 @@ int multi_update::do_updates()
 
       /* Copy data from temporary table to current table */
       for (copy_field_ptr=copy_field;
-	   copy_field_ptr != copy_field_end;
-	   copy_field_ptr++)
+           copy_field_ptr != copy_field_end;
+           copy_field_ptr++)
       {
-	(*copy_field_ptr->do_copy)(copy_field_ptr);
+        (*copy_field_ptr->do_copy)(copy_field_ptr);
         copy_field_ptr->to_field->set_has_explicit_value();
       }
 
@@ -2514,19 +2508,44 @@ int multi_update::do_updates()
             goto err2;
           }
         }
-	if ((local_error=table->file->ha_update_row(table->record[1],
-						    table->record[0])) &&
+        if (table->is_with_system_versioning() &&
+            table->update_system_versioning_fields_for_insert())
+        {
+          goto err2;
+        }
+
+        if ((local_error=table->file->ha_update_row(table->record[1],
+                                                    table->record[0])) &&
             local_error != HA_ERR_RECORD_IS_THE_SAME)
 	{
 	  if (!ignore ||
               table->file->is_fatal_error(local_error, HA_CHECK_ALL))
           {
             err_table= table;
-	    goto err;
+            goto err;
           }
-	}
+        }
         if (local_error != HA_ERR_RECORD_IS_THE_SAME)
+        {
           updated++;
+
+          if (table->s->with_system_versioning)
+          {
+            restore_record(table,record[1]);
+
+            // Set end time to now()
+            if (table->get_row_end_field()->set_time())
+            {
+              goto err2;
+            }
+
+            if ( (local_error= write_record(thd, table, &copy_info)) )
+            {
+              err_table = table;
+              goto err;
+            }
+          }
+        }
         else
           local_error= 0;
       }
@@ -2646,7 +2665,7 @@ bool multi_update::send_eof()
                             thd->query(), thd->query_length(),
                             transactional_tables, FALSE, FALSE, errcode))
       {
-	local_error= 1;				// Rollback update
+        local_error= 1;				// Rollback update
       }
     }
   }
