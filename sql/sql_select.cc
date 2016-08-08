@@ -674,6 +674,8 @@ setup_without_group(THD *thd, Ref_ptr_array ref_pointer_array,
 static int
 setup_for_system_time(THD *thd, TABLE_LIST *tables, COND **conds, SELECT_LEX *select_lex)
 {
+  DBUG_ENTER("setup_for_system_time");
+
   TABLE_LIST *table;
   int versioned_tables= 0;
 
