@@ -2127,8 +2127,8 @@ multi_update::~multi_update()
     {
       if (tmp_tables[cnt])
       {
-	free_tmp_table(thd, tmp_tables[cnt]);
-	tmp_table_param[cnt].cleanup();
+        free_tmp_table(thd, tmp_tables[cnt]);
+        tmp_table_param[cnt].cleanup();
       }
       vblobs[cnt].free_orphans();
       vblobs[cnt].free();
@@ -2166,6 +2166,11 @@ int multi_update::send_data(List<Item> &not_used_values)
     if (table->status & (STATUS_NULL_ROW | STATUS_UPDATED))
       continue;
 
+    if (table->s->with_system_versioning && !table->get_row_end_field()->is_max_timestamp())
+    {
+      continue;
+    }
+
     if (table == table_to_update)
     {
       /*
@@ -2180,12 +2185,6 @@ int multi_update::send_data(List<Item> &not_used_values)
       vblobs[offset].free_orphans();
       store_record(table,record[1]);
       vblobs[offset].make_orphans();
-
-      // XYZ: Can this happen?
-      if (table->s->with_system_versioning && !table->get_row_end_field()->is_max_timestamp())
-      {
-        continue;
-      }
 
       if (fill_record_n_invoke_before_triggers(thd, table,
                                                *fields_for_table[offset],
@@ -2303,6 +2302,7 @@ int multi_update::send_data(List<Item> &not_used_values)
       */
       uint field_num= 0;
       List_iterator_fast<TABLE> tbl_it(unupdated_check_opt_tables);
+      /* Set first tbl = table and then tbl to tables from tbl_it */
       TABLE *tbl= table;
       do
       {
