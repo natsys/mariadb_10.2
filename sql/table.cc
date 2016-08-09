@@ -6010,9 +6010,8 @@ void TABLE::mark_columns_needed_for_update()
   */
   if (s->with_system_versioning)
   {
-    bitmap_set_all(read_set);
-    bitmap_set_bit(write_set, s->get_row_start_field()->field_index);
-    bitmap_set_bit(write_set, s->get_row_end_field()->field_index);
+    // We will copy old columns to a new row.
+    use_all_columns();
   }
   /* Mark all virtual columns needed for update */
   mark_virtual_columns_for_write(FALSE);
