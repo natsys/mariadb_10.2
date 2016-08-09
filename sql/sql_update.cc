@@ -1802,7 +1802,7 @@ int multi_update::prepare(List<Item> &not_used_values,
       TABLE_LIST *tl= (TABLE_LIST*) thd->memdup(table_ref,
 						sizeof(*tl));
       if (!tl)
-	DBUG_RETURN(1);
+        DBUG_RETURN(1);
       update.link_in_list(tl, &tl->next_local);
       tl->shared= table_count++;
       table->no_keyread=1;
