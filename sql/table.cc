@@ -6291,6 +6291,14 @@ void TABLE::mark_columns_needed_for_delete()
   }
   if (check_constraints)
     mark_check_constraint_columns_for_read();
+  /*
+     For System Versioning we have to write and read Sys_end.
+  */
+  if (s->with_system_versioning)
+  {
+    bitmap_set_bit(read_set, s->get_row_end_field()->field_index);
+    bitmap_set_bit(write_set, s->get_row_end_field()->field_index);
+  }
 }
 
 
