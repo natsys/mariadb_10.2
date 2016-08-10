@@ -966,7 +966,8 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
       break;
     }
 
-    if (table->is_with_system_versioning() && table->update_system_versioning_fields_for_insert())
+    if (table->is_with_system_versioning() &&
+        table->update_system_versioning_fields_for_insert())
     {
       error= 1;
       break;
@@ -3661,6 +3662,9 @@ int select_insert::send_data(List<Item> &values)
     DBUG_RETURN(0);
 
   thd->count_cuted_fields= CHECK_FIELD_WARN;	// Calculate cuted fields
+  if (table->is_with_system_versioning() &&
+      table->update_system_versioning_fields_for_insert())
+    DBUG_RETURN(1);
   store_values(values);
   if (table->default_field && table->update_default_fields())
     DBUG_RETURN(1);
