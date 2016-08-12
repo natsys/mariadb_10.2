@@ -344,7 +344,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   if (!with_select && !using_limit && const_cond_result &&
       (!thd->is_current_stmt_binlog_format_row() &&
        !(table->triggers && table->triggers->has_delete_triggers()))
-      && table->s->with_system_versioning)
+      && table->is_with_system_versioning())
   {
     /* Update the table->file->stats.records number */
     table->file->info(HA_STATUS_VARIABLE | HA_STATUS_NO_LOCK);
@@ -560,7 +560,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   while (!(error=info.read_record(&info)) && !thd->killed &&
 	 ! thd->is_error())
   {
-    if (table->s->with_system_versioning &&
+    if (table->is_with_system_versioning() &&
         !table->get_row_end_field()->is_max_timestamp())
     {
       continue;
@@ -590,7 +590,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
         break;
       }
 
-      if (!table->s->with_system_versioning)
+      if (!table->is_with_system_versioning())
         error= table->file->ha_delete_row(table->record[0]);
       else
       {
@@ -1066,7 +1066,7 @@ int multi_delete::send_data(List<Item> &values)
     if (table->status & (STATUS_NULL_ROW | STATUS_DELETED))
       continue;
 
-    if (table->s->with_system_versioning &&
+    if (table->is_with_system_versioning() &&
         !table->get_row_end_field()->is_max_timestamp())
     {
       continue;
@@ -1084,7 +1084,7 @@ int multi_delete::send_data(List<Item> &values)
                                             TRG_ACTION_BEFORE, FALSE))
         DBUG_RETURN(1);
       table->status|= STATUS_DELETED;
-      if (!table->s->with_system_versioning)
+      if (!table->is_with_system_versioning())
         error= table->file->ha_delete_row(table->record[0]);
       else
       {
@@ -1273,7 +1273,7 @@ int multi_delete::do_table_deletes(TABLE *table, SORT_INFO *sort_info,
       break;
     }
 
-    if (!table->s->with_system_versioning)
+    if (!table->is_with_system_versioning())
       local_error= table->file->ha_delete_row(table->record[0]);
     else
     {
