@@ -749,7 +749,7 @@ int mysql_update(THD *thd,
 
   while (!(error=info.read_record(&info)) && !thd->killed)
   {
-    if (table->s->with_system_versioning && !table->get_row_end_field()->is_max_timestamp())
+    if (table->is_with_system_versioning() && !table->get_row_end_field()->is_max_timestamp())
     {
       continue;
     }
@@ -775,7 +775,7 @@ int mysql_update(THD *thd,
 
       vblobs.make_orphans();
 
-      if (table->s->with_system_versioning)
+      if (table->is_with_system_versioning())
       {
         // Set end time to now()
         if (table->get_row_end_field()->set_time())
@@ -1062,7 +1062,7 @@ int mysql_update(THD *thd,
   if (error < 0 && !thd->lex->analyze_stmt)
   {
     char buff[MYSQL_ERRMSG_SIZE];
-    if (!table->s->with_system_versioning)
+    if (!table->is_with_system_versioning())
       my_snprintf(buff, sizeof(buff), ER_THD(thd, ER_UPDATE_INFO), (ulong) found,
                   (ulong) updated,
                   (ulong) thd->get_stmt_da()->current_statement_warn_count());
@@ -2166,7 +2166,7 @@ int multi_update::send_data(List<Item> &not_used_values)
     if (table->status & (STATUS_NULL_ROW | STATUS_UPDATED))
       continue;
 
-    if (table->s->with_system_versioning && !table->get_row_end_field()->is_max_timestamp())
+    if (table->is_with_system_versioning() && !table->get_row_end_field()->is_max_timestamp())
     {
       continue;
     }
@@ -2204,7 +2204,7 @@ int multi_update::send_data(List<Item> &not_used_values)
         if (table->default_field && table->update_default_fields(1, ignore))
           DBUG_RETURN(1);
 
-        if (table->s->with_system_versioning &&
+        if (table->is_with_system_versioning() &&
             table->update_system_versioning_fields_for_insert())
         {
           error= 1;
@@ -2259,7 +2259,7 @@ int multi_update::send_data(List<Item> &not_used_values)
             error= 0;
             updated--;
           }
-          else if (table->s->with_system_versioning)
+          else if (table->is_with_system_versioning())
           {
             restore_record(table,record[1]);
 
@@ -2557,7 +2557,7 @@ int multi_update::do_updates()
         {
           updated++;
 
-          if (table->s->with_system_versioning)
+          if (table->is_with_system_versioning())
           {
             restore_record(table,record[1]);
 
