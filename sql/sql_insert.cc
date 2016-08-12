@@ -211,7 +211,7 @@ static int check_insert_fields(THD *thd, TABLE_LIST *table_list,
                table_list->view_db.str, table_list->view_name.str);
       DBUG_RETURN(-1);
     }
-    if (values.elements != table->s->fields - 2*!!table->s->with_system_versioning)
+    if (values.elements != table->s->fields - 2*!!table->is_with_system_versioning())
     {
       my_error(ER_WRONG_VALUE_COUNT_ON_ROW, MYF(0), 1L);
       DBUG_RETURN(-1);
@@ -1447,7 +1447,8 @@ bool mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
     }
   }
 
-  if (duplic == DUP_UPDATE)
+  if (duplic == DUP_UPDATE ||
+      (duplic == DUP_REPLACE && table->is_with_system_versioning()))
   {
     /* it should be allocated before Item::fix_fields() */
     if (table_list->set_insert_values(thd->mem_root))
@@ -1572,6 +1573,26 @@ static int last_uniq_key(TABLE *table,uint keynr)
   return 1;
 }
 
+/*
+*/
+
+
+int insert_rec_for_system_versioning(TABLE *table, ha_rows *updated)
+{
+  restore_record(table,record[1]);
+
+  // Set Sys_end to now()
+  if (table->get_row_end_field()->set_time())
+  {
+    return 1;
+  }
+
+  const int error= table->file->ha_write_row(table->record[0]);
+  if (!error)
+    ++(*updated);
+
+  return error;
+}
 
 /*
   Write a record to table with optional deleting of conflicting records,
@@ -1772,7 +1793,11 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
           }
 
           if (error != HA_ERR_RECORD_IS_THE_SAME)
+	  {
             info->updated++;
+	    if ((error=insert_rec_for_system_versioning(table, &info->copied)))
+		goto err;
+	  }
           else
             error= 0;
           /*
@@ -1824,10 +1849,13 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
           tables which have ON UPDATE but have no ON DELETE triggers,
           we just should not expose this fact to users by invoking
           ON UPDATE triggers.
+	  For system versioning wa also use path through delete since we would
+	  save nothing through this chaeting.
 	*/
 	if (last_uniq_key(table,key_nr) &&
 	    !table->file->referenced_by_foreign_key() &&
-            (!table->triggers || !table->triggers->has_delete_triggers()))
+            (!table->triggers || !table->triggers->has_delete_triggers()) &&
+	    !table->is_with_system_versioning())
         {
           if ((error=table->file->ha_update_row(table->record[1],
 					        table->record[0])) &&
@@ -1850,9 +1878,29 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
               table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
                                                 TRG_ACTION_BEFORE, TRUE))
             goto before_trg_err;
-          if ((error=table->file->ha_delete_row(table->record[1])))
+
+	  if (!table->is_with_system_versioning())
+            error= table->file->ha_delete_row(table->record[1]);
+	  else
+	  {
+            DBUG_ASSERT(table->insert_values);
+	    store_record(table,insert_values);
+	    if (table->get_row_end_field()->set_time())
+	    {
+	      error= 1;
+	      goto err;
+	    }
+	    restore_record(table,record[1]);
+	    error= table->file->ha_update_row(table->record[1],
+	                                      table->record[0]);
+	    restore_record(table,insert_values);
+	  }
+          if (error)
             goto err;
-          info->deleted++;
+	  if (!table->is_with_system_versioning())
+            info->deleted++;
+	  else
+	    info->updated++;
           if (!table->file->has_transactions())
             thd->transaction.stmt.modified_non_trans_table= TRUE;
           if (table->triggers &&
