@@ -1447,8 +1447,7 @@ bool mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
     }
   }
 
-  if (duplic == DUP_UPDATE ||
-      (duplic == DUP_REPLACE && table->is_with_system_versioning()))
+  if (duplic == DUP_UPDATE)
   {
     /* it should be allocated before Item::fix_fields() */
     if (table_list->set_insert_values(thd->mem_root))
@@ -1512,6 +1511,13 @@ bool mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
   if (!table)
     table= table_list->table;
 
+  if (table->is_with_system_versioning() && duplic == DUP_REPLACE)
+  {
+    // Additional memory may be required to create historical items.
+    if (table_list->set_insert_values(thd->mem_root))
+      DBUG_RETURN(TRUE);
+  }
+
   if (!fields.elements && table->vfield)
   {
     for (Field **vfield_ptr= table->vfield; *vfield_ptr; vfield_ptr++)
@@ -1573,11 +1579,15 @@ static int last_uniq_key(TABLE *table,uint keynr)
   return 1;
 }
 
+
 /*
+ Inserts one historical row to a table.
+
+ Copies content of the row from table->record[1] to table->record[0],
+ sets Sys_end to now() and calls ha_write_row() .
 */
 
-
-int insert_rec_for_system_versioning(TABLE *table, ha_rows *updated)
+int insert_rec_for_system_versioning(TABLE *table, ha_rows *inserted)
 {
   restore_record(table,record[1]);
 
@@ -1589,7 +1599,7 @@ int insert_rec_for_system_versioning(TABLE *table, ha_rows *updated)
 
   const int error= table->file->ha_write_row(table->record[0]);
   if (!error)
-    ++(*updated);
+    ++*inserted;
 
   return error;
 }
@@ -1619,7 +1629,6 @@ int insert_rec_for_system_versioning(TABLE *table, ha_rows *updated)
     0     - success
     non-0 - error
 */
-
 
 int write_record(THD *thd, TABLE *table,COPY_INFO *info)
 {
@@ -1884,17 +1893,17 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
 	  else
 	  {
             DBUG_ASSERT(table->insert_values);
-	    store_record(table,insert_values);
-	    if (table->get_row_end_field()->set_time())
-	    {
-	      error= 1;
-	      goto err;
-	    }
-	    restore_record(table,record[1]);
-	    error= table->file->ha_update_row(table->record[1],
-	                                      table->record[0]);
-	    restore_record(table,insert_values);
-	  }
+            store_record(table,insert_values);
+            restore_record(table,record[1]);
+            if (table->get_row_end_field()->set_time())
+            {
+              error= 1;
+              goto err;
+            }
+            error= table->file->ha_update_row(table->record[1],
+                                              table->record[0]);
+            restore_record(table,insert_values);
+          }
           if (error)
             goto err;
 	  if (!table->is_with_system_versioning())
