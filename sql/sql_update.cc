@@ -44,8 +44,8 @@
                          // mysql_derived_filling
 
 
-#include "sql_insert.h"  // For write_record() that may be needed
-                         //   for System Versioning.
+#include "sql_insert.h"  // For insert_rec_for_system_versioning() that may be
+                         //   needed for System Versioning.
 
 /**
    True if the table's input and output record buffers are comparable using
@@ -285,9 +285,7 @@ int mysql_update(THD *thd,
   query_plan.using_filesort= FALSE;
 
   // For System Versioning (may need to insert new fields to a table).
-  COPY_INFO copy_info;
-  bzero(&copy_info, sizeof(copy_info));
-  copy_info.handle_duplicates = DUP_ERROR;
+  ha_rows updated_sys_ver= 0;
 
   DBUG_ENTER("mysql_update");
 
@@ -786,7 +784,7 @@ int mysql_update(THD *thd,
           break;
         }
 
-        if ( (error= write_record(thd, table, &copy_info)) )
+        if ( (error= insert_rec_for_system_versioning(table, &updated_sys_ver)) )
           break;
 
         restore_record(table,record[1]);
@@ -1069,7 +1067,7 @@ int mysql_update(THD *thd,
     else
       my_snprintf(buff, sizeof(buff),
                   ER_THD(thd, ER_UPDATE_INFO_WITH_SYSTEM_VERSIONING),
-                  (ulong) found, (ulong) updated, (ulong) copy_info.copied,
+                  (ulong) found, (ulong) updated, (ulong) updated_sys_ver,
                   (ulong) thd->get_stmt_da()->current_statement_warn_count());
     my_ok(thd, (thd->client_capabilities & CLIENT_FOUND_ROWS) ? found : updated,
           id, buff);
@@ -1688,10 +1686,9 @@ multi_update::multi_update(THD *thd_arg, TABLE_LIST *table_list,
    tmp_tables(0), updated(0), found(0), fields(field_list),
    values(value_list), table_count(0), copy_field(0),
    handle_duplicates(handle_duplicates_arg), do_update(1), trans_safe(1),
-   transactional_tables(0), ignore(ignore_arg), error_handled(0), prepared(0)
+   transactional_tables(0), ignore(ignore_arg), error_handled(0), prepared(0),
+   updated_sys_ver(0)
 {
-  bzero(&copy_info, sizeof(copy_info));
-  copy_info.handle_duplicates = DUP_ERROR;
 }
 
 
@@ -2259,7 +2256,7 @@ int multi_update::send_data(List<Item> &not_used_values)
               break;
             }
 
-            if ( (error= write_record(thd, table, &copy_info)) )
+            if ( (error= insert_rec_for_system_versioning(table, &updated_sys_ver)) )
             {
               error= 1;
               break;
@@ -2550,7 +2547,7 @@ int multi_update::do_updates()
               goto err2;
             }
 
-            if ( (local_error= write_record(thd, table, &copy_info)) )
+            if ( (local_error= insert_rec_for_system_versioning(table, &updated_sys_ver)) )
             {
               err_table = table;
               goto err;

@@ -5125,7 +5125,7 @@ class multi_update :public select_result_interceptor
   bool prepared;
 
   // For System Versioning (may need to insert new fields to a table).
-  COPY_INFO copy_info;
+  ha_rows updated_sys_ver;
 
 public:
   multi_update(THD *thd_arg, TABLE_LIST *ut, List<TABLE_LIST> *leaves_list,
