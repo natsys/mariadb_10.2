@@ -3586,9 +3586,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
         !my_strcasecmp(system_charset_info,
                       versioning_info->generated_as_row.end->c_ptr(),
                       sql_field->field_name);
-      const bool is_generated =
-        is_generated_as_row_start || is_generated_as_row_end;
-
       if (is_generated_as_row_start && is_generated_as_row_end)
       {
         my_error(ER_SYS_START_AND_SYS_END_SAME, MYF(0), sql_field->field_name);
@@ -4416,6 +4413,60 @@ void sp_prepare_create_field(THD *thd, Column_definition *sql_field)
 }
 
 
+static bool
+prepare_keys_for_sys_ver(THD *thd,
+                         HA_CREATE_INFO *create_info,
+                         Alter_info *alter_info,
+                         KEY **key_info,
+                         uint key_count)
+{
+  if (!create_info->is_with_system_versioning())
+    return false;
+
+  const System_versioning_info *versioning_info=
+    create_info->get_system_versioning_info();
+
+  DBUG_ASSERT(versioning_info);
+  const char *row_start_field= versioning_info->generated_as_row.start->c_ptr();
+  DBUG_ASSERT(row_start_field);
+  const char *row_end_field= versioning_info->generated_as_row.end->c_ptr();
+  DBUG_ASSERT(row_end_field);
+
+  List_iterator<Key> key_it(alter_info->key_list);
+  Key *key= NULL;
+  while ((key=key_it++))
+  {
+    if (key->type != Key::PRIMARY && key->type != Key::UNIQUE)
+      continue;
+
+    Key_part_spec *key_part= NULL;
+    List_iterator<Key_part_spec> part_it(key->columns);
+    while ((key_part=part_it++))
+    {
+      //XYZ: Is it correct to use system_charset_info ?
+      //XYZ: Is LEX_STRING::str guaranteed to be zero terminated?
+      if (!my_strcasecmp(system_charset_info,
+                         row_start_field,
+                         key_part->field_name.str) ||
+
+          !my_strcasecmp(system_charset_info,
+                         row_end_field,
+                         key_part->field_name.str))
+        break;
+    }
+    if (key_part)
+      continue; // Key already contains Sys_start or Sys_end
+
+    const LEX_STRING &lex_sys_end=
+      versioning_info->generated_as_row.end->lex_string();
+    Key_part_spec *key_part_sys_end_col=
+      new(thd->mem_root) Key_part_spec(lex_sys_end, 0);
+    key->columns.push_back(key_part_sys_end_col);
+  }
+
+  return false;
+}
+
 handler *mysql_create_frm_image(THD *thd,
                                 const char *db, const char *table_name,
                                 HA_CREATE_INFO *create_info,
@@ -4653,6 +4704,10 @@ handler *mysql_create_frm_image(THD *thd,
   }
 #endif
 
+  if (create_info->is_with_system_versioning() &&
+      prepare_keys_for_sys_ver(thd, create_info, alter_info, key_info,
+                               *key_count))
+    goto err;
   if (mysql_prepare_create_table(thd, create_info, alter_info, &db_options,
                                  file, key_info, key_count,
                                  create_table_mode))
