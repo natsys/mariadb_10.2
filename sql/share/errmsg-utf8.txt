@@ -5745,6 +5745,8 @@ ER_FOREIGN_KEY_ON_PARTITIONED
         eng "Foreign key clause is not yet supported in conjunction with partitioning"
         ger "Fremdschlüssel-Beschränkungen sind im Zusammenhang mit Partitionierung nicht zulässig"
         swe "Foreign key klausul är inte ännu implementerad i kombination med partitionering"
+ER_FOREIGN_KEY_ON_SYSTEM_VERSIONED
+        eng "Foreign key clause is not yet supported in conjunction with system versioning"
 ER_DROP_PARTITION_NON_EXISTENT
         eng "Error in list of partitions to %-.64s"
         ger "Fehler in der Partitionsliste bei %-.64s"

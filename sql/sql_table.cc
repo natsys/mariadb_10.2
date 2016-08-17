@@ -4704,10 +4704,23 @@ handler *mysql_create_frm_image(THD *thd,
   }
 #endif
 
-  if (create_info->is_with_system_versioning() &&
-      prepare_keys_for_sys_ver(thd, create_info, alter_info, key_info,
-                               *key_count))
-    goto err;
+  if (create_info->is_with_system_versioning())
+  {
+    List_iterator_fast<Key> key_iterator(alter_info->key_list);
+    Key *key;
+    while ((key= key_iterator++))
+    {
+      if (key->type == Key::FOREIGN_KEY)
+      {
+        my_error(ER_FOREIGN_KEY_ON_SYSTEM_VERSIONED, MYF(0));
+        goto err;
+      }
+    }
+    if(prepare_keys_for_sys_ver(thd, create_info, alter_info, key_info,
+                                *key_count))
+      goto err;
+  }
+
   if (mysql_prepare_create_table(thd, create_info, alter_info, &db_options,
                                  file, key_info, key_count,
                                  create_table_mode))
