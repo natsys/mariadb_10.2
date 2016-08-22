@@ -1771,6 +1771,29 @@ class Item_in_subselect;
   4) jtbm semi-join (jtbm_subselect != NULL)
 */
 
+enum for_system_time_type
+{
+  FOR_SYSTEM_TIME_UNSPECIFIED, FOR_SYSTEM_TIME_AS_OF,
+  FOR_SYSTEM_TIME_FROM_TO, FOR_SYSTEM_TIME_BETWEEN
+};
+
+/** System versioning support. */
+struct system_versioning_for_select
+{
+  enum for_system_time_type type;
+  Item *start, *end;
+
+  void init(
+    const enum for_system_time_type t=FOR_SYSTEM_TIME_UNSPECIFIED,
+    Item * const s=NULL,
+    Item * const e=NULL)
+  {
+    type= t;
+    start= s;
+    end= e;
+  }
+};
+
 struct LEX;
 class Index_hint;
 struct TABLE_LIST
@@ -2204,6 +2227,10 @@ struct TABLE_LIST
   TABLE_LIST *find_underlying_table(TABLE *table);
   TABLE_LIST *first_leaf_for_name_resolution();
   TABLE_LIST *last_leaf_for_name_resolution();
+
+  /** System versioning support. */
+  system_versioning_for_select system_versioning;
+
   /**
      @brief
        Find the bottom in the chain of embedded table VIEWs.
@@ -2401,6 +2428,9 @@ struct TABLE_LIST
   void set_lock_type(THD* thd, enum thr_lock_type lock);
   void check_pushable_cond_for_table(Item *cond);
   Item *build_pushable_cond_for_table(THD *thd, Item *cond); 
+
+  void print_system_versioning(THD *thd, table_map eliminated_tables,
+                   String *str, enum_query_type query_type);
 
 private:
   bool prep_check_option(THD *thd, uint8 check_opt_type);
