@@ -7226,6 +7226,9 @@ ER_SYS_END_MORE_THAN_ONCE
 ER_MISSING_PERIOD_FOR_SYSTEM_TIME
         eng "'Period for system time' is missing"
 
+ER_TABLE_DOESNT_SUPPORT_SYSTEM_VERSIONING
+        eng "Table '%s' doesn't support system versioning"
+
 ER_MISSING_WITH_SYSTEM_VERSIONING
         eng "'With system versioning' is missing"
 

@@ -2192,10 +2192,6 @@ void st_select_lex::init_select()
   m_agg_func_used= false;
   name_visibility_map= 0;
   join= 0;
-  /* Initialize system versioning data. */
-  for_system_time= FOR_SYSTEM_TIME_UNSPECIFIED;
-  system_time_start= 0;
-  system_time_end= 0;
 }
 
 /*

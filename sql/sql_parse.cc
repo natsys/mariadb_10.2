@@ -7936,7 +7936,6 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
   char *alias_str;
   LEX *lex= thd->lex;
   DBUG_ENTER("add_table_to_list");
-
   if (!table)
     DBUG_RETURN(0);				// End of memory
   alias_str= alias ? alias->str : table->table.str;

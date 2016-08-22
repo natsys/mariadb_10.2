@@ -683,15 +683,15 @@ setup_for_system_time(THD *thd, TABLE_LIST *tables, COND **conds, SELECT_LEX *se
   {
     if (table->table->is_with_system_versioning())
       versioned_tables++;
+    else if (table->system_versioning.type != FOR_SYSTEM_TIME_UNSPECIFIED)
+    {
+      my_error(ER_TABLE_DOESNT_SUPPORT_SYSTEM_VERSIONING, MYF(0), table->table_name);
+      DBUG_RETURN(-1);
+    }
   }
 
   if (versioned_tables == 0)
-  {
-    if (select_lex->for_system_time == FOR_SYSTEM_TIME_UNSPECIFIED)
-      DBUG_RETURN(0);
-    my_error(ER_MISSING_PERIOD_FOR_SYSTEM_TIME, MYF(0));
-    DBUG_RETURN(-1);
-  }
+    DBUG_RETURN(0);
 
   COND *system_time_cond= 0;
   for (table= tables; table; table= table->next_local)
@@ -703,7 +703,7 @@ setup_for_system_time(THD *thd, TABLE_LIST *tables, COND **conds, SELECT_LEX *se
       Item *istart= new (thd->mem_root) Item_field(thd, fstart);
       Item *iend= new (thd->mem_root) Item_field(thd, fend);
       Item *cond1= 0, *cond2= 0, *curr = 0;
-      switch (select_lex->for_system_time)
+      switch (table->system_versioning.type)
       {
         case FOR_SYSTEM_TIME_UNSPECIFIED:
           curr= new (thd->mem_root) Item_func_now_local(thd, 6);
@@ -712,28 +712,28 @@ setup_for_system_time(THD *thd, TABLE_LIST *tables, COND **conds, SELECT_LEX *se
           break;
         case FOR_SYSTEM_TIME_AS_OF:
           cond1= new (thd->mem_root) Item_func_le(thd, istart,
-                                                  select_lex->system_time_start);
+                                                  table->system_versioning.start);
           cond2= new (thd->mem_root) Item_func_gt(thd, iend,
-                                                  select_lex->system_time_start);
+                                                  table->system_versioning.start);
           break;
         case FOR_SYSTEM_TIME_FROM_TO:
           cond1= new (thd->mem_root) Item_func_lt(thd, istart,
-                                                  select_lex->system_time_end);
+                                                  table->system_versioning.end);
           cond2= new (thd->mem_root) Item_func_ge(thd, iend,
-                                                  select_lex->system_time_start);
+                                                  table->system_versioning.start);
           break;
         case FOR_SYSTEM_TIME_BETWEEN:
           cond1= new (thd->mem_root) Item_func_le(thd, istart,
-                                                  select_lex->system_time_end);
+                                                  table->system_versioning.end);
           cond2= new (thd->mem_root) Item_func_ge(thd, iend,
-                                                  select_lex->system_time_start);
+                                                  table->system_versioning.start);
           break;
         default:
           DBUG_ASSERT(0);
       }
 
       if (cond1 && cond2)
-        system_time_cond = new (thd->mem_root) Item_cond_and(thd, cond1, cond2);
+        system_time_cond= new (thd->mem_root) Item_cond_and(thd, cond1, cond2);
     }
   }
 
@@ -820,7 +820,7 @@ JOIN::prepare(TABLE_LIST *tables_init,
 
   /* Handle FOR SYSTEM_TIME clause. */
   if (setup_for_system_time(thd, tables_list, &conds, select_lex) < 0)
-    return -1;
+    DBUG_RETURN(-1);
 
   /*
     TRUE if the SELECT list mixes elements with and without grouping,
@@ -24589,6 +24589,35 @@ bool mysql_explain_union(THD *thd, SELECT_LEX_UNIT *unit, select_result *result)
   DBUG_RETURN(res || thd->is_error());
 }
 
+void TABLE_LIST::print_system_versioning(THD *thd, table_map eliminated_tables,
+                   String *str, enum_query_type query_type)
+{
+  // system versioning
+  if (system_versioning.type != FOR_SYSTEM_TIME_UNSPECIFIED)
+  {
+    switch (system_versioning.type)
+    {
+      case FOR_SYSTEM_TIME_AS_OF:
+        str->append(STRING_WITH_LEN(" for system_time as of timestamp "));
+        system_versioning.start->print(str, query_type);
+        break;
+      case FOR_SYSTEM_TIME_FROM_TO:
+        str->append(STRING_WITH_LEN(" for system_time from timestamp "));
+        system_versioning.start->print(str, query_type);
+        str->append(STRING_WITH_LEN(" to "));
+        system_versioning.end->print(str, query_type);
+        break;
+      case FOR_SYSTEM_TIME_BETWEEN:
+        str->append(STRING_WITH_LEN(" for system_time between timestamp "));
+        system_versioning.start->print(str, query_type);
+        str->append(STRING_WITH_LEN(" and "));
+        system_versioning.end->print(str, query_type);
+        break;
+      default:
+        DBUG_ASSERT(0);
+    }
+  }
+}
 
 static void print_table_array(THD *thd, 
                               table_map eliminated_tables,
@@ -24903,6 +24932,7 @@ void TABLE_LIST::print(THD *thd, table_map eliminated_tables, String *str,
 
       append_identifier(thd, str, t_alias, strlen(t_alias));
     }
+		print_system_versioning(thd, eliminated_tables, str, query_type);
 
     if (index_hints)
     {
@@ -25006,33 +25036,6 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
     */
     str->append(STRING_WITH_LEN(" from DUAL "));
   }
-
-  // system versioning
-  if (for_system_time != FOR_SYSTEM_TIME_UNSPECIFIED)
-  {
-    switch (for_system_time)
-    {
-      case FOR_SYSTEM_TIME_AS_OF:
-        str->append(STRING_WITH_LEN(" for system_time as of timestamp "));
-        system_time_start->print(str, query_type);
-        break;
-      case FOR_SYSTEM_TIME_FROM_TO:
-        str->append(STRING_WITH_LEN(" for system_time from timestamp "));
-        system_time_start->print(str, query_type);
-        str->append(STRING_WITH_LEN(" to "));
-        system_time_end->print(str, query_type);
-        break;
-      case FOR_SYSTEM_TIME_BETWEEN:
-        str->append(STRING_WITH_LEN(" for system_time between timestamp "));
-        system_time_start->print(str, query_type);
-        str->append(STRING_WITH_LEN(" and "));
-        system_time_end->print(str, query_type);
-        break;
-      default:
-        DBUG_ASSERT(0);
-    }
-  }
-
   // Where
   Item *cur_where= where;
   if (join)

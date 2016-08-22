@@ -952,6 +952,7 @@ bool LEX::set_bincmp(CHARSET_INFO *cs, bool bin)
   Lex_cast_type_st Lex_cast_type;
   Lex_field_type_st Lex_field_type;
   Lex_dyncol_type_st Lex_dyncol_type;
+  system_versioning_for_select system_versioning;
 
   /* pointers */
   Create_field *create_field;
@@ -2001,7 +2002,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         definer_opt no_definer definer get_diagnostics
         parse_vcol_expr vcol_opt_specifier vcol_opt_attribute
         vcol_opt_attribute_list vcol_attribute
-        explainable_command period_for_system_time opt_for_system_time_clause
+        explainable_command period_for_system_time
 END_OF_INPUT
 
 %type <NONE> call sp_proc_stmts sp_proc_stmts1 sp_proc_stmt
@@ -2048,7 +2049,7 @@ END_OF_INPUT
 %type <NONE> window_frame_extent;
 %type <frame_exclusion> opt_window_frame_exclusion;
 %type <window_frame_bound> window_frame_start window_frame_bound;
-
+%type <system_versioning> opt_for_system_time_clause;
 
 %type <NONE>
         '-' '+' '*' '/' '%' '(' ')'
@@ -8800,7 +8801,6 @@ select_options_and_item_list:
 */
 table_expression:
           from_clause
-          opt_for_system_time_clause
           opt_where_clause
           opt_group_clause
           opt_having_clause
@@ -8844,27 +8844,27 @@ select_options:
 
 opt_for_system_time_clause:
           /* empty */
-          {}
+          {
+            $$.init();
+          }
         | FOR_SYSTEM_TIME_SYM
           AS OF_SYM
           TIMESTAMP TEXT_STRING
           {
-            Select->for_system_time = FOR_SYSTEM_TIME_AS_OF;
             Item *item= create_temporal_literal(thd, $5.str, $5.length, YYCSCL,
                                                 MYSQL_TYPE_DATETIME, true);
             if (item == NULL)
               MYSQL_YYABORT;
-            Select->system_time_start = item;
+            $$.init(FOR_SYSTEM_TIME_AS_OF, item);
           }
         | FOR_SYSTEM_TIME_SYM
           AS OF_SYM
           NOW_SYM
           {
-            Select->for_system_time = FOR_SYSTEM_TIME_AS_OF;
             Item *item= new (thd->mem_root) Item_func_now_local(thd, 6);
             if (item == NULL)
               MYSQL_YYABORT;
-            Select->system_time_start = item;
+            $$.init(FOR_SYSTEM_TIME_AS_OF, item);
           }
         | FOR_SYSTEM_TIME_SYM
           FROM
@@ -8872,15 +8872,13 @@ opt_for_system_time_clause:
           TO_SYM
           TIMESTAMP TEXT_STRING
           {
-            Select->for_system_time = FOR_SYSTEM_TIME_FROM_TO;
             Item *item1= create_temporal_literal(thd, $4.str, $4.length, YYCSCL,
                                                  MYSQL_TYPE_DATETIME, true);
             Item *item2= create_temporal_literal(thd, $7.str, $7.length, YYCSCL,
                                                  MYSQL_TYPE_DATETIME, true);
             if (item1 == NULL || item2 == NULL)
               MYSQL_YYABORT;
-            Select->system_time_start = item1;
-            Select->system_time_end = item2;
+            $$.init(FOR_SYSTEM_TIME_FROM_TO, item1, item2);
           }
         | FOR_SYSTEM_TIME_SYM
           BETWEEN_SYM
@@ -8888,15 +8886,13 @@ opt_for_system_time_clause:
           AND_SYM
           TIMESTAMP TEXT_STRING
           {
-            Select->for_system_time = FOR_SYSTEM_TIME_BETWEEN;
             Item *item1= create_temporal_literal(thd, $4.str, $4.length, YYCSCL,
                                                  MYSQL_TYPE_DATETIME, true);
             Item *item2= create_temporal_literal(thd, $7.str, $7.length, YYCSCL,
                                                  MYSQL_TYPE_DATETIME, true);
             if (item1 == NULL || item2 == NULL)
               MYSQL_YYABORT;
-            Select->system_time_start = item1;
-            Select->system_time_end = item2;
+            $$.init(FOR_SYSTEM_TIME_BETWEEN, item1, item2);
           }
         ;
 
@@ -11210,7 +11206,7 @@ table_primary_ident:
             SELECT_LEX *sel= Select;
             sel->table_join_options= 0;
           }
-          table_ident opt_use_partition opt_table_alias opt_key_definition
+          table_ident opt_use_partition opt_table_alias opt_key_definition opt_for_system_time_clause
           {
             if (!($$= Select->add_table_to_list(thd, $2, $4,
                                                 Select->get_table_join_options(),
@@ -11220,6 +11216,7 @@ table_primary_ident:
                                                 $3)))
               MYSQL_YYABORT;
             Select->add_joined_table($$);
+            $$->system_versioning= $6;
           }
         ;
 
