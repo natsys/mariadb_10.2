@@ -693,7 +693,6 @@ setup_for_system_time(THD *thd, TABLE_LIST *tables, COND **conds, SELECT_LEX *se
   if (versioned_tables == 0)
     DBUG_RETURN(0);
 
-  COND *system_time_cond= 0;
   for (table= tables; table; table= table->next_local)
   {
     if (table->table->is_with_system_versioning())
@@ -731,14 +730,13 @@ setup_for_system_time(THD *thd, TABLE_LIST *tables, COND **conds, SELECT_LEX *se
         default:
           DBUG_ASSERT(0);
       }
-
       if (cond1 && cond2)
-        system_time_cond= new (thd->mem_root) Item_cond_and(thd, cond1, cond2);
+      {
+        COND *system_time_cond= new (thd->mem_root) Item_cond_and(thd, cond1, cond2);
+        *conds= and_items(thd, *conds, system_time_cond);
+      }
     }
   }
-
-  if (system_time_cond)
-    *conds = and_items(thd, *conds, system_time_cond);
 
   DBUG_RETURN(0);
 }
