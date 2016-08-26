@@ -734,6 +734,7 @@ setup_for_system_time(THD *thd, TABLE_LIST *tables, COND **conds, SELECT_LEX *se
       {
         COND *system_time_cond= new (thd->mem_root) Item_cond_and(thd, cond1, cond2);
         *conds= and_items(thd, *conds, system_time_cond);
+        table->system_versioning.is_moved_to_where= true;
       }
     }
   }
@@ -24590,13 +24591,16 @@ bool mysql_explain_union(THD *thd, SELECT_LEX_UNIT *unit, select_result *result)
 void TABLE_LIST::print_system_versioning(THD *thd, table_map eliminated_tables,
                    String *str, enum_query_type query_type)
 {
+  if (system_versioning.is_moved_to_where)
+    return;
+
   // system versioning
   if (system_versioning.type != FOR_SYSTEM_TIME_UNSPECIFIED)
   {
     switch (system_versioning.type)
     {
       case FOR_SYSTEM_TIME_AS_OF:
-        str->append(STRING_WITH_LEN(" for system_time as of timestamp "));
+        str->append(STRING_WITH_LEN(" for system_time as of "));
         system_versioning.start->print(str, query_type);
         break;
       case FOR_SYSTEM_TIME_FROM_TO:
