@@ -1782,6 +1782,7 @@ struct system_versioning_for_select
 {
   enum for_system_time_type type;
   Item *start, *end;
+  bool is_moved_to_where;
 
   void init(
     const enum for_system_time_type t=FOR_SYSTEM_TIME_UNSPECIFIED,
@@ -1791,6 +1792,7 @@ struct system_versioning_for_select
     type= t;
     start= s;
     end= e;
+    is_moved_to_where= false;
   }
 };
 
