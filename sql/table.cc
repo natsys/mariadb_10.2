@@ -2316,6 +2316,17 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     share->enable_system_versioning(row_start, row_end);
     get_row_start_field()->set_generated_row_start();
     get_row_end_field()->set_generated_row_end();
+
+    if (get_row_start_field()->type() != MYSQL_TYPE_TIMESTAMP)
+    {
+      my_error(ER_SYS_START_FIELD_MUST_BE_TIMESTAMP, MYF(0), share->table_name);
+      goto err;
+    }
+    if (get_row_end_field()->type() != MYSQL_TYPE_TIMESTAMP)
+    {
+      my_error(ER_SYS_END_FIELD_MUST_BE_TIMESTAMP, MYF(0), share->table_name);
+      goto err;
+    }
   }
 
   /*
