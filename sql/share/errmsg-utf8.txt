@@ -7272,3 +7272,9 @@ ER_FOREIGN_KEY_ON_SYSTEM_VERSIONED
 
 ER_UPDATE_INFO_WITH_SYSTEM_VERSIONING
         eng "Rows matched: %ld  Changed: %ld  Inserted: %ld  Warnings: %ld"
+
+ER_SYS_START_FIELD_MUST_BE_TIMESTAMP
+        eng "System start field must be of type TIMESTAMP"
+
+ER_SYS_END_FIELD_MUST_BE_TIMESTAMP
+        eng "System end field must be of type TIMESTAMP"
