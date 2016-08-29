@@ -1851,3 +1851,23 @@ create table t1 (
 );
 
 drop table if exists t1;
+
+--echo # Sys_start must be of type timestamp
+create table t1 (
+  XNo INT UNSIGNED,
+  Sys_start INT GENERATED ALWAYS AS ROW START,
+  Sys_end TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
+  PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
+) WITH SYSTEM VERSIONING;
+
+drop table if exists t1;
+
+--echo # Sys_end must be of type timestamp
+create table t1 (
+  XNo INT UNSIGNED,
+  Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
+  Sys_end INT GENERATED ALWAYS AS ROW END,
+  PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
+) WITH SYSTEM VERSIONING;
+
+drop table if exists t1;
