@@ -4599,6 +4599,10 @@ handler *mysql_create_frm_image(THD *thd,
 
   if (create_info->is_with_system_versioning())
   {
+    // FIXME: This test doesn't detect foreign key relationship on the side of
+    //   parent table and System Time support will not work correctly for such
+    //   table either. But this cannot be implemented without changes to innodb
+    //   that are postponed for later time.
     List_iterator_fast<Key> key_iterator(alter_info->key_list);
     Key *key;
     while ((key= key_iterator++))
