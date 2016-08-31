@@ -2002,7 +2002,7 @@ bool check_key_in_view(THD *thd, TABLE_LIST *view)
 
   RETURN
     FALSE OK
-    TRUE  error (is not sent to cliet)
+    TRUE  error (is not sent to client)
 */
 
 bool insert_view_fields(THD *thd, List<Item> *list, TABLE_LIST *view)
@@ -2030,7 +2030,7 @@ bool insert_view_fields(THD *thd, List<Item> *list, TABLE_LIST *view)
 }
 
 /*
-  checking view md5 check suum
+  checking view md5 check sum
 
   SINOPSYS
     view_checksum()

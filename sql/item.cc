@@ -5466,13 +5466,6 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
     else if (!from_field)
       goto error;
 
-    if (thd->lex->sql_command == SQLCOM_INSERT && from_field != view_ref_found &&
-        from_field->is_generated())
-    {
-      my_error(ER_GENERATED_FIELD_CANNOT_BE_SET_BY_USER, MYF(0));
-      goto error;
-    }
-
     table_list= (cached_table ? cached_table :
                  from_field != view_ref_found ?
                  from_field->table->pos_in_table_list : 0);
