@@ -8739,6 +8739,13 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
                           ER_THD(thd, ER_WARNING_NON_DEFAULT_VALUE_FOR_VIRTUAL_COLUMN),
                           rfield->field_name, table->s->table_name.str);
     }
+    if (table->is_with_system_versioning() && rfield->is_generated() &&
+        !ignore_errors)
+    {
+      my_error(ER_GENERATED_FIELD_CANNOT_BE_SET_BY_USER, MYF(0));
+      goto err;
+    }
+
     if (rfield->stored_in_db() &&
         (value->save_in_field(rfield, 0)) < 0 && !ignore_errors)
     {
@@ -8951,6 +8958,13 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
                           ER_WARNING_NON_DEFAULT_VALUE_FOR_VIRTUAL_COLUMN,
                           ER_THD(thd, ER_WARNING_NON_DEFAULT_VALUE_FOR_VIRTUAL_COLUMN),
                           field->field_name, table->s->table_name.str);
+    }
+
+    if (table->is_with_system_versioning() && field->is_generated() &&
+        !ignore_errors)
+    {
+      my_error(ER_GENERATED_FIELD_CANNOT_BE_SET_BY_USER, MYF(0));
+      goto err;
     }
 
     if (use_value)
