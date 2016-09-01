@@ -1456,19 +1456,29 @@ public:
     System versioning support.
    */
 
-  bool is_with_system_versioning()
+  bool is_with_system_versioning() const
   {
     return s->with_system_versioning;
   }
 
-  Field *get_row_start_field()
+  Field *get_row_start_field() const
   {
     return is_with_system_versioning() ? field[s->row_start_field] : NULL;
   }
 
-  Field *get_row_end_field()
+  Field *get_row_end_field() const
   {
     return is_with_system_versioning() ? field[s->row_end_field] : NULL;
+  }
+
+/** Number of additional fields used in versioned tables */
+#define VERSIONING_FIELDS 2
+
+  uint field_count() const
+  {
+    return is_with_system_versioning() ?
+      s->fields - VERSIONING_FIELDS :
+      s->fields;
   }
 };
 
