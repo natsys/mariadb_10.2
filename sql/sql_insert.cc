@@ -221,7 +221,7 @@ static int check_insert_fields(THD *thd, TABLE_LIST *table_list,
                table_list->view_db.str, table_list->view_name.str);
       DBUG_RETURN(-1);
     }
-    if (values.elements != table->s->fields - 2*!!table->is_with_system_versioning())
+    if (values.elements != table->field_count())
     {
       my_error(ER_WRONG_VALUE_COUNT_ON_ROW, MYF(0), 1L);
       DBUG_RETURN(-1);
@@ -1852,11 +1852,11 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
       }
       else /* DUP_REPLACE */
       {
-	/*
-	  The manual defines the REPLACE semantics that it is either
-	  an INSERT or DELETE(s) + INSERT; FOREIGN KEY checks in
-	  InnoDB do not function in the defined way if we allow MySQL
-	  to convert the latter operation internally to an UPDATE.
+        /*
+          The manual defines the REPLACE semantics that it is either
+          an INSERT or DELETE(s) + INSERT; FOREIGN KEY checks in
+          InnoDB do not function in the defined way if we allow MySQL
+          to convert the latter operation internally to an UPDATE.
           We also should not perform this conversion if we have 
           timestamp field with ON UPDATE which is different from DEFAULT.
           Another case when conversion should not be performed is when
@@ -1865,16 +1865,16 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
           tables which have ON UPDATE but have no ON DELETE triggers,
           we just should not expose this fact to users by invoking
           ON UPDATE triggers.
-	  For system versioning wa also use path through delete since we would
-	  save nothing through this chaeting.
-	*/
-	if (last_uniq_key(table,key_nr) &&
-	    !table->file->referenced_by_foreign_key() &&
+          For system versioning wa also use path through delete since we would
+          save nothing through this cheating.
+        */
+        if (last_uniq_key(table,key_nr) &&
+            !table->file->referenced_by_foreign_key() &&
             (!table->triggers || !table->triggers->has_delete_triggers()) &&
-	    !table->is_with_system_versioning())
+            !table->is_with_system_versioning())
         {
           if ((error=table->file->ha_update_row(table->record[1],
-					        table->record[0])) &&
+                                                table->record[0])) &&
               error != HA_ERR_RECORD_IS_THE_SAME)
             goto err;
           if (error != HA_ERR_RECORD_IS_THE_SAME)
@@ -1895,10 +1895,10 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
                                                 TRG_ACTION_BEFORE, TRUE))
             goto before_trg_err;
 
-	  if (!table->is_with_system_versioning())
+          if (!table->is_with_system_versioning())
             error= table->file->ha_delete_row(table->record[1]);
-	  else
-	  {
+          else
+          {
             DBUG_ASSERT(table->insert_values);
             store_record(table,insert_values);
             restore_record(table,record[1]);
@@ -1913,10 +1913,10 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
           }
           if (error)
             goto err;
-	  if (!table->is_with_system_versioning())
+          if (!table->is_with_system_versioning())
             info->deleted++;
-	  else
-	    info->updated++;
+          else
+            info->updated++;
           if (!table->file->has_transactions())
             thd->transaction.stmt.modified_non_trans_table= TRUE;
           if (table->triggers &&
