@@ -344,7 +344,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   if (!with_select && !using_limit && const_cond_result &&
       (!thd->is_current_stmt_binlog_format_row() &&
        !(table->triggers && table->triggers->has_delete_triggers()))
-      && table->is_with_system_versioning())
+      && !table->is_with_system_versioning())
   {
     /* Update the table->file->stats.records number */
     table->file->info(HA_STATUS_VARIABLE | HA_STATUS_NO_LOCK);
