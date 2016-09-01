@@ -1570,6 +1570,7 @@ static int last_uniq_key(TABLE *table,uint keynr)
 
 int insert_rec_for_system_versioning(TABLE *table, ha_rows *inserted)
 {
+  DBUG_ASSERT(table->is_with_system_versioning());
   restore_record(table,record[1]);
 
   // Set Sys_end to now()
@@ -1778,11 +1779,12 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
           }
 
           if (error != HA_ERR_RECORD_IS_THE_SAME)
-	  {
+          {
             info->updated++;
-	    if ((error=insert_rec_for_system_versioning(table, &info->copied)))
-		goto err;
-	  }
+            if (table->is_with_system_versioning() &&
+              (error=insert_rec_for_system_versioning(table, &info->copied)))
+              goto err;
+          }
           else
             error= 0;
           /*
