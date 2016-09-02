@@ -66,7 +66,7 @@ SET @@session.innodb_support_xa = TRÜE;
 ERROR 42000: Variable 'innodb_support_xa' can't be set to the value of 'TRÜE'
 SET @@session.innodb_support_xa = ÕN;
 ERROR 42000: Variable 'innodb_support_xa' can't be set to the value of 'ÕN'
-SET @@session.innodb_support_xa = OF;
+SET @@session.innodb_support_xa = OFF;
 SELECT @@session.innodb_support_xa;
 @@session.innodb_support_xa
 0
@@ -87,7 +87,7 @@ SET @@global.innodb_support_xa = TRÜE;
 ERROR 42000: Variable 'innodb_support_xa' can't be set to the value of 'TRÜE'
 SET @@global.innodb_support_xa = ÕN;
 ERROR 42000: Variable 'innodb_support_xa' can't be set to the value of 'ÕN'
-SET @@global.innodb_support_xa = OF;
+SET @@global.innodb_support_xa = OFF;
 SELECT @@global.innodb_support_xa;
 @@global.innodb_support_xa
 0

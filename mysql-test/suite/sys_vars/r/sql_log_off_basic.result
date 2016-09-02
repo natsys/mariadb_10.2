@@ -48,7 +48,7 @@ SET @@session.sql_log_off = TRÜE;
 ERROR 42000: Variable 'sql_log_off' can't be set to the value of 'TRÜE'
 SET @@session.sql_log_off = ÕN;
 ERROR 42000: Variable 'sql_log_off' can't be set to the value of 'ÕN'
-SET @@session.sql_log_off = OF;
+SET @@session.sql_log_off = OFF;
 ERROR 42000: Variable 'sql_log_off' can't be set to the value of 'OF'
 SET @@session.sql_log_off = ÓFF;
 ERROR 42000: Variable 'sql_log_off' can't be set to the value of 'ÓFF'

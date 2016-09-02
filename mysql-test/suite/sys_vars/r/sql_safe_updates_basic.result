@@ -48,7 +48,7 @@ SET @@session.sql_safe_updates = TRÜE;
 ERROR 42000: Variable 'sql_safe_updates' can't be set to the value of 'TRÜE'
 SET @@session.sql_safe_updates = ÕN;
 ERROR 42000: Variable 'sql_safe_updates' can't be set to the value of 'ÕN'
-SET @@session.sql_safe_updates = OF;
+SET @@session.sql_safe_updates = OFF;
 ERROR 42000: Variable 'sql_safe_updates' can't be set to the value of 'OF'
 SET @@session.sql_safe_updates = ÓFF;
 ERROR 42000: Variable 'sql_safe_updates' can't be set to the value of 'ÓFF'
