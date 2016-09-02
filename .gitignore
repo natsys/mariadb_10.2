@@ -5,6 +5,7 @@
 *.bak
 *.rpm
 .*.swp
+.vimrc
 *.ninja
 .ninja_*
 .gdb_history
