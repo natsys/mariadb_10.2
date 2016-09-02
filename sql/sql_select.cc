@@ -674,9 +674,9 @@ setup_for_system_time(THD *thd, TABLE_LIST *tables, COND **conds, SELECT_LEX *se
   TABLE_LIST *table;
   int versioned_tables= 0;
 
-  for (table= tables; table; table= table->next_local)
+  for (table = tables; table; table = table->next_local)
   {
-    if (table->table->is_with_system_versioning())
+    if (table->table && table->table->is_with_system_versioning())
       versioned_tables++;
     else if (table->system_versioning.type != FOR_SYSTEM_TIME_UNSPECIFIED)
     {
