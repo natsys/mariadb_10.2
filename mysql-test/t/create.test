@@ -1784,6 +1784,7 @@ create table t1 (
 
 drop table if exists t1;
 
+--error ER_SYS_START_MORE_THAN_ONCE
 create table t1 (
   XNo INT UNSIGNED,
   Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
@@ -1792,8 +1793,7 @@ create table t1 (
   PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
 ) WITH SYSTEM VERSIONING;
 
-drop table if exists t1;
-
+--error ER_PERIOD_FOR_SYSTEM_TIME_CONTAINS_WRONG_END_COLUMN
 create table t1 (
   XNo INT UNSIGNED,
   Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
@@ -1801,8 +1801,7 @@ create table t1 (
   PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
 ) WITH SYSTEM VERSIONING;
 
-drop table if exists t1;
-
+--error ER_SYS_END_MORE_THAN_ONCE
 create table t1 (
   XNo INT UNSIGNED,
   Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
@@ -1811,15 +1810,13 @@ create table t1 (
   PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
 ) WITH SYSTEM VERSIONING;
 
-drop table if exists t1;
-
+--error ER_SYS_START_NOT_SPECIFIED
 create table t1 (
   XNo INT UNSIGNED,
   PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
 ) WITH SYSTEM VERSIONING;
 
-drop table if exists t1;
-
+--error ER_SYS_END_MORE_THAN_ONCE
 create table t1 (
   XNo INT UNSIGNED,
   Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
@@ -1828,8 +1825,7 @@ create table t1 (
   PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
 );
 
-drop table if exists t1;
-
+--error ER_PERIOD_FOR_SYSTEM_TIME_CONTAINS_WRONG_START_COLUMN 
 create table t1 (
   XNo INT UNSIGNED,
   Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
@@ -1837,8 +1833,7 @@ create table t1 (
   PERIOD FOR SYSTEM_TIME (Sys_insert, Sys_remove)
 ) WITH SYSTEM VERSIONING;
 
-drop table if exists t1;
-
+--error ER_MISSING_WITH_SYSTEM_VERSIONING 
 create table t1 (
   XNo INT UNSIGNED,
   Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
@@ -1846,8 +1841,7 @@ create table t1 (
   PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
 );
 
-drop table if exists t1;
-
+--error ER_SYS_START_AND_SYS_END_SAME
 create table t1 (
   XNo INT UNSIGNED,
   Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
@@ -1855,9 +1849,7 @@ create table t1 (
   PERIOD FOR SYSTEM_TIME (Sys_start, Sys_start)
 );
 
-drop table if exists t1;
-
---echo # Sys_start must be of type timestamp
+--error ER_SYS_START_FIELD_MUST_BE_TIMESTAMP
 create table t1 (
   XNo INT UNSIGNED,
   Sys_start INT GENERATED ALWAYS AS ROW START,
@@ -1865,14 +1857,10 @@ create table t1 (
   PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
 ) WITH SYSTEM VERSIONING;
 
-drop table if exists t1;
-
---echo # Sys_end must be of type timestamp
+--error ER_SYS_END_FIELD_MUST_BE_TIMESTAMP
 create table t1 (
   XNo INT UNSIGNED,
   Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
   Sys_end INT GENERATED ALWAYS AS ROW END,
   PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
 ) WITH SYSTEM VERSIONING;
-
-drop table if exists t1;

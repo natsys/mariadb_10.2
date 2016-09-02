@@ -1936,31 +1936,14 @@ Sys_start2 TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
 Sys_end TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
 PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
 ) WITH SYSTEM VERSIONING;
-mysqltest: At line 1783: query 'create table t1 (
-XNo INT UNSIGNED,
-Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
-Sys_start2 TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
-Sys_end TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
-PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
-) WITH SYSTEM VERSIONING' failed: 4018: 'Generated as row start' specified more than once
-drop table if exists t1;
-Warnings:
-Note	1051	Unknown table 'test.t1'
+ERROR HY000: 'Generated as row start' specified more than once
 create table t1 (
 XNo INT UNSIGNED,
 Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
 Sys_end2 TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
 PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
 ) WITH SYSTEM VERSIONING;
-mysqltest: At line 1793: query 'create table t1 (
-XNo INT UNSIGNED,
-Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
-Sys_end2 TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
-PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
-) WITH SYSTEM VERSIONING' failed: 4024: Second column in 'period for system time' must be equal to 'generated as row end' column
-drop table if exists t1;
-Warnings:
-Note	1051	Unknown table 'test.t1'
+ERROR HY000: Second column in 'period for system time' must be equal to 'generated as row end' column
 create table t1 (
 XNo INT UNSIGNED,
 Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
@@ -1968,27 +1951,12 @@ Sys_end TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
 Sys_end2 TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
 PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
 ) WITH SYSTEM VERSIONING;
-mysqltest: At line 1802: query 'create table t1 (
-XNo INT UNSIGNED,
-Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
-Sys_end TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
-Sys_end2 TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
-PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
-) WITH SYSTEM VERSIONING' failed: 4019: Generated as row end specified more than once
-drop table if exists t1;
-Warnings:
-Note	1051	Unknown table 'test.t1'
+ERROR HY000: Generated as row end specified more than once
 create table t1 (
 XNo INT UNSIGNED,
 PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
 ) WITH SYSTEM VERSIONING;
-mysqltest: At line 1812: query 'create table t1 (
-XNo INT UNSIGNED,
-PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
-) WITH SYSTEM VERSIONING' failed: 4016: 'Generated as row start' not specified
-drop table if exists t1;
-Warnings:
-Note	1051	Unknown table 'test.t1'
+ERROR HY000: 'Generated as row start' not specified
 create table t1 (
 XNo INT UNSIGNED,
 Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
@@ -1996,90 +1964,39 @@ Sys_end TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
 Sys_end2 TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
 PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
 );
-mysqltest: At line 1819: query 'create table t1 (
-XNo INT UNSIGNED,
-Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
-Sys_end TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
-Sys_end2 TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
-PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
-)' failed: 4019: Generated as row end specified more than once
-drop table if exists t1;
-Warnings:
-Note	1051	Unknown table 'test.t1'
+ERROR HY000: Generated as row end specified more than once
 create table t1 (
 XNo INT UNSIGNED,
 Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
 Sys_end TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
 PERIOD FOR SYSTEM_TIME (Sys_insert, Sys_remove)
 ) WITH SYSTEM VERSIONING;
-mysqltest: At line 1829: query 'create table t1 (
-XNo INT UNSIGNED,
-Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
-Sys_end TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
-PERIOD FOR SYSTEM_TIME (Sys_insert, Sys_remove)
-) WITH SYSTEM VERSIONING' failed: 4023: First column in 'period for system time' must be equal to 'generated as row start' column
-drop table if exists t1;
-Warnings:
-Note	1051	Unknown table 'test.t1'
+ERROR HY000: First column in 'period for system time' must be equal to 'generated as row start' column
 create table t1 (
 XNo INT UNSIGNED,
 Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
 Sys_end TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
 PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
 );
-mysqltest: At line 1838: query 'create table t1 (
-XNo INT UNSIGNED,
-Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
-Sys_end TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
-PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
-)' failed: 4022: 'With system versioning' is missing
-drop table if exists t1;
-Warnings:
-Note	1051	Unknown table 'test.t1'
+ERROR HY000: 'With system versioning' is missing
 create table t1 (
 XNo INT UNSIGNED,
 Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
 Sys_end TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
 PERIOD FOR SYSTEM_TIME (Sys_start, Sys_start)
 );
-mysqltest: At line 1847: query 'create table t1 (
-XNo INT UNSIGNED,
-Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
-Sys_end TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
-PERIOD FOR SYSTEM_TIME (Sys_start, Sys_start)
-)' failed: 4025: 'Period for system_time' must contain two different columns
-drop table if exists t1;
-Warnings:
-Note	1051	Unknown table 'test.t1'
-# Sys_start must be of type timestamp
+ERROR HY000: 'Period for system_time' must contain two different columns
 create table t1 (
 XNo INT UNSIGNED,
 Sys_start INT GENERATED ALWAYS AS ROW START,
 Sys_end TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
 PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
 ) WITH SYSTEM VERSIONING;
-mysqltest: At line 1857: query 'create table t1 (
-XNo INT UNSIGNED,
-Sys_start INT GENERATED ALWAYS AS ROW START,
-Sys_end TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
-PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
-) WITH SYSTEM VERSIONING' failed: 4029: System start field must be of type TIMESTAMP
-drop table if exists t1;
-Warnings:
-Note	1051	Unknown table 'test.t1'
-# Sys_end must be of type timestamp
+ERROR HY000: System start field must be of type TIMESTAMP
 create table t1 (
 XNo INT UNSIGNED,
 Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
 Sys_end INT GENERATED ALWAYS AS ROW END,
 PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
 ) WITH SYSTEM VERSIONING;
-mysqltest: At line 1867: query 'create table t1 (
-XNo INT UNSIGNED,
-Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
-Sys_end INT GENERATED ALWAYS AS ROW END,
-PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
-) WITH SYSTEM VERSIONING' failed: 4030: System end field must be of type TIMESTAMP
-drop table if exists t1;
-Warnings:
-Note	1051	Unknown table 'test.t1'
+ERROR HY000: System end field must be of type TIMESTAMP
