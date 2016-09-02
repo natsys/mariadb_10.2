@@ -125,7 +125,12 @@ static void my_parse_error_intern(THD *thd, const char *err_text,
   Lex_input_stream *lip= &thd->m_parser_state->m_lip;
   if (!yytext)
   {
-    if (!(yytext= lip->get_tok_start()))
+    if (lip->lookahead_token >= 0)
+      yytext = lip->get_tok_start_prev();
+    else
+      yytext = lip->get_tok_start();
+
+    if (!yytext)
       yytext= "";
   }
   /* Push an error into the error stack */
