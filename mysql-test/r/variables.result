@@ -1590,7 +1590,7 @@ SELECT @@sql_notes;
 @@sql_notes
 1
 
-SET @@sql_notes = OF;
+SET @@sql_notes = OFF;
 ERROR 42000: Variable 'sql_notes' can't be set to the value of 'OF'
 SELECT @@sql_notes;
 @@sql_notes
@@ -1611,7 +1611,7 @@ SELECT @@delay_key_write;
 @@delay_key_write
 ON
 
-SET GLOBAL delay_key_write = OF;
+SET GLOBAL delay_key_write = OFF;
 ERROR 42000: Variable 'delay_key_write' can't be set to the value of 'OF'
 SELECT @@delay_key_write;
 @@delay_key_write
@@ -1643,7 +1643,7 @@ SELECT @@sql_safe_updates;
 @@sql_safe_updates
 1
 
-SET @@sql_safe_updates = OF;
+SET @@sql_safe_updates = OFF;
 ERROR 42000: Variable 'sql_safe_updates' can't be set to the value of 'OF'
 SELECT @@sql_safe_updates;
 @@sql_safe_updates
@@ -1664,7 +1664,7 @@ SELECT @@foreign_key_checks;
 @@foreign_key_checks
 1
 
-SET @@foreign_key_checks = OF;
+SET @@foreign_key_checks = OFF;
 ERROR 42000: Variable 'foreign_key_checks' can't be set to the value of 'OF'
 SELECT @@foreign_key_checks;
 @@foreign_key_checks
@@ -1685,7 +1685,7 @@ SELECT @@unique_checks;
 @@unique_checks
 1
 
-SET @@unique_checks = OF;
+SET @@unique_checks = OFF;
 ERROR 42000: Variable 'unique_checks' can't be set to the value of 'OF'
 SELECT @@unique_checks;
 @@unique_checks
@@ -1706,7 +1706,7 @@ SELECT @@sql_buffer_result;
 @@sql_buffer_result
 1
 
-SET @@sql_buffer_result = OF;
+SET @@sql_buffer_result = OFF;
 ERROR 42000: Variable 'sql_buffer_result' can't be set to the value of 'OF'
 SELECT @@sql_buffer_result;
 @@sql_buffer_result
@@ -1727,7 +1727,7 @@ SELECT @@sql_quote_show_create;
 @@sql_quote_show_create
 1
 
-SET @@sql_quote_show_create = OF;
+SET @@sql_quote_show_create = OFF;
 ERROR 42000: Variable 'sql_quote_show_create' can't be set to the value of 'OF'
 SELECT @@sql_quote_show_create;
 @@sql_quote_show_create

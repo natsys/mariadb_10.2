@@ -88,7 +88,7 @@ SET @@session.innodb_support_xa = TRÜE;
 ERROR 42000: Variable 'innodb_support_xa' can't be set to the value of 'TRÜE'
 SET @@session.innodb_support_xa = ÕN;
 ERROR 42000: Variable 'innodb_support_xa' can't be set to the value of 'ÕN'
-SET @@session.innodb_support_xa = OF;
+SET @@session.innodb_support_xa = OFF;
 Warnings:
 Warning	131	Using innodb_support_xa is deprecated and the parameter may be removed in future releases. Only innodb_support_xa=ON is allowed.
 SELECT @@session.innodb_support_xa;
@@ -111,7 +111,7 @@ SET @@global.innodb_support_xa = TRÜE;
 ERROR 42000: Variable 'innodb_support_xa' can't be set to the value of 'TRÜE'
 SET @@global.innodb_support_xa = ÕN;
 ERROR 42000: Variable 'innodb_support_xa' can't be set to the value of 'ÕN'
-SET @@global.innodb_support_xa = OF;
+SET @@global.innodb_support_xa = OFF;
 Warnings:
 Warning	131	Using innodb_support_xa is deprecated and the parameter may be removed in future releases. Only innodb_support_xa=ON is allowed.
 SELECT @@global.innodb_support_xa;

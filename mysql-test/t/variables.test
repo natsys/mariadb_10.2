@@ -1312,7 +1312,7 @@ SELECT @@sql_notes;
 
 --echo
 --error ER_WRONG_VALUE_FOR_VAR
-SET @@sql_notes = OF;
+SET @@sql_notes = OFF;
 SELECT @@sql_notes;
 
 --echo
@@ -1332,7 +1332,7 @@ SELECT @@delay_key_write;
 
 --echo
 --error ER_WRONG_VALUE_FOR_VAR
-SET GLOBAL delay_key_write = OF;
+SET GLOBAL delay_key_write = OFF;
 SELECT @@delay_key_write;
 
 --echo
@@ -1361,7 +1361,7 @@ SELECT @@sql_safe_updates;
 
 --echo
 --error ER_WRONG_VALUE_FOR_VAR
-SET @@sql_safe_updates = OF;
+SET @@sql_safe_updates = OFF;
 SELECT @@sql_safe_updates;
 
 --echo
@@ -1381,7 +1381,7 @@ SELECT @@foreign_key_checks;
 
 --echo
 --error ER_WRONG_VALUE_FOR_VAR
-SET @@foreign_key_checks = OF;
+SET @@foreign_key_checks = OFF;
 SELECT @@foreign_key_checks;
 
 --echo
@@ -1401,7 +1401,7 @@ SELECT @@unique_checks;
 
 --echo
 --error ER_WRONG_VALUE_FOR_VAR
-SET @@unique_checks = OF;
+SET @@unique_checks = OFF;
 SELECT @@unique_checks;
 
 --echo
@@ -1421,7 +1421,7 @@ SELECT @@sql_buffer_result;
 
 --echo
 --error ER_WRONG_VALUE_FOR_VAR
-SET @@sql_buffer_result = OF;
+SET @@sql_buffer_result = OFF;
 SELECT @@sql_buffer_result;
 
 --echo
@@ -1441,7 +1441,7 @@ SELECT @@sql_quote_show_create;
 
 --echo
 --error ER_WRONG_VALUE_FOR_VAR
-SET @@sql_quote_show_create = OF;
+SET @@sql_quote_show_create = OFF;
 SELECT @@sql_quote_show_create;
 
 --echo
