@@ -4,6 +4,7 @@
 *.spec
 *.bak
 .*.swp
+.vimrc
 *.ninja
 .ninja_*
 .gdb_history
