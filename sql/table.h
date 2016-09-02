@@ -1490,7 +1490,7 @@ public:
 /** Number of additional fields used in versioned tables */
 #define VERSIONING_FIELDS 2
 
-  uint field_count() const
+  uint user_fields() const
   {
     return is_with_system_versioning() ?
       s->fields - VERSIONING_FIELDS :
