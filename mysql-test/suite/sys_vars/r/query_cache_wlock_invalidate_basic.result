@@ -66,7 +66,7 @@ SET @@session.query_cache_wlock_invalidate = TRÜE;
 ERROR 42000: Variable 'query_cache_wlock_invalidate' can't be set to the value of 'TRÜE'
 SET @@session.query_cache_wlock_invalidate = ÕN;
 ERROR 42000: Variable 'query_cache_wlock_invalidate' can't be set to the value of 'ÕN'
-SET @@session.query_cache_wlock_invalidate = OF;
+SET @@session.query_cache_wlock_invalidate = OFF;
 ERROR 42000: Variable 'query_cache_wlock_invalidate' can't be set to the value of 'OF'
 SET @@session.query_cache_wlock_invalidate = ÓFF;
 ERROR 42000: Variable 'query_cache_wlock_invalidate' can't be set to the value of 'ÓFF'
@@ -82,7 +82,7 @@ SET @@global.query_cache_wlock_invalidate = TRÜE;
 ERROR 42000: Variable 'query_cache_wlock_invalidate' can't be set to the value of 'TRÜE'
 SET @@global.query_cache_wlock_invalidate = ÕN;
 ERROR 42000: Variable 'query_cache_wlock_invalidate' can't be set to the value of 'ÕN'
-SET @@global.query_cache_wlock_invalidate = OF;
+SET @@global.query_cache_wlock_invalidate = OFF;
 ERROR 42000: Variable 'query_cache_wlock_invalidate' can't be set to the value of 'OF'
 SET @@global.query_cache_wlock_invalidate = ÓFF;
 ERROR 42000: Variable 'query_cache_wlock_invalidate' can't be set to the value of 'ÓFF'
