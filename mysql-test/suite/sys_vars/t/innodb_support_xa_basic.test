@@ -118,7 +118,7 @@ SET @@session.innodb_support_xa = TRÜE;
 --Error ER_WRONG_VALUE_FOR_VAR
 SET @@session.innodb_support_xa = ÕN;
 
-SET @@session.innodb_support_xa = OF;
+SET @@session.innodb_support_xa = OFF;
 SELECT @@session.innodb_support_xa;
 
 --Error ER_WRONG_VALUE_FOR_VAR
@@ -142,7 +142,7 @@ SET @@global.innodb_support_xa = TRÜE;
 --Error ER_WRONG_VALUE_FOR_VAR
 SET @@global.innodb_support_xa = ÕN;
 
-SET @@global.innodb_support_xa = OF;
+SET @@global.innodb_support_xa = OFF;
 SELECT @@global.innodb_support_xa;
 
 --Error ER_WRONG_VALUE_FOR_VAR
