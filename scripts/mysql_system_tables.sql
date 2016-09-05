@@ -236,6 +236,15 @@ PREPARE stmt FROM @str;
 EXECUTE stmt;
 DROP PREPARE stmt;
 
+CREATE TABLE IF NOT EXISTS versioning_transaction_query (
+  trx_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
+  begin_ts TIMESTAMP(6) NOT NULL,
+  commit_ts TIMESTAMP(6) NOT NULL,
+  concurr_trx MEDIUMBLOB,
+  INDEX USING BTREE (begin_ts DESC),
+  INDEX USING BTREE (commit_ts DESC))
+ENGINE InnoDB;
+
 set storage_engine=@orig_storage_engine;
 
 --
