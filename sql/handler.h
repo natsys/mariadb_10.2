@@ -1652,7 +1652,7 @@ struct System_versioning_info
   /** User has added 'WITH SYSTEM VERSIONING' to table definition */
   bool is_declared_with_system_versioning;
 
-  /** Table described by this structure is with enabled system versioning */
+  /** Table described by this structure have enabled system versioning */
   bool with_system_versioning;
 };
 
