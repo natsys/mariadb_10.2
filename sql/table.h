@@ -1463,12 +1463,14 @@ public:
 
   Field *get_row_start_field() const
   {
-    return is_with_system_versioning() ? field[s->row_start_field] : NULL;
+    DBUG_ASSERT(is_with_system_versioning());
+    return field[s->row_start_field];
   }
 
   Field *get_row_end_field() const
   {
-    return is_with_system_versioning() ? field[s->row_end_field] : NULL;
+    DBUG_ASSERT(is_with_system_versioning());
+    return field[s->row_end_field];
   }
 
 /** Number of additional fields used in versioned tables */
