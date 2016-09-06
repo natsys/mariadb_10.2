@@ -690,10 +690,10 @@ setup_for_system_time(THD *thd, TABLE_LIST *tables, COND **conds, SELECT_LEX *se
 
   for (table= tables; table; table= table->next_local)
   {
-    if (table->table->is_with_system_versioning())
+    if (table->table && table->table->is_with_system_versioning())
     {
-      Field *fstart = table->table->get_row_start_field();
-      Field *fend = table->table->get_row_end_field();
+      Field *fstart= table->table->get_row_start_field();
+      Field *fend= table->table->get_row_end_field();
       Item *istart= new (thd->mem_root) Item_field(thd, fstart);
       Item *iend= new (thd->mem_root) Item_field(thd, fend);
       Item *cond1= 0, *cond2= 0, *curr = 0;
