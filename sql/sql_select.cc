@@ -674,7 +674,7 @@ setup_for_system_time(THD *thd, TABLE_LIST *tables, COND **conds, SELECT_LEX *se
   TABLE_LIST *table;
   int versioned_tables= 0;
 
-  for (table = tables; table; table = table->next_local)
+  for (table= tables; table; table= table->next_local)
   {
     if (table->table && table->table->is_with_system_versioning())
       versioned_tables++;
@@ -728,7 +728,7 @@ setup_for_system_time(THD *thd, TABLE_LIST *tables, COND **conds, SELECT_LEX *se
       if (cond1 && cond2)
       {
         COND *system_time_cond= new (thd->mem_root) Item_cond_and(thd, cond1, cond2);
-        *conds= and_items(thd, *conds, system_time_cond);
+        thd->change_item_tree(conds, and_items(thd, *conds, system_time_cond));
         table->system_versioning.is_moved_to_where= true;
       }
     }
