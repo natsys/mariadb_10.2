@@ -679,7 +679,7 @@ class Item_func_now :public Item_datetimefunc
 {
   MYSQL_TIME ltime;
 public:
-  Item_func_now(THD *thd, uint dec): Item_datetimefunc(thd) { decimals= dec; }
+  Item_func_now(THD *thd, uint dec);
   bool fix_fields(THD *, Item **);
   void fix_length_and_dec()
   {
