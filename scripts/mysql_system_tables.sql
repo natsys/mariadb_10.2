@@ -236,14 +236,22 @@ PREPARE stmt FROM @str;
 EXECUTE stmt;
 DROP PREPARE stmt;
 
-CREATE TABLE IF NOT EXISTS versioning_transaction_query (
+-- 'h' prefix is dirty fix to make main.mysqldump happy,
+-- otherwise it will argue about absent innodb_table_stats.
+-- (see dict_table_schema_check() and bug21527 in mysqldump.test)
+
+SET @cmd="CREATE TABLE IF NOT EXISTS hvers_trans_query (
   trx_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
   begin_ts TIMESTAMP(6) NOT NULL,
   commit_ts TIMESTAMP(6) NOT NULL,
   concurr_trx MEDIUMBLOB,
   INDEX USING BTREE (begin_ts DESC),
   INDEX USING BTREE (commit_ts DESC))
-ENGINE InnoDB;
+COMMENT='Transaction info for System-Versioned tables'";
+SET @str=CONCAT(@cmd, ' ENGINE=', @innodb_or_myisam);
+PREPARE stmt FROM @str;
+EXECUTE stmt;
+DROP PREPARE stmt;
 
 set storage_engine=@orig_storage_engine;
 
