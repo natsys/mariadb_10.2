@@ -56,7 +56,7 @@ BEGIN
 # at 816
 #<date> server id 1  end_log_pos 872 CRC32 XXX 	Table_map: `test`.`t1` mapped to number num
 # at 872
-#<date> server id 1  end_log_pos 941 CRC32 XXX 	Write_rows: table id 30 flags: STMT_END_F
+#<date> server id 1  end_log_pos 941 CRC32 XXX 	Write_rows: table id 31 flags: STMT_END_F
 ### INSERT INTO `test`.`t1`
 ### SET
 ###   @1=10 /* INT meta=0 nullable=0 is_null=0 */
@@ -81,7 +81,7 @@ BEGIN
 # at 1056
 #<date> server id 1  end_log_pos 1112 CRC32 XXX 	Table_map: `test`.`t1` mapped to number num
 # at 1112
-#<date> server id 1  end_log_pos 1180 CRC32 XXX 	Write_rows: table id 30 flags: STMT_END_F
+#<date> server id 1  end_log_pos 1180 CRC32 XXX 	Write_rows: table id 31 flags: STMT_END_F
 ### INSERT INTO `test`.`t1`
 ### SET
 ###   @1=11 /* INT meta=0 nullable=0 is_null=0 */
@@ -106,7 +106,7 @@ BEGIN
 # at 1295
 #<date> server id 1  end_log_pos 1351 CRC32 XXX 	Table_map: `test`.`t1` mapped to number num
 # at 1351
-#<date> server id 1  end_log_pos 1418 CRC32 XXX 	Write_rows: table id 30 flags: STMT_END_F
+#<date> server id 1  end_log_pos 1418 CRC32 XXX 	Write_rows: table id 31 flags: STMT_END_F
 ### INSERT INTO `test`.`t1`
 ### SET
 ###   @1=12 /* INT meta=0 nullable=0 is_null=0 */
@@ -131,7 +131,7 @@ BEGIN
 # at 1533
 #<date> server id 1  end_log_pos 1589 CRC32 XXX 	Table_map: `test`.`t1` mapped to number num
 # at 1589
-#<date> server id 1  end_log_pos 1659 CRC32 XXX 	Write_rows: table id 30 flags: STMT_END_F
+#<date> server id 1  end_log_pos 1659 CRC32 XXX 	Write_rows: table id 31 flags: STMT_END_F
 ### INSERT INTO `test`.`t1`
 ### SET
 ###   @1=13 /* INT meta=0 nullable=0 is_null=0 */
@@ -156,7 +156,7 @@ BEGIN
 # at 1774
 #<date> server id 1  end_log_pos 1830 CRC32 XXX 	Table_map: `test`.`t2` mapped to number num
 # at 1830
-#<date> server id 1  end_log_pos 1997 CRC32 XXX 	Write_rows: table id 31 flags: STMT_END_F
+#<date> server id 1  end_log_pos 1997 CRC32 XXX 	Write_rows: table id 32 flags: STMT_END_F
 ### INSERT INTO `test`.`t2`
 ### SET
 ###   @1=10 /* INT meta=0 nullable=0 is_null=0 */
@@ -214,7 +214,7 @@ BEGIN
 # at 2112
 #<date> server id 1  end_log_pos 2168 CRC32 XXX 	Table_map: `test`.`t2` mapped to number num
 # at 2168
-#<date> server id 1  end_log_pos 2242 CRC32 XXX 	Update_rows: table id 31 flags: STMT_END_F
+#<date> server id 1  end_log_pos 2242 CRC32 XXX 	Update_rows: table id 32 flags: STMT_END_F
 ### UPDATE `test`.`t2`
 ### WHERE
 ###   @1=10 /* INT meta=0 nullable=0 is_null=0 */
@@ -246,7 +246,7 @@ BEGIN
 # at 2357
 #<date> server id 1  end_log_pos 2413 CRC32 XXX 	Table_map: `test`.`t1` mapped to number num
 # at 2413
-#<date> server id 1  end_log_pos 2467 CRC32 XXX 	Delete_rows: table id 30 flags: STMT_END_F
+#<date> server id 1  end_log_pos 2467 CRC32 XXX 	Delete_rows: table id 31 flags: STMT_END_F
 ### DELETE FROM `test`.`t1`
 ### WHERE
 ###   @1=10 /* INT meta=0 nullable=0 is_null=0 */
@@ -272,7 +272,7 @@ BEGIN
 # at 2582
 #<date> server id 1  end_log_pos 2638 CRC32 XXX 	Table_map: `test`.`t2` mapped to number num
 # at 2638
-#<date> server id 1  end_log_pos 2692 CRC32 XXX 	Delete_rows: table id 31 flags: STMT_END_F
+#<date> server id 1  end_log_pos 2692 CRC32 XXX 	Delete_rows: table id 32 flags: STMT_END_F
 ### DELETE FROM `test`.`t2`
 ### WHERE
 ###   @1=10 /* INT meta=0 nullable=0 is_null=0 */
