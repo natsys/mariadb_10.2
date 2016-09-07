@@ -12,6 +12,7 @@ help_keyword
 help_relation
 help_topic
 host
+hvers_trans_query
 index_stats
 innodb_index_stats
 innodb_table_stats
@@ -312,3 +313,4 @@ index_stats	CREATE TABLE `index_stats` (
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='Statistics on Indexes'
 show tables;
 Tables_in_test
+hvers_trans_query
