@@ -12,7 +12,7 @@ SET GLOBAL innodb_file_format = `Barracuda`;
 SET GLOBAL innodb_file_per_table = ON;
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
-test.t1	check	Warning	Table test/t1 in tablespace 4 is encrypted but encryption service or used key_id is not available.  Can't continue reading table.
+test.t1	check	Warning	Table test/t1 in tablespace 5 is encrypted but encryption service or used key_id is not available.  Can't continue reading table.
 test.t1	check	Warning	Table test/t1 is encrypted but encryption service or used key_id is not available.  Can't continue checking table.
 test.t1	check	error	Corrupt
 SHOW WARNINGS;
