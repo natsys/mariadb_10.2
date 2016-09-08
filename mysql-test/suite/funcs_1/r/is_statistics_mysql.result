@@ -34,6 +34,9 @@ def	mysql	help_topic	0	mysql	name	1	name	A	#CARD#	NULL	NULL		BTREE
 def	mysql	help_topic	0	mysql	PRIMARY	1	help_topic_id	A	#CARD#	NULL	NULL		BTREE		
 def	mysql	host	0	mysql	PRIMARY	1	Host	A	#CARD#	NULL	NULL		BTREE		
 def	mysql	host	0	mysql	PRIMARY	2	Db	A	#CARD#	NULL	NULL		BTREE		
+def	mysql	hvers_trans_query	1	mysql	begin_ts	1	begin_ts	A	#CARD#	NULL	NULL		BTREE		
+def	mysql	hvers_trans_query	1	mysql	commit_ts	1	commit_ts	A	#CARD#	NULL	NULL		BTREE		
+def	mysql	hvers_trans_query	0	mysql	PRIMARY	1	trx_id	A	#CARD#	NULL	NULL		BTREE		
 def	mysql	index_stats	0	mysql	PRIMARY	1	db_name	A	#CARD#	NULL	NULL		BTREE		
 def	mysql	index_stats	0	mysql	PRIMARY	2	table_name	A	#CARD#	NULL	NULL		BTREE		
 def	mysql	index_stats	0	mysql	PRIMARY	3	index_name	A	#CARD#	NULL	NULL		BTREE		
