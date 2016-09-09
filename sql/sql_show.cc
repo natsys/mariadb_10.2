@@ -1654,6 +1654,7 @@ static bool get_field_default_value(THD *thd, Field *field, String *def_value,
 
   has_default= (field->default_value ||
                 (!(field->flags & NO_DEFAULT_VALUE_FLAG) &&
+		 !field->is_generated() &&
                  field->unireg_check != Field::NEXT_NUMBER));
 
   def_value->length(0);
@@ -1940,6 +1941,14 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
         packet->append(STRING_WITH_LEN(" DEFAULT "));
         packet->append(def_value.ptr(), def_value.length(), system_charset_info);
       }
+      else if (field->is_generated_row_start())
+      {
+        packet->append(STRING_WITH_LEN(" GENERATED AS ROW START"));
+      }
+      else if (field->is_generated_row_end())
+      {
+        packet->append(STRING_WITH_LEN(" GENERATED AS ROW END"));
+      }
 
       if (!limited_mysql_mode &&
           print_on_update_clause(field, &def_value, false))
@@ -2038,6 +2047,17 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
                           hton->index_options);
   }
 
+  if (table->is_with_system_versioning())
+  {
+    const Field *fs = table->get_row_start_field();
+    const Field *fe = table->get_row_end_field();
+    packet->append(STRING_WITH_LEN(",\n  PERIOD FOR SYSTEM_TIME ("));
+    append_identifier(thd,packet,fs->field_name, strlen(fs->field_name));
+    packet->append(STRING_WITH_LEN(", "));
+    append_identifier(thd,packet,fe->field_name, strlen(fe->field_name));
+    packet->append(STRING_WITH_LEN(")"));
+  }
+
   /*
     Get possible foreign key definitions stored in InnoDB and append them
     to the CREATE TABLE statement
@@ -2124,6 +2144,11 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
           packet->append(table->s->table_charset->name);
         }
       }
+    }
+
+    if (table->is_with_system_versioning())
+    {
+      packet->append(STRING_WITH_LEN(" WITH SYSTEM VERSIONING"));
     }
 
     if (share->min_rows)

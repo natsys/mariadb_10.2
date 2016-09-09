@@ -1781,6 +1781,7 @@ create table t1 (
   Sys_end TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
   PERIOD FOR SYSTEM_TIME (Sys_start, Sys_end)
 ) WITH SYSTEM VERSIONING;
+SHOW CREATE TABLE t1;
 
 drop table if exists t1;
 
