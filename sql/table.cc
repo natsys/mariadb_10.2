@@ -2947,25 +2947,30 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
   records=0;
   if ((db_stat & HA_OPEN_KEYFILE) || (prgflag & DELAYED_OPEN))
     records=1;
-  if (prgflag & (READ_ALL+EXTRA_RECORD))
+  if (prgflag & (READ_ALL + EXTRA_RECORD))
+  {
     records++;
-
-  if (!(record= (uchar*) alloc_root(&outparam->mem_root,
-                                    share->rec_buff_length * records)))
-    goto err;                                   /* purecov: inspected */
+    if (share->with_system_versioning)
+      records++;
+  }
 
   if (records == 0)
   {
     /* We are probably in hard repair, and the buffers should not be used */
-    outparam->record[0]= outparam->record[1]= share->default_values;
+    record= share->default_values;
   }
   else
   {
-    outparam->record[0]= record;
-    if (records > 1)
-      outparam->record[1]= record+ share->rec_buff_length;
-    else
-      outparam->record[1]= outparam->record[0];   // Safety
+    if (!(record= (uchar*) alloc_root(&outparam->mem_root,
+                                      share->rec_buff_length * records)))
+      goto err;                                   /* purecov: inspected */
+  }
+
+  for (i= 0; i < 3;)
+  {
+    outparam->record[i]= record;
+    if (++i < records)
+      record+= share->rec_buff_length;
   }
 
   if (!(field_ptr = (Field **) alloc_root(&outparam->mem_root,
