@@ -772,22 +772,6 @@ int mysql_update(THD *thd,
       store_record(table,record[1]);
 
       vblobs.make_orphans();
-
-      if (table->is_with_system_versioning())
-      {
-        // Set end time to now()
-        if (table->get_row_end_field()->set_time())
-        {
-          error= 1;
-          break;
-        }
-
-        if ( (error= insert_rec_for_system_versioning(table, &updated_sys_ver)) )
-          break;
-
-        restore_record(table,record[1]);
-      }
-
       if (fill_record_n_invoke_before_triggers(thd, table, fields, values, 0,
                                                TRG_EVENT_UPDATE))
         break; /* purecov: inspected */
@@ -859,16 +843,26 @@ int mysql_update(THD *thd,
           error= table->file->ha_update_row(table->record[1],
                                             table->record[0]);
         }
-        if (!error || error == HA_ERR_RECORD_IS_THE_SAME)
+        if (error == HA_ERR_RECORD_IS_THE_SAME)
         {
-          if (error != HA_ERR_RECORD_IS_THE_SAME)
-            updated++;
-          else
-            error= 0;
-	}
- 	else if (!ignore ||
+          error= 0;
+        }
+        else if (!error)
+        {
+          updated++;
+
+          if (table->is_with_system_versioning())
+          {
+            store_record(table, record[2]);
+            if ((error = insert_rec_for_system_versioning(table, &updated_sys_ver)))
+              break;
+
+            restore_record(table, record[2]);
+          }
+        }
+        else if (!ignore ||
                  table->file->is_fatal_error(error, HA_CHECK_ALL))
-	{
+        {
           /*
             If (ignore && error is ignorable) we don't have to
             do anything; otherwise...
