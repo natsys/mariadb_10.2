@@ -1063,7 +1063,7 @@ public:
   THD	*in_use;                        /* Which thread uses this */
   Field **field;			/* Pointer to fields */
 
-  uchar *record[2];			/* Pointer to records */
+  uchar *record[3];			/* Pointer to records */
   uchar *write_row_record;		/* Used as optimisation in
 					   THD::write_row */
   uchar *insert_values;                  /* used by INSERT ... UPDATE */
