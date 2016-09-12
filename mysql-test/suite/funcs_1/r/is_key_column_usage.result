@@ -101,7 +101,6 @@ def	mysql	PRIMARY	def	mysql	help_topic	help_topic_id
 def	mysql	name	def	mysql	help_topic	name
 def	mysql	PRIMARY	def	mysql	host	Host
 def	mysql	PRIMARY	def	mysql	host	Db
-def	mysql	PRIMARY	def	mysql	hvers_trans_query	trx_id
 def	mysql	PRIMARY	def	mysql	index_stats	db_name
 def	mysql	PRIMARY	def	mysql	index_stats	table_name
 def	mysql	PRIMARY	def	mysql	index_stats	index_name

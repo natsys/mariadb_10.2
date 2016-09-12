@@ -15,7 +15,6 @@ mysql.help_keyword                                 OK
 mysql.help_relation                                OK
 mysql.help_topic                                   OK
 mysql.host                                         OK
-mysql.hvers_trans_query                            OK
 mysql.index_stats                                  OK
 mysql.innodb_index_stats                           OK
 mysql.innodb_table_stats                           OK
