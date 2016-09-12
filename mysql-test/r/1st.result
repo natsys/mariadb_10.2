@@ -19,7 +19,6 @@ help_keyword
 help_relation
 help_topic
 host
-hvers_trans_query
 index_stats
 innodb_index_stats
 innodb_table_stats
