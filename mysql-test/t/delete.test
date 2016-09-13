@@ -588,6 +588,8 @@ DROP TABLE t1, t2;
 --echo # Test for SYSTEM VERSIONING
 --echo #
 
+SET @@session.time_zone='+00:00';
+
 create table t1 (
   XNo INT UNSIGNED,
   Sys_start TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
