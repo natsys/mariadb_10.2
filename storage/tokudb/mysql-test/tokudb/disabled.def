@@ -28,3 +28,5 @@ type_timestamp_explicit:
 cluster_key_part: engine options on partitioned tables
 i_s_tokudb_lock_waits_released: unstable, race conditions
 i_s_tokudb_locks_released: unstable, race conditions
+rows-32m-seq-insert: Fails on 10.2
+rows-32m-rand-insert: Fails on 10.2
