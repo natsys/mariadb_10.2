@@ -4443,8 +4443,6 @@ prepare_keys_for_sys_ver(THD *thd,
     List_iterator<Key_part_spec> part_it(key->columns);
     while ((key_part=part_it++))
     {
-      //XYZ: Is it correct to use system_charset_info ?
-      //XYZ: Is LEX_STRING::str guaranteed to be zero terminated?
       if (!my_strcasecmp(system_charset_info,
                          row_start_field,
                          key_part->field_name.str) ||

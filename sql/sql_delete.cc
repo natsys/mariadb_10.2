@@ -1058,8 +1058,6 @@ int multi_delete::send_data(List<Item> &values)
   {
     TABLE *table= del_table->table;
 
-    // XYZ: Is it OK to set DELETED status for table that was updated because of
-    //   System Versioning?
     /* Check if we are using outer join and we didn't find the row */
     if (table->status & (STATUS_NULL_ROW | STATUS_DELETED))
       continue;
