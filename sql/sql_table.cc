@@ -3194,7 +3194,7 @@ static void
 copy_info_about_generated_fields(Alter_info *dst_alter_info,
                                  HA_CREATE_INFO *src_create_info)
 {
-  if (!src_create_info->is_with_system_versioning())
+  if (!src_create_info->versioned())
     return;
 
   const System_versioning_info *versioning_info =
@@ -4493,7 +4493,7 @@ prepare_keys_for_sys_ver(THD *thd,
                          KEY **key_info,
                          uint key_count)
 {
-  if (!create_info->is_with_system_versioning())
+  if (!create_info->versioned())
     return false;
 
   const System_versioning_info *versioning_info=
@@ -4775,7 +4775,7 @@ handler *mysql_create_frm_image(THD *thd,
   }
 #endif
 
-  if (create_info->is_with_system_versioning())
+  if (create_info->versioned())
   {
     // FIXME: This test doesn't detect foreign key relationship on the side of
     //   parent table and System Time support will not work correctly for such
