@@ -90,15 +90,15 @@ static uchar *extra2_write(uchar *pos, enum extra2_frm_value_type type,
 }
 
 static bool
-is_with_system_versioning(HA_CREATE_INFO *create_info)
+versioned(HA_CREATE_INFO *create_info)
 {
-  return create_info->is_with_system_versioning();
+  return create_info->versioned();
 }
 
 static uint16
 get_row_start_field(HA_CREATE_INFO *create_info, List<Create_field> &create_fields)
 {
-  DBUG_ASSERT(is_with_system_versioning(create_info));
+  DBUG_ASSERT(versioned(create_info));
 
   List_iterator<Create_field> it(create_fields);
   Create_field*sql_field = NULL;
@@ -128,7 +128,7 @@ get_row_start_field(HA_CREATE_INFO *create_info, List<Create_field> &create_fiel
 static uint16
 get_row_end_field(HA_CREATE_INFO *create_info, List<Create_field> &create_fields)
 {
-  DBUG_ASSERT(is_with_system_versioning(create_info));
+  DBUG_ASSERT(versioned(create_info));
 
   List_iterator<Create_field> it(create_fields);
   Create_field*sql_field = NULL;
@@ -276,7 +276,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
   if (gis_extra2_len)
     extra2_size+= 1 + (gis_extra2_len > 255 ? 3 : 1) + gis_extra2_len;
 
-  if (is_with_system_versioning(create_info))
+  if (versioned(create_info))
   {
     extra2_size+= 1 + 1 + 2 * sizeof(uint16);
   }
@@ -336,7 +336,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
   }
 #endif /*HAVE_SPATIAL*/
 
-  if (is_with_system_versioning(create_info))
+  if (versioned(create_info))
   {
     *pos++= EXTRA2_PERIOD_FOR_SYSTEM_TIME;
     *pos++= 2 * sizeof(uint16);

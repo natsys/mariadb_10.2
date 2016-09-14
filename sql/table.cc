@@ -2314,15 +2314,15 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       goto err;
     DBUG_PRINT("info", ("Columns with system versioning: [%d, %d]", row_start, row_end));
     share->enable_system_versioning(row_start, row_end);
-    get_row_start_field()->set_generated_row_start();
-    get_row_end_field()->set_generated_row_end();
+    vers_start_field()->set_generated_row_start();
+    vers_end_field()->set_generated_row_end();
 
-    if (get_row_start_field()->type() != MYSQL_TYPE_TIMESTAMP)
+    if (vers_start_field()->type() != MYSQL_TYPE_TIMESTAMP)
     {
       my_error(ER_SYS_START_FIELD_MUST_BE_TIMESTAMP, MYF(0), share->table_name);
       goto err;
     }
-    if (get_row_end_field()->type() != MYSQL_TYPE_TIMESTAMP)
+    if (vers_end_field()->type() != MYSQL_TYPE_TIMESTAMP)
     {
       my_error(ER_SYS_END_FIELD_MUST_BE_TIMESTAMP, MYF(0), share->table_name);
       goto err;
@@ -2950,7 +2950,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
   if (prgflag & (READ_ALL + EXTRA_RECORD))
   {
     records++;
-    if (share->with_system_versioning)
+    if (share->versioned)
       records++;
   }
 
@@ -2995,7 +2995,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
   }
   (*field_ptr)= 0;                              // End marker
 
-  if (share->with_system_versioning)
+  if (share->versioned)
   {
     Field **fptr = NULL;
     if (!(fptr = (Field **) alloc_root(&outparam->mem_root,
@@ -6310,10 +6310,10 @@ void TABLE::mark_columns_needed_for_delete()
   /*
      For System Versioning we have to write and read Sys_end.
   */
-  if (s->with_system_versioning)
+  if (s->versioned)
   {
-    bitmap_set_bit(read_set, s->get_row_end_field()->field_index);
-    bitmap_set_bit(write_set, s->get_row_end_field()->field_index);
+    bitmap_set_bit(read_set, s->vers_end_field()->field_index);
+    bitmap_set_bit(write_set, s->vers_end_field()->field_index);
   }
 }
 
@@ -6377,7 +6377,7 @@ void TABLE::mark_columns_needed_for_update()
      For System Versioning we have to read all columns since we will store
      a copy of previous row with modified Sys_end column back to a table.
   */
-  if (s->with_system_versioning)
+  if (s->versioned)
   {
     // We will copy old columns to a new row.
     use_all_columns();
@@ -7449,25 +7449,25 @@ int TABLE::update_default_fields(bool update_command, bool ignore_errors)
   DBUG_RETURN(res);
 }
 
-bool TABLE::update_system_versioning_fields_for_insert()
+bool TABLE::vers_update_fields()
 {
-  DBUG_ENTER("update_system_versioning_fields_for_insert");
+  DBUG_ENTER("vers_update_fields");
 
-  if (!is_with_system_versioning())
+  if (!versioned())
     DBUG_RETURN(FALSE);
 
-  if (get_row_start_field()->set_time())
+  if (vers_start_field()->set_time())
   {
     DBUG_RETURN(TRUE);
   }
 
-  if (get_row_end_field()->set_max_timestamp())
+  if (vers_end_field()->set_max_timestamp())
   {
     DBUG_RETURN(TRUE);
   }
 
-  bitmap_set_bit(write_set, get_row_start_field()->field_index);
-  bitmap_set_bit(write_set, get_row_end_field()->field_index);
+  bitmap_set_bit(write_set, vers_start_field()->field_index);
+  bitmap_set_bit(write_set, vers_end_field()->field_index);
 
   DBUG_RETURN(FALSE);
 }

@@ -957,8 +957,8 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
       }
     }
 
-    if (table->is_with_system_versioning() &&
-        table->update_system_versioning_fields_for_insert())
+    if (table->versioned() &&
+        table->vers_update_fields())
     {
       error= 1;
       break;
@@ -1504,7 +1504,7 @@ bool mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
   if (table->s->virtual_stored_fields)
     thd->lex->unit.insert_table_with_stored_vcol= table;
 
-  if (table->is_with_system_versioning() && duplic == DUP_REPLACE)
+  if (table->versioned() && duplic == DUP_REPLACE)
   {
     // Additional memory may be required to create historical items.
     if (table_list->set_insert_values(thd->mem_root))
@@ -1568,13 +1568,13 @@ static int last_uniq_key(TABLE *table,uint keynr)
  sets Sys_end to now() and calls ha_write_row() .
 */
 
-int insert_rec_for_system_versioning(TABLE *table, ha_rows *inserted)
+int vers_insert_history_row(TABLE *table, ha_rows *inserted)
 {
-  DBUG_ASSERT(table->is_with_system_versioning());
+  DBUG_ASSERT(table->versioned());
   restore_record(table,record[1]);
 
   // Set Sys_end to now()
-  if (table->get_row_end_field()->set_time())
+  if (table->vers_end_field()->set_time())
   {
     return 1;
   }
@@ -1781,8 +1781,8 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
           if (error != HA_ERR_RECORD_IS_THE_SAME)
           {
             info->updated++;
-            if (table->is_with_system_versioning() &&
-              (error=insert_rec_for_system_versioning(table, &info->copied)))
+            if (table->versioned() &&
+              (error=vers_insert_history_row(table, &info->copied)))
               goto err;
           }
           else
@@ -1842,7 +1842,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
         if (last_uniq_key(table,key_nr) &&
             !table->file->referenced_by_foreign_key() &&
             (!table->triggers || !table->triggers->has_delete_triggers()) &&
-            !table->is_with_system_versioning())
+            !table->versioned())
         {
           if ((error=table->file->ha_update_row(table->record[1],
                                                 table->record[0])) &&
@@ -1866,14 +1866,14 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
                                                 TRG_ACTION_BEFORE, TRUE))
             goto before_trg_err;
 
-          if (!table->is_with_system_versioning())
+          if (!table->versioned())
             error= table->file->ha_delete_row(table->record[1]);
           else
           {
             DBUG_ASSERT(table->insert_values);
             store_record(table,insert_values);
             restore_record(table,record[1]);
-            if (table->get_row_end_field()->set_time())
+            if (table->vers_end_field()->set_time())
             {
               error= 1;
               goto err;
@@ -1884,7 +1884,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
           }
           if (error)
             goto err;
-          if (!table->is_with_system_versioning())
+          if (!table->versioned())
             info->deleted++;
           else
             info->updated++;
@@ -3754,8 +3754,8 @@ int select_insert::send_data(List<Item> &values)
     DBUG_RETURN(0);
 
   thd->count_cuted_fields= CHECK_FIELD_WARN;	// Calculate cuted fields
-  if (table->is_with_system_versioning() &&
-      table->update_system_versioning_fields_for_insert())
+  if (table->versioned() &&
+      table->vers_update_fields())
     DBUG_RETURN(1);
   store_values(values);
   if (table->default_field && table->update_default_fields(0, info.ignore))
