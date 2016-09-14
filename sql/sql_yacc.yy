@@ -5870,10 +5870,10 @@ create_table_option:
           }
         | WITH SYSTEM VERSIONING
           {
-            System_versioning_info *info = Lex->get_system_versioning_info();
+            System_versioning_info *info = Lex->vers_get_info();
             if (!info)
               MYSQL_YYABORT;
-            info->is_declared_with_system_versioning = true;
+            info->declared_system_versioning = true;
           }
         ;
 
@@ -6078,7 +6078,7 @@ period_for_system_time:
           // If FOR_SYM is followed by SYSTEM_TIME_SYM then they are merged to: FOR_SYSTEM_TIME_SYM .
           PERIOD_SYM FOR_SYSTEM_TIME_SYM '(' period_for_system_time_column_id ',' period_for_system_time_column_id ')'
           {
-            System_versioning_info *info = Lex->get_system_versioning_info();
+            System_versioning_info *info = Lex->vers_get_info();
             if (!info)
               MYSQL_YYABORT;
             if (!my_strcasecmp(system_charset_info, $4->c_ptr(), $6->c_ptr()))
@@ -6160,7 +6160,7 @@ field_def:
         | opt_generated_always AS ROW_SYM start_or_end
           {
             System_versioning_info *info =
-              Lex->get_system_versioning_info();
+              Lex->vers_get_info();
             if (!info)
               MYSQL_YYABORT;
             String *field_name = new (thd->mem_root)

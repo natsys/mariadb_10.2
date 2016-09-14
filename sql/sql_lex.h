@@ -3129,9 +3129,9 @@ public:
   bool tmp_table() const { return create_info.tmp_table(); }
   bool if_exists() const { return create_info.if_exists(); }
 
-  System_versioning_info *get_system_versioning_info()
+  System_versioning_info *vers_get_info()
   {
-    create_info.system_versioning_info.with_system_versioning = true;
+    create_info.system_versioning_info.versioned = true;
     return &create_info.system_versioning_info;
   }
 };

@@ -1650,10 +1650,10 @@ struct System_versioning_info
   }
 
   /** User has added 'WITH SYSTEM VERSIONING' to table definition */
-  bool is_declared_with_system_versioning;
+  bool declared_system_versioning;
 
   /** Table described by this structure have enabled system versioning */
-  bool with_system_versioning;
+  bool versioned;
 };
 
 /**
@@ -1741,13 +1741,13 @@ struct Table_scope_and_contents_source_st
                          : ha_default_handlerton(thd);
   }
 
-  bool is_with_system_versioning()
+  bool versioned()
   {
-    return system_versioning_info.with_system_versioning;
+    return system_versioning_info.versioned;
   }
   const System_versioning_info *get_system_versioning_info()
   {
-    if (!is_with_system_versioning())
+    if (!versioned())
       return NULL;
     return &system_versioning_info;
   }
