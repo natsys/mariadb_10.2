@@ -716,32 +716,32 @@ struct TABLE_SHARE
     System versioning support.
    */
 
-  bool with_system_versioning;
+  bool versioned;
   uint16 row_start_field;
   uint16 row_end_field;
 
   void enable_system_versioning(uint16 row_start, uint row_end)
   {
-    with_system_versioning = true;
+    versioned = true;
     row_start_field = row_start;
     row_end_field = row_end;
   }
 
   void disable_system_versioning()
   {
-    with_system_versioning = false;
+    versioned = false;
     row_start_field = 0;
     row_end_field = 0;
   }
 
-  Field *get_row_start_field()
+  Field *vers_start_field()
   {
-    return with_system_versioning ? field[row_start_field] : NULL;
+    return field[row_start_field];
   }
 
-  Field *get_row_end_field()
+  Field *vers_end_field()
   {
-    return with_system_versioning ? field[row_end_field] : NULL;
+    return field[row_end_field];
   }
 
   /**
@@ -1441,7 +1441,7 @@ public:
   uint actual_n_key_parts(KEY *keyinfo);
   ulong actual_key_flags(KEY *keyinfo);
   int update_default_fields();
-  bool update_system_versioning_fields_for_insert();
+  bool vers_update_fields();
   void reset_default_fields();
   inline ha_rows stat_records() { return used_stat_records; }
 
@@ -1456,20 +1456,20 @@ public:
     System versioning support.
    */
 
-  bool is_with_system_versioning() const
+  bool versioned() const
   {
-    return s->with_system_versioning;
+    return s->versioned;
   }
 
-  Field *get_row_start_field() const
+  Field *vers_start_field() const
   {
-    DBUG_ASSERT(is_with_system_versioning());
+    DBUG_ASSERT(versioned());
     return field[s->row_start_field];
   }
 
-  Field *get_row_end_field() const
+  Field *vers_end_field() const
   {
-    DBUG_ASSERT(is_with_system_versioning());
+    DBUG_ASSERT(versioned());
     return field[s->row_end_field];
   }
 
@@ -1478,7 +1478,7 @@ public:
 
   uint user_fields() const
   {
-    return is_with_system_versioning() ?
+    return versioned() ?
       s->fields - VERSIONING_FIELDS :
       s->fields;
   }

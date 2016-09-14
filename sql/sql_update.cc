@@ -44,7 +44,7 @@
                          // mysql_derived_filling
 
 
-#include "sql_insert.h"  // For insert_rec_for_system_versioning() that may be
+#include "sql_insert.h"  // For vers_insert_history_row() that may be
                          //   needed for System Versioning.
 
 /**
@@ -748,7 +748,7 @@ int mysql_update(THD *thd,
 
   while (!(error=info.read_record(&info)) && !thd->killed)
   {
-    if (table->is_with_system_versioning() && !table->get_row_end_field()->is_max_timestamp())
+    if (table->versioned() && !table->vers_end_field()->is_max_timestamp())
     {
       continue;
     }
@@ -771,7 +771,7 @@ int mysql_update(THD *thd,
                                                TRG_EVENT_UPDATE))
         break; /* purecov: inspected */
 
-      if (table->is_with_system_versioning() && table->update_system_versioning_fields_for_insert())
+      if (table->versioned() && table->vers_update_fields())
       {
         error= 1;
         break;
@@ -846,10 +846,10 @@ int mysql_update(THD *thd,
         {
           updated++;
 
-          if (table->is_with_system_versioning())
+          if (table->versioned())
           {
             store_record(table, record[2]);
-            if ((error = insert_rec_for_system_versioning(table, &updated_sys_ver)))
+            if ((error = vers_insert_history_row(table, &updated_sys_ver)))
               break;
 
             restore_record(table, record[2]);
@@ -1047,7 +1047,7 @@ int mysql_update(THD *thd,
   if (error < 0 && !thd->lex->analyze_stmt)
   {
     char buff[MYSQL_ERRMSG_SIZE];
-    if (!table->is_with_system_versioning())
+    if (!table->versioned())
       my_snprintf(buff, sizeof(buff), ER_THD(thd, ER_UPDATE_INFO), (ulong) found,
                   (ulong) updated,
                   (ulong) thd->get_stmt_da()->current_statement_warn_count());
@@ -2141,7 +2141,7 @@ int multi_update::send_data(List<Item> &not_used_values)
     if (table->status & (STATUS_NULL_ROW | STATUS_UPDATED))
       continue;
 
-    if (table->is_with_system_versioning() && !table->get_row_end_field()->is_max_timestamp())
+    if (table->versioned() && !table->vers_end_field()->is_max_timestamp())
     {
       continue;
     }
@@ -2177,8 +2177,8 @@ int multi_update::send_data(List<Item> &not_used_values)
         if (table->default_field && table->update_default_fields())
           DBUG_RETURN(1);
 
-        if (table->is_with_system_versioning() &&
-            table->update_system_versioning_fields_for_insert())
+        if (table->versioned() &&
+            table->vers_update_fields())
         {
           error= 1;
           break;
@@ -2232,18 +2232,18 @@ int multi_update::send_data(List<Item> &not_used_values)
             error= 0;
             updated--;
           }
-          else if (table->is_with_system_versioning())
+          else if (table->versioned())
           {
             restore_record(table,record[1]);
 
             // Set end time to now()
-            if (table->get_row_end_field()->set_time())
+            if (table->vers_end_field()->set_time())
             {
               error= 1;
               break;
             }
 
-            if ( (error= insert_rec_for_system_versioning(table, &updated_sys_ver)) )
+            if ( (error= vers_insert_history_row(table, &updated_sys_ver)) )
             {
               error= 1;
               break;
@@ -2503,8 +2503,8 @@ int multi_update::do_updates()
             goto err2;
           }
         }
-        if (table->is_with_system_versioning() &&
-            table->update_system_versioning_fields_for_insert())
+        if (table->versioned() &&
+            table->vers_update_fields())
         {
           goto err2;
         }
@@ -2524,17 +2524,17 @@ int multi_update::do_updates()
         {
           updated++;
 
-          if (table->is_with_system_versioning())
+          if (table->versioned())
           {
             restore_record(table,record[1]);
 
             // Set end time to now()
-            if (table->get_row_end_field()->set_time())
+            if (table->vers_end_field()->set_time())
             {
               goto err2;
             }
 
-            if ( (local_error= insert_rec_for_system_versioning(table, &updated_sys_ver)) )
+            if ( (local_error= vers_insert_history_row(table, &updated_sys_ver)) )
             {
               err_table = table;
               goto err;
