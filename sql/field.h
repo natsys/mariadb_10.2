@@ -2523,6 +2523,7 @@ public:
   uint size_of() const { return sizeof(*this); }
 };
 
+
 class Field_year :public Field_tiny {
 public:
   Field_year(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
