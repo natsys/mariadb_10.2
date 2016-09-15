@@ -363,6 +363,7 @@ int mysql_update(THD *thd,
 
   if (table->default_field)
     table->mark_default_fields_for_write(false);
+
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   /* Check values */
   table_list->grant.want_privilege= table->grant.want_privilege=
@@ -763,7 +764,6 @@ int mysql_update(THD *thd,
 
       explain->tracker.on_record_after_where();
       store_record(table,record[1]);
-
       if (fill_record_n_invoke_before_triggers(thd, table, fields, values, 0,
                                                TRG_EVENT_UPDATE))
         break; /* purecov: inspected */
@@ -865,10 +865,10 @@ int mysql_update(THD *thd,
             flags|= ME_FATALERROR; /* Other handler errors are fatal */
 
           prepare_record_for_error_message(error, table);
-          table->file->print_error(error,MYF(flags));
-          error= 1;
-          break;
-        }
+	  table->file->print_error(error,MYF(flags));
+	  error= 1;
+	  break;
+	}
       }
 
       if (table->triggers &&
@@ -894,7 +894,7 @@ int mysql_update(THD *thd,
             ((error= table->file->exec_bulk_update(&dup_key_found)) ||
              dup_key_found))
         {
- 	        if (error)
+ 	  if (error)
           {
             /* purecov: begin inspected */
             /*
@@ -917,8 +917,8 @@ int mysql_update(THD *thd,
         }
         else
         {
-          error= -1;				// Simulate end of file
-          break;
+	  error= -1;				// Simulate end of file
+	  break;
         }
       }
     }
@@ -1547,9 +1547,9 @@ int mysql_multi_update_prepare(THD *thd)
       TABLE_LIST *for_update= 0;
       if (tl->check_single_table(&for_update, tables_for_update, tl))
       {
-	      my_error(ER_VIEW_MULTIUPDATE, MYF(0),
-		    tl->view_db.str, tl->view_name.str);
-	      DBUG_RETURN(-1);
+	my_error(ER_VIEW_MULTIUPDATE, MYF(0),
+		 tl->view_db.str, tl->view_name.str);
+	DBUG_RETURN(-1);
       }
     }
   }
@@ -1774,7 +1774,7 @@ int multi_update::prepare(List<Item> &not_used_values,
       TABLE_LIST *tl= (TABLE_LIST*) thd->memdup(table_ref,
 						sizeof(*tl));
       if (!tl)
-        DBUG_RETURN(1);
+	DBUG_RETURN(1);
       update.link_in_list(tl, &tl->next_local);
       tl->shared= table_count++;
       table->no_keyread=1;
@@ -1960,8 +1960,8 @@ multi_update::initialize_tables(JOIN *join)
       if (safe_update_on_fly(thd, join->join_tab, table_ref, all_tables))
       {
         table->mark_columns_needed_for_update();
-        table_to_update= table;			// Update table on the fly
-        continue;
+	table_to_update= table;			// Update table on the fly
+	continue;
       }
     }
     table->mark_columns_needed_for_update();
@@ -2092,8 +2092,8 @@ multi_update::~multi_update()
     {
       if (tmp_tables[cnt])
       {
-        free_tmp_table(thd, tmp_tables[cnt]);
-        tmp_table_param[cnt].cleanup();
+	free_tmp_table(thd, tmp_tables[cnt]);
+	tmp_table_param[cnt].cleanup();
       }
     }
   }
@@ -2160,7 +2160,7 @@ int multi_update::send_data(List<Item> &not_used_values)
       found++;
       if (!can_compare_record || compare_record(table))
       {
-        int error;
+	int error;
 
         if (table->default_field && table->update_default_fields(1, ignore))
           DBUG_RETURN(1);
@@ -2190,7 +2190,6 @@ int multi_update::send_data(List<Item> &not_used_values)
           */
           main_table->file->extra(HA_EXTRA_PREPARE_FOR_UPDATE);
         }
-
         if ((error=table->file->ha_update_row(table->record[1],
                                               table->record[0])) &&
             error != HA_ERR_RECORD_IS_THE_SAME)
@@ -2426,16 +2425,16 @@ int multi_update::do_updates()
       if (thd->killed && trans_safe)
       {
         thd->fatal_error();
-        goto err2;
+	goto err2;
       }
       if ((local_error= tmp_table->file->ha_rnd_next(tmp_table->record[0])))
       {
-        if (local_error == HA_ERR_END_OF_FILE)
-          break;
-        if (local_error == HA_ERR_RECORD_DELETED)
-          continue;				// May happen on dup key
+	if (local_error == HA_ERR_END_OF_FILE)
+	  break;
+	if (local_error == HA_ERR_RECORD_DELETED)
+	  continue;				// May happen on dup key
         err_table= tmp_table;
-        goto err;
+	goto err;
       }
 
       /* call rnd_pos() using rowids from temporary table */
@@ -2459,10 +2458,10 @@ int multi_update::do_updates()
 
       /* Copy data from temporary table to current table */
       for (copy_field_ptr=copy_field;
-           copy_field_ptr != copy_field_end;
-           copy_field_ptr++)
+	   copy_field_ptr != copy_field_end;
+	   copy_field_ptr++)
       {
-        (*copy_field_ptr->do_copy)(copy_field_ptr);
+	(*copy_field_ptr->do_copy)(copy_field_ptr);
         copy_field_ptr->to_field->set_has_explicit_value();
       }
 
@@ -2649,7 +2648,7 @@ bool multi_update::send_eof()
                             thd->query(), thd->query_length(),
                             transactional_tables, FALSE, FALSE, errcode))
       {
-        local_error= 1;				// Rollback update
+	local_error= 1;				// Rollback update
       }
     }
   }
