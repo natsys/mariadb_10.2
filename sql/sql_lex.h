@@ -2506,6 +2506,7 @@ public:
   Explain_delete* save_explain_delete_data(MEM_ROOT *mem_root, THD *thd);
 };
 
+
 class Query_arena_memroot;
 /* The state of the lex parsing. This is saved in the THD struct */
 

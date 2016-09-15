@@ -7003,7 +7003,7 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
     There is other way to solve problem: fill array with pointers to list,
     but it will be slower.
 
-    TODO: remove it when (if) we made one list for all fields and
+    TODO: remove it when (if) we made one list for allfields and
     ref_pointer_array
   */
   if (!ref_pointer_array.is_null())
