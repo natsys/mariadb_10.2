@@ -588,7 +588,7 @@ void remove_redundant_subquery_clauses(st_select_lex *subq_select_lex)
     subq_select_lex->group_list.empty();
     DBUG_PRINT("info", ("GROUP BY removed"));
   }
-
+  
   /*
     TODO: This would prevent processing quries with ORDER BY ... LIMIT
     therefore we disable this optimization for now.
@@ -25180,6 +25180,7 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
     */
     str->append(STRING_WITH_LEN(" from DUAL "));
   }
+
   // Where
   Item *cur_where= where;
   if (join)
