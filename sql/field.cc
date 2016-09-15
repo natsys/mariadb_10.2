@@ -5435,17 +5435,17 @@ void Field_timestampf::store_TIME(my_time_t timestamp, ulong sec_part)
 
 bool Field_timestampf::set_max_timestamp()
 {
-	DBUG_ENTER("Field_timestampf::set_max_timestamp");
+  DBUG_ENTER("Field_timestampf::set_max_timestamp");
 
-	mi_int4store(ptr, 0x7fffffff);
-	memset(ptr + 4, 0x0, value_length() - 4);
+  mi_int4store(ptr, 0x7fffffff);
+  memset(ptr + 4, 0x0, value_length() - 4);
 
-	DBUG_RETURN(FALSE);
+  DBUG_RETURN(FALSE);
 }
 
 bool Field_timestampf::is_max_timestamp()
 {
-	DBUG_ENTER("Field_timestampf::is_max_timestamp");
+  DBUG_ENTER("Field_timestampf::is_max_timestamp");
 
   DBUG_RETURN(mi_sint4korr(ptr) == 0x7fffffff);
 }

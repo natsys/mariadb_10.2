@@ -649,7 +649,7 @@ public:
      Is used by System Versioning.
    */
   virtual bool set_max_timestamp() {
-	  return true;
+    return true;
   }
   /**
      Is used by System Versioning.
