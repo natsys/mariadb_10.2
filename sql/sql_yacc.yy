@@ -2049,7 +2049,6 @@ END_OF_INPUT
 %type <with_clause> opt_with_clause with_clause
 
 %type <lex_str_ptr> query_name
-
 %%
 
 

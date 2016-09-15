@@ -583,7 +583,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
 
       if (!(error= table->file->ha_delete_row(table->record[0])))
       {
-	deleted++;
+        deleted++;
         if (table->triggers &&
             table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
                                               TRG_ACTION_AFTER, FALSE))
@@ -591,15 +591,15 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
           error= 1;
           break;
         }
-	if (!--limit && using_limit)
-	{
-	  error= -1;
-	  break;
-	}
+        if (!--limit && using_limit)
+        {
+          error= -1;
+          break;
+        }
       }
       else
       {
-	table->file->print_error(error,
+        table->file->print_error(error,
                                  MYF(thd->lex->ignore ? ME_JUST_WARNING : 0));
         if (thd->is_error())
         {
@@ -972,9 +972,9 @@ multi_delete::initialize_tables(JOIN *join)
       tbl->no_cache= 1;
       tbl->covering_keys.clear_all();
       if (tbl->file->has_transactions())
-	transactional_tables= 1;
+        transactional_tables= 1;
       else
-	normal_tables= 1;
+        normal_tables= 1;
       tbl->prepare_triggers_for_delete_stmt_or_event();
       tbl->prepare_for_position();
       tbl->mark_columns_needed_for_delete();
@@ -1083,8 +1083,8 @@ int multi_delete::send_data(List<Item> &values)
       error=tempfiles[secure_counter]->unique_add((char*) table->file->ref);
       if (error)
       {
-	error= 1;                               // Fatal error
-	DBUG_RETURN(1);
+        error= 1;                               // Fatal error
+        DBUG_RETURN(1);
       }
     }
   }
@@ -1237,8 +1237,8 @@ int multi_delete::do_table_deletes(TABLE *table, SORT_INFO *sort_info,
       local_error= 1;
       break;
     }
-      
-    local_error= table->file->ha_delete_row(table->record[0]);
+
+      local_error= table->file->ha_delete_row(table->record[0]);
     if (local_error && !ignore)
     {
       table->file->print_error(local_error, MYF(0));
@@ -1327,7 +1327,7 @@ bool multi_delete::send_eof()
                             transactional_tables, FALSE, FALSE, errcode) &&
           !normal_tables)
       {
-	local_error=1;  // Log write failed: roll back the SQL statement
+        local_error=1;  // Log write failed: roll back the SQL statement
       }
     }
   }

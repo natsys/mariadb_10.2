@@ -745,7 +745,7 @@ JOIN::prepare(TABLE_LIST *tables_init,
   {
     remove_redundant_subquery_clauses(select_lex);
   }
-  
+
   /*
     TRUE if the SELECT list mixes elements with and without grouping,
     and there is no GROUP BY clause. Mixing non-aggregated fields with
@@ -24930,7 +24930,6 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
     */
     str->append(STRING_WITH_LEN(" from DUAL "));
   }
-
   // Where
   Item *cur_where= where;
   if (join)
