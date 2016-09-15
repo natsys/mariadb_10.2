@@ -25076,7 +25076,8 @@ void TABLE_LIST::print(THD *thd, table_map eliminated_tables, String *str,
 
       append_identifier(thd, str, t_alias, strlen(t_alias));
     }
-		print_system_versioning(thd, eliminated_tables, str, query_type);
+
+    print_system_versioning(thd, eliminated_tables, str, query_type);
 
     if (index_hints)
     {
