@@ -501,6 +501,7 @@ SET(INNOBASE_SOURCES
 MYSQL_ADD_PLUGIN(xtradb ${INNOBASE_SOURCES} STORAGE_ENGINE
   DISABLED # until upgraded to 5.7, see also mysql-test/include/have_xtradb.combinations
   RECOMPILE_FOR_EMBEDDED
+  MODULE_OUTPUT_NAME ha_innodb
   LINK_LIBRARIES
     ${ZLIB_LIBRARY}
     ${CRC32_VPMSUM_LIBRARY}
