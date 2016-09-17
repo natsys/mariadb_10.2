@@ -1489,6 +1489,8 @@ public:
     return field[s->row_end_field];
   }
 
+  int delete_row();
+
 /** Number of additional fields used in versioned tables */
 #define VERSIONING_FIELDS 2
 
