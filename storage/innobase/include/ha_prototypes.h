@@ -433,12 +433,11 @@ thd_trx_is_auto_commit(
 	THD*	thd);	/*!< in: thread handle, or NULL */
 
 /******************************************************************//**
-Get the thread start time.
-@return the thread start time in seconds since the epoch. */
-ulint
-thd_start_time_in_secs(
+Copy the thread start time to trx_t. */
+void
+thd_start_time_to_trx(
 /*===================*/
-	THD*	thd);	/*!< in: thread handle, or NULL */
+	trx_t*	trx);
 
 /*****************************************************************//**
 A wrapper function of innobase_convert_name(), convert a table name
