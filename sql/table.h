@@ -1455,7 +1455,7 @@ public:
   uint actual_n_key_parts(KEY *keyinfo);
   ulong actual_key_flags(KEY *keyinfo);
   int update_default_fields(bool update, bool ignore_errors);
-  bool vers_update_fields();
+  void vers_update_fields();
   void reset_default_fields();
   inline ha_rows stat_records() { return used_stat_records; }
 
