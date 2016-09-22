@@ -1097,6 +1097,7 @@ struct trx_t {
 
 	time_t		start_time;	/*!< time the state last time became
 					TRX_STATE_ACTIVE */
+	suseconds_t 	start_time_us;	/*!< useconds part of start_time */
 	lsn_t		commit_lsn;	/*!< lsn at the time of the commit */
 	table_id_t	table_id;	/*!< Table to drop iff dict_operation
 					== TRX_DICT_OP_TABLE, or 0. */
@@ -1291,6 +1292,7 @@ struct trx_t {
 	os_event_t	wsrep_event;	/* event waited for in srv_conc_slot */
 #endif /* WITH_WSREP */
 
+	bool		vtq_notified;
 	ulint		magic_n;
 };
 
