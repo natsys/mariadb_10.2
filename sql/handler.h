@@ -375,6 +375,7 @@ enum enum_alter_inplace_result {
 
 #define HA_LEX_CREATE_TMP_TABLE	1
 #define HA_CREATE_TMP_ALTER     8
+#define HA_VERSIONED_TABLE      16
 
 #define HA_MAX_REC_LENGTH	65535
 

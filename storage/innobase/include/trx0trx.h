@@ -844,6 +844,7 @@ struct trx_t{
 
 	time_t		start_time;	/*!< time the trx state last time became
 					TRX_STATE_ACTIVE */
+	suseconds_t 	start_time_us;	/*!< useconds part of start_time */
 	trx_id_t	id;		/*!< transaction id */
 	XID		xid;		/*!< X/Open XA transaction
 					identification to identify a
@@ -1029,6 +1030,8 @@ struct trx_t{
 #ifdef WITH_WSREP
 	os_event_t	wsrep_event;	/* event waited for in srv_conc_slot */
 #endif /* WITH_WSREP */
+
+	bool vtq_notified;
 };
 
 /* Transaction isolation levels (trx->isolation_level) */

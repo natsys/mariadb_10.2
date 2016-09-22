@@ -482,6 +482,8 @@ dict_boot(void)
 			dict_load_sys_table(dict_sys->sys_fields);
 		}
 
+		dict_sys->sys_vtq = get_vtq_table();
+
 		mutex_exit(&(dict_sys->mutex));
 	}
 
