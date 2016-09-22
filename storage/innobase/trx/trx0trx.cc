@@ -1480,11 +1480,15 @@ trx_start_low(
 	}
 
 	if (trx->mysql_thd != NULL) {
-		trx->start_time = thd_start_time_in_secs(trx->mysql_thd);
+		thd_start_time_to_trx(trx);
 	} else {
-		trx->start_time = ut_time();
+		ut_usectime(
+			(ulint*)&trx->start_time,
+			(ulint*)&trx->start_time_micro);
 	}
 	trx->start_time_micro = clock();
+
+	trx->vtq_notified = false;
 
 	ut_a(trx->error_state == DB_SUCCESS);
 

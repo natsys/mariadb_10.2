@@ -306,7 +306,7 @@ ROW_FORMAT=REDUNDANT.  InnoDB engines do not check these flags
 for unknown bits in order to protect backward incompatibility. */
 /* @{ */
 /** Total number of bits in table->flags2. */
-#define DICT_TF2_BITS			9
+#define DICT_TF2_BITS			10
 #define DICT_TF2_UNUSED_BIT_MASK	(~0U << DICT_TF2_BITS)
 #define DICT_TF2_BIT_MASK		~DICT_TF2_UNUSED_BIT_MASK
 
@@ -337,6 +337,8 @@ index tables) of a FTS table are in HEX format. */
 /** Encryption table bit. */
 #define DICT_TF2_ENCRYPTION		256
 
+
+#define DICT_TF2_VERSIONED		512
 /* @} */
 
 #define DICT_TF2_FLAG_SET(table, flag)		\
