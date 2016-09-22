@@ -771,11 +771,8 @@ int mysql_update(THD *thd,
                                                TRG_EVENT_UPDATE))
         break; /* purecov: inspected */
 
-      if (table->versioned() && table->vers_update_fields())
-      {
-        error= 1;
-        break;
-      }
+      if (table->versioned())
+        table->vers_update_fields();
 
       found++;
 
@@ -2176,12 +2173,8 @@ int multi_update::send_data(List<Item> &not_used_values)
         if (table->default_field && table->update_default_fields())
           DBUG_RETURN(1);
 
-        if (table->versioned() &&
-            table->vers_update_fields())
-        {
-          error= 1;
-          break;
-        }
+        if (table->versioned())
+          table->vers_update_fields();
 
         if ((error= cur_table->view_check_option(thd, ignore)) !=
             VIEW_CHECK_OK)
@@ -2501,11 +2494,8 @@ int multi_update::do_updates()
             goto err2;
           }
         }
-        if (table->versioned() &&
-            table->vers_update_fields())
-        {
-          goto err2;
-        }
+        if (table->versioned())
+          table->vers_update_fields();
 
         if ((local_error=table->file->ha_update_row(table->record[1],
                                                     table->record[0])) &&
