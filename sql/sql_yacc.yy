@@ -6056,6 +6056,7 @@ create_table_option:
             System_versioning_info &info= Lex->vers_get_info();
             info.declared_system_versioning= true;
             info.versioned= true;
+            Lex->create_info.options|= HA_VERSIONED_TABLE;
           }
         ;
 

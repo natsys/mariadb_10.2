@@ -485,6 +485,8 @@ typedef uint32_t ib_uint32_t;
 /* Type used for all log sequence number storage and arithmetics */
 typedef	ib_uint64_t		lsn_t;
 
+typedef ib_uint64_t		ullong;
+
 #ifdef _WIN64
 typedef unsigned __int64	ulint;
 typedef __int64			lint;
