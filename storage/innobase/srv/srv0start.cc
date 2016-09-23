@@ -2747,6 +2747,12 @@ files_checked:
 		}
 	}
 
+	/* Create the SYS_VTQ system table */
+	err = dict_create_or_check_vtq_table();
+	if (err != DB_SUCCESS) {
+		return(err);
+	}
+
 	srv_is_being_started = FALSE;
 
 	ut_a(trx_purge_state() == PURGE_STATE_INIT);

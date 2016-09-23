@@ -1661,6 +1661,7 @@ struct dict_sys_t{
 	dict_table_t*	sys_columns;	/*!< SYS_COLUMNS table */
 	dict_table_t*	sys_indexes;	/*!< SYS_INDEXES table */
 	dict_table_t*	sys_fields;	/*!< SYS_FIELDS table */
+	dict_table_t*	sys_vtq;	/*!< SYS_VTQ table */
 
 	/*=============================*/
 	UT_LIST_BASE_NODE_T(dict_table_t)

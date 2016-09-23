@@ -11638,6 +11638,10 @@ index_bad:
 	DBUG_EXECUTE_IF("innodb_test_wrong_fts_aux_table_name",
 			*flags2 &= ~DICT_TF2_FTS_AUX_HEX_NAME;);
 
+	if (create_info->options & HA_VERSIONED_TABLE) {
+		*flags2 |= DICT_TF2_VERSIONED;
+	}
+
 	DBUG_RETURN(true);
 }
 
@@ -19960,7 +19964,8 @@ i_s_innodb_sys_datafiles,
 i_s_innodb_mutexes,
 i_s_innodb_sys_semaphore_waits,
 i_s_innodb_tablespaces_encryption,
-i_s_innodb_tablespaces_scrubbing
+i_s_innodb_tablespaces_scrubbing,
+i_s_innodb_vtq
 maria_declare_plugin_end;
 
 /** @brief Initialize the default value of innodb_commit_concurrency.
