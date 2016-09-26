@@ -336,12 +336,35 @@ btr_pcur_move_to_next_user_rec(
 				function may release the page latch */
 	mtr_t*		mtr);	/*!< in: mtr */
 /*********************************************************//**
+Moves the persistent cursor to the previous user record in the tree. If no user
+records are left, the cursor ends up 'before first in tree'.
+@return	TRUE if the cursor moved forward, ending on a user record */
+UNIV_INLINE
+ibool
+btr_pcur_move_to_prev_user_rec(
+/*===========================*/
+	btr_pcur_t*	cursor,	/*!< in: persistent cursor; NOTE that the
+				function may release the page latch */
+	mtr_t*		mtr);	/*!< in: mtr */
+/*********************************************************//**
 Moves the persistent cursor to the first record on the next page.
 Releases the latch on the current page, and bufferunfixes it.
 Note that there must not be modifications on the current page,
 as then the x-latch can be released only in mtr_commit. */
 void
 btr_pcur_move_to_next_page(
+/*=======================*/
+	btr_pcur_t*	cursor,	/*!< in: persistent cursor; must be on the
+				last record of the current page */
+	mtr_t*		mtr);	/*!< in: mtr */
+/*********************************************************//**
+Moves the persistent cursor to the last record on the previous page.
+Releases the latch on the current page, and bufferunfixes it.
+Note that there must not be modifications on the current page,
+as then the x-latch can be released only in mtr_commit. */
+UNIV_INTERN
+void
+btr_pcur_move_to_prev_page(
 /*=======================*/
 	btr_pcur_t*	cursor,	/*!< in: persistent cursor; must be on the
 				last record of the current page */

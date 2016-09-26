@@ -487,6 +487,8 @@ trx_create_low()
 	trx_free(). */
 	ut_a(trx->mod_tables.size() == 0);
 
+	trx->vtq_notify_on_commit = false;
+
 #ifdef WITH_WSREP
 	trx->wsrep_event = NULL;
 #endif /* WITH_WSREP */
@@ -1488,8 +1490,7 @@ trx_start_low(
 	}
 	trx->start_time_micro = clock();
 
-	trx->vtq_notified = false;
-
+	trx->vtq_notify_on_commit = false;
 	ut_a(trx->error_state == DB_SUCCESS);
 
 	trx->start_time_micro = clock();
