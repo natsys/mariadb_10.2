@@ -97,8 +97,9 @@ row_ins_clust_index_entry_low(
 	ulint		n_uniq,	/*!< in: 0 or index->n_uniq */
 	dtuple_t*	entry,	/*!< in/out: index entry to insert */
 	ulint		n_ext,	/*!< in: number of externally stored columns */
-	que_thr_t*	thr)	/*!< in: query thread or NULL */
-	__attribute__((nonnull, warn_unused_result));
+	que_thr_t*	thr,	/*!< in: query thread or NULL */
+	trx_t*		trx = 0)
+	__attribute__((warn_unused_result));
 /***************************************************************//**
 Tries to insert an entry into a secondary index. If a record with exactly the
 same fields is found, the other record is necessarily marked deleted.
@@ -122,8 +123,9 @@ row_ins_sec_index_entry_low(
 	dtuple_t*	entry,	/*!< in/out: index entry to insert */
 	trx_id_t	trx_id,	/*!< in: PAGE_MAX_TRX_ID during
 				row_log_table_apply(), or 0 */
-	que_thr_t*	thr)	/*!< in: query thread */
-	__attribute__((nonnull, warn_unused_result));
+	que_thr_t*	thr,	/*!< in: query thread */
+	trx_t*		trx = 0)
+	__attribute__((warn_unused_result));
 /***************************************************************//**
 Tries to insert the externally stored fields (off-page columns)
 of a clustered index entry.
@@ -192,7 +194,7 @@ row_ins_step(
 /***********************************************************//**
 Inserts a row to SYS_VTQ table.
 @return	error state */
-dberr_t vers_notify_vtq(que_thr_t * thr, mem_heap_t * heap);
+void vers_notify_vtq(trx_t* trx);
 
 /* Insert node structure */
 

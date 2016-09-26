@@ -4274,6 +4274,11 @@ innobase_commit(
 
 	if (commit_trx
 	    || (!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))) {
+		/* Notify VTQ on System Versioned tables update */
+		if (trx->vtq_notify_on_commit) {
+			vers_notify_vtq(trx);
+			trx->vtq_notify_on_commit = false;
+		}
 
 		/* Run the fast part of commit if we did not already. */
 		if (!trx_is_active_commit_ordered(trx)) {

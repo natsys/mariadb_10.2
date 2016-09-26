@@ -164,6 +164,8 @@ trx_create(void)
 	trx->lock.table_locks = ib_vector_create(
 		heap_alloc, sizeof(void**), 32);
 
+	trx->vtq_notify_on_commit = false;
+
 #ifdef WITH_WSREP
 	trx->wsrep_event = NULL;
 #endif /* WITH_WSREP */
@@ -917,7 +919,7 @@ trx_start_low(
 
 	mutex_exit(&trx_sys->mutex);
 
-	trx->vtq_notified = false;
+	trx->vtq_notify_on_commit = false;
 	ut_usectime(
 		(ulint*)&trx->start_time,
 		(ulint*)&trx->start_time_us);
