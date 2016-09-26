@@ -442,6 +442,58 @@ btr_pcur_move_to_next_page(
 }
 
 /*********************************************************//**
+Moves the persistent cursor to the last record on the previous page. Releases the
+latch on the current page, and bufferunfixes it. Note that there must not be
+modifications on the current page, as then the x-latch can be released only in
+mtr_commit. */
+UNIV_INTERN
+void
+btr_pcur_move_to_prev_page(
+/*=======================*/
+	btr_pcur_t*	cursor,	/*!< in: persistent cursor; must be on the
+				last record of the current page */
+	mtr_t*		mtr)	/*!< in: mtr */
+{
+	ulint		prev_page_no;
+	ulint		space;
+	ulint		zip_size;
+	page_t*		page;
+	buf_block_t*	prev_block;
+	page_t*		prev_page;
+
+	ut_ad(cursor->pos_state == BTR_PCUR_IS_POSITIONED);
+	ut_ad(cursor->latch_mode != BTR_NO_LATCHES);
+	ut_ad(btr_pcur_is_before_first_on_page(cursor));
+
+	cursor->old_stored = BTR_PCUR_OLD_NOT_STORED;
+
+	page = btr_pcur_get_page(cursor);
+	prev_page_no = btr_page_get_prev(page, mtr);
+	space = buf_block_get_space(btr_pcur_get_block(cursor));
+	zip_size = buf_block_get_zip_size(btr_pcur_get_block(cursor));
+
+	ut_ad(prev_page_no != FIL_NULL);
+
+	prev_block = btr_block_get(space, zip_size, prev_page_no,
+				   cursor->latch_mode,
+				   btr_pcur_get_btr_cur(cursor)->index, mtr);
+	prev_page = buf_block_get_frame(prev_block);
+#ifdef UNIV_BTR_DEBUG
+	ut_a(page_is_comp(prev_page) == page_is_comp(page));
+	ut_a(btr_page_get_next(prev_page, mtr)
+	     == buf_block_get_page_no(btr_pcur_get_block(cursor)));
+#endif /* UNIV_BTR_DEBUG */
+	prev_block->check_index_page_at_flush = TRUE;
+
+	btr_leaf_page_release(btr_pcur_get_block(cursor),
+			      cursor->latch_mode, mtr);
+
+	page_cur_set_after_last(prev_block, btr_pcur_get_page_cur(cursor));
+
+	page_check_dir(prev_page);
+}
+
+/*********************************************************//**
 Moves the persistent cursor backward if it is on the first record of the page.
 Commits mtr. Note that to prevent a possible deadlock, the operation
 first stores the position of the cursor, commits mtr, acquires the necessary

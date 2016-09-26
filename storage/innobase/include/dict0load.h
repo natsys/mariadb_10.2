@@ -263,7 +263,8 @@ dict_startscan_system(
 	btr_pcur_t*	pcur,		/*!< out: persistent cursor to
 					the record */
 	mtr_t*		mtr,		/*!< in: the mini-transaction */
-	dict_system_id_t system_id);	/*!< in: which system table to open */
+	dict_system_id_t system_id,	/*!< in: which system table to open */
+	bool		from_left = true);
 /********************************************************************//**
 This function get the next system table record as we scan the table.
 @return	the record if found, NULL if end of scan. */
@@ -391,6 +392,7 @@ dict_process_sys_datafiles(
 This function parses a SYS_VTQ record, extracts necessary
 information from the record and returns it to the caller.
 @return error message, or NULL on success */
+#define I_S_MAX_CONCURR_TRX 100
 UNIV_INTERN
 const char*
 dict_process_sys_vtq(
@@ -400,7 +402,7 @@ const rec_t*	rec,		/*!< in: current rec */
 ullong*		col_trx_id,	/*!< out: field values */
 ullong*		col_begin_ts,
 ullong*		col_commit_ts,
-ullong*		col_concurr_trx);
+char**		col_concurr_trx);
 /********************************************************************//**
 Get the filepath for a spaceid from SYS_DATAFILES. This function provides
 a temporary heap which is used for the table lookup, but not for the path.

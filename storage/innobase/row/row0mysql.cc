@@ -1400,12 +1400,8 @@ error_exit:
 		return(err);
 	}
 
-	if (!trx->vtq_notified && DICT_TF2_FLAG_IS_SET(node->table, DICT_TF2_VERSIONED)) {
-		trx->vtq_notified = true;
-		err = vers_notify_vtq(thr, node->table->heap);
-		if (err != DB_SUCCESS) {
-			goto error_exit;
-		}
+	if (!trx->vtq_notify_on_commit && DICT_TF2_FLAG_IS_SET(node->table, DICT_TF2_VERSIONED)) {
+		trx->vtq_notify_on_commit = true;
 	}
 
 	if (dict_table_has_fts_index(table)) {
@@ -1821,7 +1817,6 @@ run_again:
 	thr->fk_cascade_depth = 0;
 
 	if (err != DB_SUCCESS) {
-	error_exit:
 		que_thr_stop_for_mysql(thr);
 
 		if (err == DB_RECORD_NOT_FOUND) {
@@ -1848,12 +1843,8 @@ run_again:
 		return(err);
 	}
 
-	if (!trx->vtq_notified && DICT_TF2_FLAG_IS_SET(node->table, DICT_TF2_VERSIONED)) {
-		trx->vtq_notified = true;
-		err = vers_notify_vtq(thr, node->table->heap);
-		if (err != DB_SUCCESS) {
-			goto error_exit;
-		}
+	if (!trx->vtq_notify_on_commit && DICT_TF2_FLAG_IS_SET(node->table, DICT_TF2_VERSIONED)) {
+		trx->vtq_notify_on_commit = true;
 	}
 
 	que_thr_stop_for_mysql_no_error(thr, trx);
@@ -2110,12 +2101,8 @@ run_again:
 		return(err);
 	}
 
-	if (!trx->vtq_notified && DICT_TF2_FLAG_IS_SET(node->table, DICT_TF2_VERSIONED)) {
-		trx->vtq_notified = true;
-		err = vers_notify_vtq(thr, node->table->heap);
-		if (err != DB_SUCCESS) {
-			return err;
-		}
+	if (!trx->vtq_notify_on_commit && DICT_TF2_FLAG_IS_SET(node->table, DICT_TF2_VERSIONED)) {
+		trx->vtq_notify_on_commit = true;
 	}
 
 	if (node->is_delete) {
