@@ -13,5 +13,11 @@
 innodb_scrub : MDEV-8139
 innodb_scrub_compressed : MDEV-8139
 innodb_scrub_background : MDEV-8139
+<<<<<<< 35ccccbc8a0ab1e161d4f7c3b541a796d06a7c99
 innochecksum : MDEV-10727
 innodb_encryption_discard_import : MDEV-9099
+=======
+innodb_encryption-page-compression : Fails with lost connection at line 156
+innodb_onlinealter_encryption : MDEV-10099
+
+>>>>>>> Tests: disabled 'innodb_onlinealter_encryption', closes #13
