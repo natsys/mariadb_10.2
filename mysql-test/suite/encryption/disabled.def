@@ -15,3 +15,4 @@ innodb_scrub_compressed : MDEV-8139
 innodb_scrub_background : MDEV-8139
 innochecksum : MDEV-10727
 innodb_encryption_discard_import : MDEV-9099
+innodb_onlinealter_encryption : MDEV-10099
