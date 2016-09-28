@@ -379,12 +379,15 @@ pthread_handler_t _ma_thr_find_all_keys(void *arg)
 
   error=1;
 
-  if (my_thread_init())
-    goto err;
+  const int mti = my_thread_init();
 
   { /* Add extra block since DBUG_ENTER declare variables */
     DBUG_ENTER("_ma_thr_find_all_keys");
     DBUG_PRINT("enter", ("master: %d", sort_param->master));
+
+    if (mti)
+      goto err;
+
     if (sort_param->sort_info->got_error)
       goto err;
 
