@@ -346,8 +346,9 @@ it is not created by user and so not visible to end-user. */
 /** Encryption table bit. */
 #define DICT_TF2_ENCRYPTION		256
 
-
+/** System Versioning bit. */
 #define DICT_TF2_VERSIONED		512
+
 /* @} */
 
 #define DICT_TF2_FLAG_SET(table, flag)		\
@@ -1606,7 +1607,10 @@ struct dict_table_t {
 
 	/** Virtual column names */
 	const char*				v_col_names;
-
+	unsigned	vers_row_start:10;
+				/*!< System Versioning: row start col index */
+	unsigned	vers_row_end:10;
+				/*!< System Versioning: row end col index */
 	bool		is_system_db;
 				/*!< True if the table belongs to a system
 				database (mysql, information_schema or
