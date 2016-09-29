@@ -1052,6 +1052,10 @@ struct dict_table_t{
 				dict_operation_lock */
 	unsigned	n_def:10;/*!< number of columns defined so far */
 	unsigned	n_cols:10;/*!< number of columns */
+	unsigned	vers_row_start:10;
+				/*!< System Versioning: row start col index */
+	unsigned	vers_row_end:10;
+				/*!< System Versioning: row end col index */
 	unsigned	can_be_evicted:1;
 				/*!< TRUE if it's not an InnoDB system table
 				or a table that has no FK relationships */

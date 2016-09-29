@@ -170,6 +170,9 @@ be less than 256 */
 				type when the column is true VARCHAR where
 				MySQL uses 2 bytes to store the data len;
 				for shorter VARCHARs MySQL uses only 1 byte */
+
+#define DATA_VERS_ROW_START	0x2000	/* System Versioning row start */
+#define DATA_VERS_ROW_END	0x4000	/* System Versioning row end */
 /*-------------------------------------------*/
 
 /* This many bytes we need to store the type information affecting the
