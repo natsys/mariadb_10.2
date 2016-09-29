@@ -1499,6 +1499,20 @@ dict_load_columns(
 			ut_error;
 		}
 
+		if (table->cols[i].prtype & DATA_VERS_ROW_START) {
+			ut_ad(table->flags2 & DICT_TF2_VERSIONED
+				&& !(table->cols[i].prtype & DATA_VERS_ROW_END));
+			table->vers_row_start = i;
+			goto next_rec;
+		}
+
+		if (table->cols[i].prtype & DATA_VERS_ROW_END) {
+			ut_ad(table->flags2 & DICT_TF2_VERSIONED
+				&& !(table->cols[i].prtype & DATA_VERS_ROW_START));
+			table->vers_row_end = i;
+			goto next_rec;
+		}
+
 		/* Note: Currently we have one DOC_ID column that is
 		shared by all FTS indexes on a table. */
 		if (innobase_strcasecmp(name,
@@ -1533,6 +1547,7 @@ dict_load_columns(
 			table->fts->doc_col = i;
 		}
 
+	next_rec:
 		btr_pcur_move_to_next_user_rec(&pcur, &mtr);
 	}
 

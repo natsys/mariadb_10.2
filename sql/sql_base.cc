@@ -8739,7 +8739,7 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
                           ER_THD(thd, ER_WARNING_NON_DEFAULT_VALUE_FOR_VIRTUAL_COLUMN),
                           rfield->field_name, table->s->table_name.str);
     }
-    if (table->versioned() && rfield->is_generated() &&
+    if (table->versioned_by_sql() && rfield->is_generated() &&
         !ignore_errors)
     {
       my_error(ER_GENERATED_FIELD_CANNOT_BE_SET_BY_USER, MYF(0));
@@ -8960,7 +8960,7 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
                           field->field_name, table->s->table_name.str);
     }
 
-    if (table->versioned() && field->is_generated() &&
+    if (table->versioned_by_sql() && field->is_generated() &&
         !ignore_errors)
     {
       my_error(ER_GENERATED_FIELD_CANNOT_BE_SET_BY_USER, MYF(0));

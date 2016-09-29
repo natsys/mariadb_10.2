@@ -235,8 +235,10 @@ dberr_t
 row_insert_for_mysql(
 /*=================*/
 	byte*		mysql_rec,	/*!< in: row in the MySQL format */
-	row_prebuilt_t*	prebuilt)	/*!< in: prebuilt struct in MySQL
+	row_prebuilt_t*	prebuilt,	/*!< in: prebuilt struct in MySQL
 					handle */
+	bool		historical	/*!< in: System Versioning, row is */
+			= false)	/* historical */
 	__attribute__((nonnull, warn_unused_result));
 /*********************************************************************//**
 Builds a dummy query graph used in selects. */
