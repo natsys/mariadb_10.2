@@ -2040,7 +2040,7 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
                           hton->index_options);
   }
 
-  if (table->versioned())
+  if (table->versioned_by_sql())
   {
     const Field *fs = table->vers_start_field();
     const Field *fe = table->vers_end_field();
@@ -2139,7 +2139,7 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
       }
     }
 
-    if (table->versioned())
+    if (table->versioned_by_sql())
     {
       packet->append(STRING_WITH_LEN(" WITH SYSTEM VERSIONING"));
     }

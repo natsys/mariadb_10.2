@@ -196,6 +196,9 @@ be less than 256 */
 				for shorter VARCHARs MySQL uses only 1 byte */
 #define	DATA_VIRTUAL	8192	/* Virtual column */
 
+
+#define DATA_VERS_ROW_START	0x4000	/* System Versioning row start */
+#define DATA_VERS_ROW_END	0x8000	/* System Versioning row end */
 /*-------------------------------------------*/
 
 /* This many bytes we need to store the type information affecting the
