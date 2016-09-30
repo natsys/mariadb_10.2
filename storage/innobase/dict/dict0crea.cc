@@ -1500,11 +1500,11 @@ dict_create_or_check_vtq_table(void)
 	if (sys_vtq_err == DB_CORRUPTION) {
 		ib_logf(IB_LOG_LEVEL_WARN,
 			"Dropping incompletely created "
-			"SYS_FOREIGN table.");
+			"SYS_VTQ table.");
 		row_drop_table_for_mysql("SYS_VTQ", trx, TRUE);
 	}
 
-	ib_logf(IB_LOG_LEVEL_WARN,
+	ib_logf(IB_LOG_LEVEL_INFO,
 		"Creating VTQ system table.");
 
 	srv_file_per_table_backup = srv_file_per_table;

@@ -33,6 +33,10 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 *****************************************************************************/
 
+#define MYSQL_SERVER
+#include <sql_class.h>
+#include <tztime.h>
+
 #define lower_case_file_system lower_case_file_system_server
 #define mysql_unpacked_real_data_home mysql_unpacked_real_data_home_server
 #include <sql_table.h>	// explain_filename, nz2, EXPLAIN_PARTITIONS_AS_COMMENT,
@@ -113,6 +117,7 @@ MYSQL_PLUGIN_IMPORT extern char mysql_unpacked_real_data_home[];
 #include "fts0priv.h"
 #include "page0zip.h"
 #include "fil0pagecompress.h"
+#include "vtq.h"
 
 #define thd_get_trx_isolation(X) ((enum_tx_isolation)thd_tx_isolation(X))
 
@@ -1439,6 +1444,9 @@ normalize_table_name_low(
 	const char*     name,           /* in: table name string */
 	ibool           set_lower_case); /* in: TRUE if we want to set
 					 name to lower case */
+
+bool
+innobase_get_vtq_ts(THD* thd, MYSQL_TIME *out, ulonglong in_trx_id, vtq_field_t field);
 
 /*************************************************************//**
 Check for a valid value of innobase_commit_concurrency.
@@ -3364,6 +3372,9 @@ innobase_init(
           innobase_hton->tablefile_extensions = ha_innobase_exts;
 
 	innobase_hton->table_options = innodb_table_option_list;
+
+	/* System Versioning */
+	innobase_hton->vers_get_vtq_ts = innobase_get_vtq_ts;
 
 	innodb_remember_check_sysvar_funcs();
 
@@ -20642,4 +20653,111 @@ ib_push_warning(
 		buf);
 	my_free(buf);
 	va_end(args);
+}
+
+
+inline
+void
+innobase_get_vtq_ts_result(THD* thd, vtq_query_t* q, MYSQL_TIME *out, vtq_field_t field)
+{
+	ut_ad(thd && thd->variables.time_zone);
+
+	switch (field) {
+	case VTQ_BEGIN_TS:
+		thd->variables.time_zone->gmt_sec_to_TIME(out, q->begin_ts.tv_sec);
+		out->second_part = q->begin_ts.tv_usec;
+		break;
+	case VTQ_COMMIT_TS:
+		thd->variables.time_zone->gmt_sec_to_TIME(out, q->commit_ts.tv_sec);
+		out->second_part = q->commit_ts.tv_usec;
+		break;
+	default:
+		ut_error;
+	}
+}
+
+UNIV_INTERN
+bool
+innobase_get_vtq_ts(THD* thd, MYSQL_TIME *out, ulonglong _in_trx_id, vtq_field_t field)
+{
+	trx_t*		trx;
+	dict_index_t*	index;
+	btr_pcur_t	pcur;
+	dtuple_t*	tuple;
+	dfield_t*	dfield;
+	trx_id_t	trx_id_net;
+	mtr_t		mtr;
+	mem_heap_t*	heap;
+	rec_t*		rec;
+	ulint		len;
+	byte*		result_net;
+	bool		found = false;
+
+	DBUG_ENTER("innobase_get_vtq_ts");
+
+	if (_in_trx_id == 0) {
+		DBUG_RETURN(false);
+	}
+
+	ut_ad(sizeof(_in_trx_id) == sizeof(trx_id_t));
+	trx_id_t	in_trx_id = static_cast<trx_id_t>(_in_trx_id);
+
+	trx = thd_to_trx(thd);
+	ut_a(trx);
+	vtq_query_t*	q = &trx->vtq_query;
+
+	if (q->trx_id == in_trx_id) {
+		innobase_get_vtq_ts_result(thd, q, out, field);
+		DBUG_RETURN(true);
+	}
+
+	index = dict_table_get_first_index(dict_sys->sys_vtq);
+	heap = mem_heap_create(0);
+
+	ut_ad(index);
+	ut_ad(dict_index_is_clust(index));
+
+	mach_write_to_8(
+		reinterpret_cast<byte*>(&trx_id_net),
+		in_trx_id);
+
+	tuple = dtuple_create(heap, 1);
+	dfield = dtuple_get_nth_field(tuple, DICT_FLD__SYS_VTQ__TRX_ID);
+	dfield_set_data(dfield, &trx_id_net, 8);
+	dict_index_copy_types(tuple, index, 1);
+
+	mtr_start_trx(&mtr, trx);
+	btr_pcur_open_on_user_rec(index, tuple, PAGE_CUR_GE,
+			BTR_SEARCH_LEAF, &pcur, &mtr);
+
+	if (!btr_pcur_is_on_user_rec(&pcur))
+		goto not_found;
+
+	rec = btr_pcur_get_rec(&pcur);
+	result_net = rec_get_nth_field_old(rec, DICT_FLD__SYS_VTQ__TRX_ID, &len);
+	ut_ad(len == 8);
+	q->trx_id = mach_read_from_8(result_net);
+
+	result_net = rec_get_nth_field_old(rec, DICT_FLD__SYS_VTQ__BEGIN_TS, &len);
+	ut_ad(len == 8);
+	q->begin_ts.tv_sec = mach_read_from_4(result_net);
+	q->begin_ts.tv_usec = mach_read_from_4(result_net + 4);
+
+	result_net = rec_get_nth_field_old(rec, DICT_FLD__SYS_VTQ__COMMIT_TS, &len);
+	ut_ad(len == 8);
+	q->commit_ts.tv_sec = mach_read_from_4(result_net);
+	q->commit_ts.tv_usec = mach_read_from_4(result_net + 4);
+
+	if (q->trx_id != in_trx_id)
+		goto not_found;
+
+	innobase_get_vtq_ts_result(thd, q, out, field);
+	found = true;
+
+not_found:
+	btr_pcur_close(&pcur);
+	mtr_commit(&mtr);
+	mem_heap_free(heap);
+
+	DBUG_RETURN(found);
 }
