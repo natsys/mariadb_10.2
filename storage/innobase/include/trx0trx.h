@@ -39,6 +39,7 @@ Created 3/26/1996 Heikki Tuuri
 #include "trx0xa.h"
 #include "ut0vec.h"
 #include "fts0fts.h"
+#include "pars0pars.h"
 
 /** Dummy session used currently in MySQL interface */
 extern sess_t*	trx_dummy_sess;
@@ -679,6 +680,13 @@ typedef enum {
 	TRX_REPLICATION_ABORT = 2
 } trx_abort_t;
 
+struct vtq_query_t
+{
+	trx_id_t	trx_id;
+	timeval		begin_ts;
+	timeval		commit_ts;
+};
+
 struct trx_t{
 	ulint		magic_n;
 
@@ -1031,7 +1039,12 @@ struct trx_t{
 	os_event_t	wsrep_event;	/* event waited for in srv_conc_slot */
 #endif /* WITH_WSREP */
 
-	bool vtq_notify_on_commit;	/*!< Notify VTQ for System Versioned update */
+	/* System Versioning */
+	bool		vtq_notify_on_commit;
+					/*!< Notify VTQ for System Versioned update */
+	vtq_query_t	vtq_query;
+	trx_id_t*	vtq_concurr_trx;
+	ulint		vtq_concurr_n;
 };
 
 /* Transaction isolation levels (trx->isolation_level) */

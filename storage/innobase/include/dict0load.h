@@ -400,8 +400,8 @@ dict_process_sys_vtq(
 mem_heap_t*	heap,		/*!< in/out: heap memory */
 const rec_t*	rec,		/*!< in: current rec */
 ullong*		col_trx_id,	/*!< out: field values */
-ullong*		col_begin_ts,
-ullong*		col_commit_ts,
+timeval*	col_begin_ts,
+timeval*	col_commit_ts,
 char**		col_concurr_trx);
 /********************************************************************//**
 Get the filepath for a spaceid from SYS_DATAFILES. This function provides
