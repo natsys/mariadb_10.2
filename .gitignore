@@ -470,3 +470,7 @@ UpgradeLog*.htm
 
 # Microsoft Fakes
 FakesAssemblies/
+
+.clang-format
+storage/innobase/.clang-format
+compile_commands.json
