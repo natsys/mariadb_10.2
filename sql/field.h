@@ -3742,6 +3742,13 @@ Field *make_field(TABLE_SHARE *share, MEM_ROOT *mem_root,
 class Column_definition: public Sql_alloc
 {
 public:
+  enum enum_column_versioning
+  {
+    VERSIONING_NOT_SET,
+    WITH_VERSIONING,
+    WITHOUT_VERSIONING
+  };
+
   const char *field_name;
   LEX_STRING comment;			// Comment for field
   Item *def, *on_update;                // Default value
@@ -3764,6 +3771,7 @@ public:
   uint32 srid;
   Field::geometry_type geom_type;
   engine_option_value *option_list;
+  enum_column_versioning versioning;
 
   uint pack_flag;
 
@@ -3780,6 +3788,7 @@ public:
     flags(0), pack_length(0), key_length(0), interval(0),
     srid(0), geom_type(Field::GEOM_GEOMETRY),
     option_list(NULL),
+    versioning(VERSIONING_NOT_SET),
     vcol_info(0)
   {
     interval_list.empty();
@@ -3947,6 +3956,7 @@ int convert_null_to_field_value_or_error(Field *field);
 #define FIELDFLAG_TREAT_BIT_AS_CHAR     4096    /* use Field_bit_as_char */
 
 #define FIELDFLAG_LEFT_FULLSCREEN	8192
+#define FIELDFLAG_WITHOUT_SYSTEM_VERSIONING 8192U
 #define FIELDFLAG_RIGHT_FULLSCREEN	16384
 #define FIELDFLAG_FORMAT_NUMBER		16384	// predit: ###,,## in output
 #define FIELDFLAG_NO_DEFAULT		16384   /* sql */
@@ -3979,5 +3989,6 @@ int convert_null_to_field_value_or_error(Field *field);
 #define f_no_default(x)		(x & FIELDFLAG_NO_DEFAULT)
 #define f_bit_as_char(x)        ((x) & FIELDFLAG_TREAT_BIT_AS_CHAR)
 #define f_is_hex_escape(x)      ((x) & FIELDFLAG_HEX_ESCAPE)
+#define f_without_system_versioning(x) ((x) & FIELDFLAG_WITHOUT_SYSTEM_VERSIONING)
 
 #endif /* FIELD_INCLUDED */
