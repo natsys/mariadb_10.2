@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/natsys/mariadb_10.2.svg?branch=natsys%2Ftrunk)](https://travis-ci.org/natsys/mariadb_10.2)
+
 MariaDB is designed as a drop-in replacement of MySQL(R) with more
 features, new storage engines, fewer bugs, and better performance.
 
