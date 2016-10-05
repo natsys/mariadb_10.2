@@ -1,0 +1,14 @@
+language: cpp
+compiler:
+- gcc
+os:
+- linux
+branches:
+  only:
+  - natsys/trunk
+before_install:
+- sudo apt-get install libtcmalloc-minimal0
+- LD_PRELOAD=/usr/lib/libtcmalloc_minimal.so.0 cmake -DCMAKE_BUILD_TYPE=Debug -DWITH_INNOBASE_STORAGE_ENGINE=1 -DSECURITY_HARDENED=1 -DWITH_PIC=0
+before_script:
+- LD_PRELOAD=/usr/lib/libtcmalloc_minimal.so.0 make -j2
+script: cd ./mysql-test && LD_PRELOAD=/usr/lib/libtcmalloc_minimal.so.0 ./mtr --suite=versioning --big-test --force --max-test-fail=0 --suite-timeout=1440
