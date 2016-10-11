@@ -1650,7 +1650,7 @@ struct System_versioning_info
   }
 
   /** Returns true on failure */
-  bool add_implicit_fields(THD *thd, Alter_info *alter_info);
+  bool add_implicit_fields(THD *thd, Alter_info *alter_info, bool integer_fields);
 
   /** User has added 'WITH SYSTEM VERSIONING' to table definition */
   bool declared_system_versioning;

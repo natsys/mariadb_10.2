@@ -134,7 +134,7 @@ static void sql_kill_user(THD *thd, LEX_USER *user, killed_state state);
 static bool lock_tables_precheck(THD *thd, TABLE_LIST *tables);
 static bool execute_show_status(THD *, TABLE_LIST *);
 static bool check_rename_table(THD *, TABLE_LIST *, TABLE_LIST *);
-static bool check_system_versioning(Table_scope_and_contents_source_st *);
+static bool check_system_versioning(THD *, Table_scope_and_contents_source_st *, Alter_info *);
 
 const char *any_db="*any*";	// Special symbol for check_access
 
@@ -3618,13 +3618,6 @@ mysql_execute_command(THD *thd)
       goto end_with_restore_list;
     }
 
-    if (System_versioning_info *info= create_info.get_system_versioning_info())
-      if (info->add_implicit_fields(thd, &alter_info))
-        goto end_with_restore_list;
-
-    if (check_system_versioning(&create_info))
-      goto end_with_restore_list;
-
     /* Check privileges */
     if ((res= create_table_precheck(thd, select_tables, create_table)))
       goto end_with_restore_list;
@@ -3645,6 +3638,11 @@ mysql_execute_command(THD *thd)
     */
     if (!(create_info.used_fields & HA_CREATE_USED_ENGINE))
       create_info.use_default_db_type(thd);
+
+
+    if (check_system_versioning(thd, &create_info, &alter_info))
+      goto end_with_restore_list;
+
     /*
       If we are using SET CHARSET without DEFAULT, add an implicit
       DEFAULT to not confuse old users. (This may change).
@@ -7173,35 +7171,52 @@ bool check_fk_parent_table_access(THD *thd,
 /****************************************************************************
   Checks related to system versioning
 ****************************************************************************/
+bool vers_forced= false;
 
-static bool check_system_versioning(Table_scope_and_contents_source_st *create_info)
+static bool check_system_versioning(
+  THD *thd,
+  Table_scope_and_contents_source_st *create_info,
+  Alter_info *alter_info)
 {
-  const System_versioning_info *versioning_info = &create_info->system_versioning_info;
+  System_versioning_info &info = create_info->system_versioning_info;
 
-  if (!versioning_info->versioned)
-    return false;
+  if (!info.versioned)
+  {
+    if (vers_forced)
+    {
+      create_info->options|= HA_VERSIONED_TABLE;
+      info.versioned= true;
+      info.declared_system_versioning= true;
+    }
+    else
+      return false;
+  }
+
+  DBUG_ASSERT(create_info->db_type);
+  if (info.add_implicit_fields(thd, alter_info, create_info->db_type->versioned()))
+    return true;
 
   bool r = false;
 
-  if (!versioning_info->declared_system_versioning)
+  if (!info.declared_system_versioning)
   {
     r = true;
     my_error(ER_MISSING_WITH_SYSTEM_VERSIONING, MYF(0));
   }
 
-  if (!versioning_info->generated_as_row.start)
+  if (!info.generated_as_row.start)
   {
     r = true;
     my_error(ER_SYS_START_NOT_SPECIFIED, MYF(0));
   }
 
-  if (!versioning_info->generated_as_row.end)
+  if (!info.generated_as_row.end)
   {
     r = true;
     my_error(ER_SYS_END_NOT_SPECIFIED, MYF(0));
   }
 
-  if (!versioning_info->period_for_system_time.start || !versioning_info->period_for_system_time.end)
+  if (!info.period_for_system_time.start || !info.period_for_system_time.end)
   {
     r = true;
     my_error(ER_MISSING_PERIOD_FOR_SYSTEM_TIME, MYF(0));
@@ -7210,16 +7225,16 @@ static bool check_system_versioning(Table_scope_and_contents_source_st *create_i
   if (!r)
   {
     if (my_strcasecmp(system_charset_info,
-                      versioning_info->generated_as_row.start->c_ptr(),
-                      versioning_info->period_for_system_time.start->c_ptr()))
+                      info.generated_as_row.start->c_ptr(),
+                      info.period_for_system_time.start->c_ptr()))
     {
       r = true;
       my_error(ER_PERIOD_FOR_SYSTEM_TIME_CONTAINS_WRONG_START_COLUMN, MYF(0));
     }
 
     if (my_strcasecmp(system_charset_info,
-                      versioning_info->generated_as_row.end->c_ptr(),
-                      versioning_info->period_for_system_time.end->c_ptr()))
+                      info.generated_as_row.end->c_ptr(),
+                      info.period_for_system_time.end->c_ptr()))
     {
       r = true;
       my_error(ER_PERIOD_FOR_SYSTEM_TIME_CONTAINS_WRONG_END_COLUMN, MYF(0));
