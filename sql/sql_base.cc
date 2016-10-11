@@ -64,6 +64,8 @@
 #include "wsrep_mysqld.h"
 #include "wsrep_thd.h"
 
+extern bool vers_hidden;
+
 bool
 No_such_table_error_handler::handle_condition(THD *,
                                               uint sql_errno,
@@ -8344,6 +8346,14 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
 
       if (!(item= field_iterator.create_item(thd)))
         DBUG_RETURN(TRUE);
+
+      if (vers_hidden && item->type() == Item::FIELD_ITEM)
+      {
+        Item_field *f = static_cast<Item_field *>(item);
+        DBUG_ASSERT(f->field);
+        if (f->field->flags & (GENERATED_ROW_START_FLAG | GENERATED_ROW_END_FLAG))
+          continue;
+      }
 
       /* cache the table for the Item_fields inserted by expanding stars */
       if (item->type() == Item::FIELD_ITEM && tables->cacheable_table)
