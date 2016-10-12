@@ -3452,15 +3452,12 @@ vers_row_ins_vtq_low(trx_t* trx, mem_heap_t* heap, dtuple_t* row)
 			break;
 		}
 
-		if (index->type & DICT_FTS) {
-			continue;
-		}
-
 		entry = row_build_index_entry(row, NULL, index, heap);
 		err = row_ins_sec_index_entry_low(
 			flags, BTR_MODIFY_TREE,
 			index, offsets_heap, heap, entry, trx->id, NULL, trx);
 	} while (err == DB_SUCCESS);
+	ut_ad(n_index == 3);
 
 	mem_heap_free(offsets_heap);
 	return err;
