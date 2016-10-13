@@ -3189,12 +3189,9 @@ copy_info_about_generated_fields(Alter_info *dst_alter_info,
   if (!src_create_info->versioned())
     return;
 
-  const System_versioning_info *versioning_info =
-    src_create_info->get_system_versioning_info();
-  DBUG_ASSERT(versioning_info);
-  const char *row_start_field = versioning_info->generated_as_row.start->c_ptr();
+  const char *row_start_field = src_create_info->vers_info.generated_as_row.start->c_ptr();
   DBUG_ASSERT(row_start_field);
-  const char *row_end_field = versioning_info->generated_as_row.end->c_ptr();
+  const char *row_end_field = src_create_info->vers_info.generated_as_row.end->c_ptr();
   DBUG_ASSERT(row_end_field);
 
   List_iterator<Create_field> it(dst_alter_info->create_list);
@@ -3267,9 +3264,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   null_fields=blob_columns=0;
   create_info->varchar= 0;
   max_key_length= file->max_key_length();
-
-  const System_versioning_info *versioning_info =
-    create_info->get_system_versioning_info();
 
   for (field_no=0; (sql_field=it++) ; field_no++)
   {
@@ -3578,15 +3572,15 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     if (sql_field->stored_in_db())
       record_offset+= sql_field->pack_length;
 
-    if (versioning_info)
+    if (create_info->versioned())
     {
       const bool is_generated_as_row_start =
         !my_strcasecmp(system_charset_info,
-                      versioning_info->generated_as_row.start->c_ptr(),
+                      create_info->vers_info.generated_as_row.start->c_ptr(),
                       sql_field->field_name);
       const bool is_generated_as_row_end =
         !my_strcasecmp(system_charset_info,
-                      versioning_info->generated_as_row.end->c_ptr(),
+                      create_info->vers_info.generated_as_row.end->c_ptr(),
                       sql_field->field_name);
       if (is_generated_as_row_start && is_generated_as_row_end)
       {
@@ -4424,13 +4418,9 @@ vers_prepare_keys(THD *thd,
 {
   DBUG_ASSERT(create_info->versioned());
 
-  const System_versioning_info *versioning_info=
-    create_info->get_system_versioning_info();
-
-  DBUG_ASSERT(versioning_info);
-  const char *row_start_field= versioning_info->generated_as_row.start->c_ptr();
+  const char *row_start_field= create_info->vers_info.generated_as_row.start->c_ptr();
   DBUG_ASSERT(row_start_field);
-  const char *row_end_field= versioning_info->generated_as_row.end->c_ptr();
+  const char *row_end_field= create_info->vers_info.generated_as_row.end->c_ptr();
   DBUG_ASSERT(row_end_field);
 
   List_iterator<Key> key_it(alter_info->key_list);
@@ -4457,7 +4447,7 @@ vers_prepare_keys(THD *thd,
       continue; // Key already contains Sys_start or Sys_end
 
     const LEX_STRING &lex_sys_end=
-      versioning_info->generated_as_row.end->lex_string();
+      create_info->vers_info.generated_as_row.end->lex_string();
     Key_part_spec *key_part_sys_end_col=
       new(thd->mem_root) Key_part_spec(lex_sys_end, 0);
     key->columns.push_back(key_part_sys_end_col);
