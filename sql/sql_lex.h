@@ -3092,9 +3092,9 @@ public:
   bool tmp_table() const { return create_info.tmp_table(); }
   bool if_exists() const { return create_info.if_exists(); }
 
-  System_versioning_info &vers_get_info()
+  Vers_parse_info &vers_get_info()
   {
-    return create_info.system_versioning_info;
+    return create_info.vers_info;
   }
 };
 
