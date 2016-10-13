@@ -895,7 +895,6 @@ Virtual_column_info *add_virtual_expression(THD *thd, Item *expr)
   Lex_cast_type_st Lex_cast_type;
   Lex_field_type_st Lex_field_type;
   Lex_dyncol_type_st Lex_dyncol_type;
-  system_versioning_for_select system_versioning;
 
   /* pointers */
   Create_field *create_field;
@@ -2010,7 +2009,6 @@ END_OF_INPUT
 %type <NONE> window_frame_extent;
 %type <frame_exclusion> opt_window_frame_exclusion;
 %type <window_frame_bound> window_frame_start window_frame_bound;
-%type <system_versioning> opt_for_system_time_clause;
 
 %type <NONE>
         '-' '+' '*' '/' '%' '(' ')'
@@ -8617,6 +8615,7 @@ table_expression:
           opt_group_clause
           opt_having_clause
           opt_window_clause
+          opt_for_system_time_clause
         ;
 
 opt_table_expression:
@@ -8653,14 +8652,12 @@ select_options:
 
 opt_for_system_time_clause:
           /* empty */
-          {
-            $$.init();
-          }
+          {}
         | FOR_SYSTEM_TIME_SYM
           AS OF_SYM
           TIMESTAMP simple_expr
           {
-            $$.init(FOR_SYSTEM_TIME_AS_OF, $5);
+            Lex->current_select->vers_conditions.init(FOR_SYSTEM_TIME_AS_OF, $5);
           }
         | FOR_SYSTEM_TIME_SYM
           AS OF_SYM
@@ -8669,7 +8666,7 @@ opt_for_system_time_clause:
             Item *item= new (thd->mem_root) Item_func_now_local(thd, 6);
             if (item == NULL)
               MYSQL_YYABORT;
-            $$.init(FOR_SYSTEM_TIME_AS_OF, item);
+            Lex->current_select->vers_conditions.init(FOR_SYSTEM_TIME_AS_OF, item);
           }
         | FOR_SYSTEM_TIME_SYM
           FROM
@@ -8677,7 +8674,7 @@ opt_for_system_time_clause:
           TO_SYM
           TIMESTAMP simple_expr
           {
-            $$.init(FOR_SYSTEM_TIME_FROM_TO, $4, $7);
+            Lex->current_select->vers_conditions.init(FOR_SYSTEM_TIME_FROM_TO, $4, $7);
           }
         | FOR_SYSTEM_TIME_SYM
           BETWEEN_SYM
@@ -8685,7 +8682,7 @@ opt_for_system_time_clause:
           AND_SYM
           TIMESTAMP simple_expr
           {
-            $$.init(FOR_SYSTEM_TIME_BETWEEN, $4, $7);
+            Lex->current_select->vers_conditions.init(FOR_SYSTEM_TIME_BETWEEN, $4, $7);
           }
         ;
 
@@ -11044,7 +11041,7 @@ table_primary_ident:
             SELECT_LEX *sel= Select;
             sel->table_join_options= 0;
           }
-          table_ident opt_use_partition opt_table_alias opt_key_definition opt_for_system_time_clause
+          table_ident opt_use_partition opt_table_alias opt_key_definition
           {
             if (!($$= Select->add_table_to_list(thd, $2, $4,
                                                 Select->get_table_join_options(),
@@ -11054,7 +11051,6 @@ table_primary_ident:
                                                 $3)))
               MYSQL_YYABORT;
             Select->add_joined_table($$);
-            $$->system_versioning= $6;
           }
         ;
 
