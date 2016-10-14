@@ -627,6 +627,7 @@ static SYMBOL symbols[] = {
   { "TRIGGERS",         SYM(TRIGGERS_SYM)},
   { "TRUE",		SYM(TRUE_SYM)},
   { "TRUNCATE",		SYM(TRUNCATE_SYM)},
+  { "TRX_ID",		SYM(TRX_ID_SYM)},
   { "TYPE",		SYM(TYPE_SYM)},
   { "TYPES",		SYM(TYPES_SYM)},
   { "UNBOUNDED",        SYM(UNBOUNDED_SYM)},

@@ -7260,3 +7260,7 @@ ER_SYS_END_FIELD_MUST_BE_BIGINT
 
 ER_NO_VERSIONED_FIELDS_IN_VERSIONED_TABLE
         eng "Every field specified unversioned in versioned table"
+
+ER_VERS_TRX_ID_UNSUPPORTED
+        eng "Engine does not support versioned TRX_ID"
+

@@ -673,7 +673,7 @@ setup_without_group(THD *thd, Ref_ptr_array ref_pointer_array,
 }
 
 static int
-setup_for_system_time(THD *thd, TABLE_LIST *tables, COND **where_expr, SELECT_LEX *select_lex)
+setup_for_system_time(THD *thd, TABLE_LIST *tables, COND **where_expr, SELECT_LEX *slex)
 {
   DBUG_ENTER("setup_for_system_time");
 
@@ -702,17 +702,17 @@ setup_for_system_time(THD *thd, TABLE_LIST *tables, COND **where_expr, SELECT_LE
      because they must outlive execution phase for multiple executions. */
   arena= thd->activate_stmt_arena_if_needed(&backup);
 
-  if (select_lex->saved_where)
+  if (slex->saved_where)
   {
     DBUG_ASSERT(thd->stmt_arena->is_sp_execute());
-    *where_expr= select_lex->saved_where;
+    *where_expr= slex->saved_where;
   }
   else if (thd->stmt_arena->is_sp_execute())
   {
     if (thd->stmt_arena->is_stmt_execute()) // SP executed second time (STMT_EXECUTED)
       *where_expr= 0;
     else // SP executed first time (STMT_INITIALIZED_FOR_SP)
-      select_lex->saved_where= *where_expr;
+      slex->saved_where= *where_expr;
   }
 
   for (table= tables; table; table= table->next_local)
@@ -743,15 +743,23 @@ setup_for_system_time(THD *thd, TABLE_LIST *tables, COND **where_expr, SELECT_LE
       Field *fstart= table->table->vers_start_field();
       Field *fend= table->table->vers_end_field();
 
-      DBUG_ASSERT(select_lex->parent_lex);
-      Name_resolution_context *context= select_lex->parent_lex->current_context();
+      DBUG_ASSERT(slex->parent_lex);
+      Name_resolution_context *context= slex->parent_lex->current_context();
       DBUG_ASSERT(context);
 
       Item *row_start= new (thd->mem_root) Item_field(thd, context, fstart);
       Item *row_end= new (thd->mem_root) Item_field(thd, context, fend);
       Item *row_end2= row_end;
 
-      if (!table->table->versioned_by_sql())
+      if (table->table->versioned_by_sql())
+      {
+        if (slex->vers_conditions.unit == UNIT_TRX_ID)
+        {
+          my_error(ER_VERS_TRX_ID_UNSUPPORTED, MYF(0), table->table_name);
+          DBUG_RETURN(-1);
+        }
+      }
+      else if (slex->vers_conditions.unit == UNIT_TIMESTAMP)
       {
         DBUG_ASSERT(table->table->s && table->table->s->db_plugin);
         row_start= new (thd->mem_root) Item_func_vtq_ts(
@@ -767,7 +775,7 @@ setup_for_system_time(THD *thd, TABLE_LIST *tables, COND **where_expr, SELECT_LE
       }
 
       Item *cond1= 0, *cond2= 0, *curr= 0;
-      switch (select_lex->vers_conditions.type)
+      switch (slex->vers_conditions.type)
       {
         case FOR_SYSTEM_TIME_UNSPECIFIED:
           if (table->table->versioned_by_sql())
@@ -785,21 +793,21 @@ setup_for_system_time(THD *thd, TABLE_LIST *tables, COND **where_expr, SELECT_LE
           break;
         case FOR_SYSTEM_TIME_AS_OF:
           cond1= new (thd->mem_root) Item_func_le(thd, row_start,
-            select_lex->vers_conditions.start);
+            slex->vers_conditions.start);
           cond2= new (thd->mem_root) Item_func_gt(thd, row_end,
-            select_lex->vers_conditions.start);
+            slex->vers_conditions.start);
           break;
         case FOR_SYSTEM_TIME_FROM_TO:
           cond1= new (thd->mem_root) Item_func_lt(thd, row_start,
-                                                  select_lex->vers_conditions.end);
+                                                  slex->vers_conditions.end);
           cond2= new (thd->mem_root) Item_func_ge(thd, row_end,
-                                                  select_lex->vers_conditions.start);
+                                                  slex->vers_conditions.start);
           break;
         case FOR_SYSTEM_TIME_BETWEEN:
           cond1= new (thd->mem_root) Item_func_le(thd, row_start,
-                                                  select_lex->vers_conditions.end);
+                                                  slex->vers_conditions.end);
           cond2= new (thd->mem_root) Item_func_ge(thd, row_end,
-                                                  select_lex->vers_conditions.start);
+                                                  slex->vers_conditions.start);
           break;
         default:
           DBUG_ASSERT(0);
