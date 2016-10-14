@@ -1662,6 +1662,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  TRIM                          /* SQL-2003-N */
 %token  TRUE_SYM                      /* SQL-2003-R */
 %token  TRUNCATE_SYM
+%token  TRX_ID_SYM                    /* 32N2439 */
 %token  TYPES_SYM
 %token  TYPE_SYM                      /* SQL-2003-N */
 %token  UDF_RETURNS_SYM
@@ -8861,7 +8862,7 @@ opt_for_system_time_clause:
           AS OF_SYM
           TIMESTAMP simple_expr
           {
-            Lex->current_select->vers_conditions.init(FOR_SYSTEM_TIME_AS_OF, $5);
+            Lex->current_select->vers_conditions.init(FOR_SYSTEM_TIME_AS_OF, UNIT_TIMESTAMP, $5);
           }
         | FOR_SYSTEM_TIME_SYM
           AS OF_SYM
@@ -8870,7 +8871,7 @@ opt_for_system_time_clause:
             Item *item= new (thd->mem_root) Item_func_now_local(thd, 6);
             if (item == NULL)
               MYSQL_YYABORT;
-            Lex->current_select->vers_conditions.init(FOR_SYSTEM_TIME_AS_OF, item);
+            Lex->current_select->vers_conditions.init(FOR_SYSTEM_TIME_AS_OF, UNIT_TIMESTAMP, item);
           }
         | FOR_SYSTEM_TIME_SYM
           FROM
@@ -8878,7 +8879,7 @@ opt_for_system_time_clause:
           TO_SYM
           TIMESTAMP simple_expr
           {
-            Lex->current_select->vers_conditions.init(FOR_SYSTEM_TIME_FROM_TO, $4, $7);
+            Lex->current_select->vers_conditions.init(FOR_SYSTEM_TIME_FROM_TO, UNIT_TIMESTAMP, $4, $7);
           }
         | FOR_SYSTEM_TIME_SYM
           BETWEEN_SYM
@@ -8886,7 +8887,29 @@ opt_for_system_time_clause:
           AND_SYM
           TIMESTAMP simple_expr
           {
-            Lex->current_select->vers_conditions.init(FOR_SYSTEM_TIME_BETWEEN, $4, $7);
+            Lex->current_select->vers_conditions.init(FOR_SYSTEM_TIME_BETWEEN, UNIT_TIMESTAMP, $4, $7);
+          }
+        | FOR_SYSTEM_TIME_SYM
+          AS OF_SYM
+          TRX_ID_SYM simple_expr
+          {
+            Lex->current_select->vers_conditions.init(FOR_SYSTEM_TIME_AS_OF, UNIT_TRX_ID, $5);
+          }
+        | FOR_SYSTEM_TIME_SYM
+          FROM
+          TRX_ID_SYM simple_expr
+          TO_SYM
+          TRX_ID_SYM simple_expr
+          {
+            Lex->current_select->vers_conditions.init(FOR_SYSTEM_TIME_FROM_TO, UNIT_TRX_ID, $4, $7);
+          }
+        | FOR_SYSTEM_TIME_SYM
+          BETWEEN_SYM
+          TRX_ID_SYM simple_expr
+          AND_SYM
+          TRX_ID_SYM simple_expr
+          {
+            Lex->current_select->vers_conditions.init(FOR_SYSTEM_TIME_BETWEEN, UNIT_TRX_ID, $4, $7);
           }
         ;
 
