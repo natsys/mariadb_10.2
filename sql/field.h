@@ -32,8 +32,6 @@
 #include "sql_error.h"                          /* Sql_condition */
 #include "compat56.h"
 
-#include <limits>
-
 class Send_field;
 class Copy_field;
 class Protocol;
