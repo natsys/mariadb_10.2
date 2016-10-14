@@ -5614,3 +5614,14 @@ SET @time=NULL;
 SET @query=NULL;
 DEALLOCATE PREPARE stmt_t1;
 DROP TABLE t1;
+CREATE TABLE t1(
+A INT
+) WITH SYSTEM VERSIONING ENGINE=INNODB;
+INSERT INTO t1 VALUES(1);
+SELECT * FROM t1;
+A
+1
+SELECT *, sys_trx_start % 1, sys_trx_end % 1 FROM t1;
+A	sys_trx_start % 1	sys_trx_end % 1
+1	0	0
+DROP TABLE t1;
