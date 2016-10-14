@@ -2585,8 +2585,8 @@ struct LEX: public Query_tables_list
 private:
   Query_arena_memroot *arena_for_set_stmt;
   MEM_ROOT *mem_root_for_set_stmt;
-  void parse_error();
 public:
+  void parse_error(uint err_number= ER_SYNTAX_ERROR);
   inline bool is_arena_for_set_stmt() {return arena_for_set_stmt != 0;}
   bool set_arena_for_set_stmt(Query_arena *backup);
   void reset_arena_for_set_stmt(Query_arena *backup);
