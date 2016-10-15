@@ -1842,11 +1842,6 @@ row_update_for_mysql(
 
 		uvect->n_fields++;
 		ut_ad(node->in_mysql_interface); // otherwise needs to recalculate node->cmpl_info
-
-		/* Return trx_id back to mysql_rec (for the sake of interface consistency). */
-		t = &prebuilt->mysql_template[col_idx];
-		ut_ad(t->mysql_col_len == 8);
-		int8store(&mysql_rec[t->mysql_col_offset], trx->id);
 	}
 
 	ut_a(node->pcur->rel_pos == BTR_PCUR_ON);
