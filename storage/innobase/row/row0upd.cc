@@ -498,6 +498,7 @@ upd_node_create(
 	node->magic_n = UPD_NODE_MAGIC_N;
 
 	node->cmpl_info = 0;
+	node->versioned = false;
 
 	return(node);
 }

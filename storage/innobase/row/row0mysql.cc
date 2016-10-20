@@ -1807,7 +1807,8 @@ row_update_for_mysql(
 					      &prebuilt->clust_pcur);
 	}
 
-	if (DICT_TF2_FLAG_IS_SET(node->table, DICT_TF2_VERSIONED))
+	if (DICT_TF2_FLAG_IS_SET(node->table, DICT_TF2_VERSIONED) &&
+		(node->is_delete || node->versioned))
 	{
 		/* System Versioning: modify update vector to set
 		   sys_trx_start (or sys_trx_end in case of DELETE)

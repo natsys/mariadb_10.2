@@ -8379,6 +8379,8 @@ calc_row_difference(
 	/* We use upd_buff to convert changed fields */
 	buf = (byte*) upd_buff;
 
+	prebuilt->upd_node->versioned = false;
+
 	for (sql_idx = 0; sql_idx < n_fields; sql_idx++) {
 		field = table->field[sql_idx];
                 if (!field->stored_in_db())
@@ -8489,6 +8491,13 @@ calc_row_difference(
 				&prebuilt->table->cols[innodb_idx], clust_index);
 			n_changed++;
 
+			if (!prebuilt->upd_node->versioned &&
+				DICT_TF2_FLAG_IS_SET(prebuilt->table, DICT_TF2_VERSIONED) &&
+				!(field->flags & WITHOUT_SYSTEM_VERSIONING_FLAG))
+			{
+				prebuilt->upd_node->versioned = true;
+			}
+
 			/* If an FTS indexed column was changed by this
 			UPDATE then we need to inform the FTS sub-system.
 
@@ -8592,6 +8601,13 @@ calc_row_difference(
 			innodb_table, ufield, &trx->fts_next_doc_id);
 
 		++n_changed;
+
+		if (!prebuilt->upd_node->versioned &&
+			DICT_TF2_FLAG_IS_SET(prebuilt->table, DICT_TF2_VERSIONED) &&
+			!(field->flags & WITHOUT_SYSTEM_VERSIONING_FLAG))
+		{
+			prebuilt->upd_node->versioned = true;
+		}
 	} else {
 		/* We have a Doc ID column, but none of FTS indexed
 		columns are touched, nor the Doc ID column, so set
@@ -8765,7 +8781,7 @@ ha_innobase::update_row(
 
 	error = row_update_for_mysql((byte*) old_row, prebuilt);
 
-	if (error == DB_SUCCESS && DICT_TF2_FLAG_IS_SET(prebuilt->table, DICT_TF2_VERSIONED)) {
+	if (error == DB_SUCCESS && prebuilt->upd_node->versioned) {
 		if (trx->id != static_cast<trx_id_t>(table->vers_start_field()->val_int()))
 			error = row_insert_for_mysql((byte*) old_row, prebuilt, true);
 	}
