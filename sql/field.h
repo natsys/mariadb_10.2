@@ -3950,6 +3950,8 @@ int convert_null_to_field_value_or_error(Field *field);
 #define FIELDFLAG_BITFIELD		512	// mangled with decimals!
 #define FIELDFLAG_BLOB			1024	// mangled with decimals!
 #define FIELDFLAG_GEOM			2048    // mangled with decimals!
+// Do not show field in SELECT *. Hope GEOM field is never hidden.
+#define FIELDFLAG_HIDDEN                2048U
 
 #define FIELDFLAG_TREAT_BIT_AS_CHAR     4096    /* use Field_bit_as_char */
 
@@ -3988,5 +3990,6 @@ int convert_null_to_field_value_or_error(Field *field);
 #define f_bit_as_char(x)        ((x) & FIELDFLAG_TREAT_BIT_AS_CHAR)
 #define f_is_hex_escape(x)      ((x) & FIELDFLAG_HEX_ESCAPE)
 #define f_without_system_versioning(x) ((x) & FIELDFLAG_WITHOUT_SYSTEM_VERSIONING)
+#define f_hidden(x)             ((x) & FIELDFLAG_HIDDEN)
 
 #endif /* FIELD_INCLUDED */
