@@ -3029,10 +3029,6 @@ int prepare_create_field(Column_definition *sql_field,
     sql_field->pack_flag|= FIELDFLAG_MAYBE_NULL;
   if (sql_field->flags & NO_DEFAULT_VALUE_FLAG)
     sql_field->pack_flag|= FIELDFLAG_NO_DEFAULT;
-  if (sql_field->flags & WITHOUT_SYSTEM_VERSIONING_FLAG)
-    sql_field->pack_flag|= FIELDFLAG_WITHOUT_SYSTEM_VERSIONING;
-  if (sql_field->flags & HIDDEN_FLAG)
-    sql_field->pack_flag|= FIELDFLAG_HIDDEN;
   DBUG_RETURN(0);
 }
 
