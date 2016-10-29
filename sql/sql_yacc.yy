@@ -1038,10 +1038,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
-  Currently there are 106 shift/reduce conflicts.
+  Currently there are 103 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 106
+%expect 103
 
 /*
    Comments for TOKENS.
@@ -1263,7 +1263,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  FORCE_SYM
 %token  FOREIGN                       /* SQL-2003-R */
 %token  FOR_SYM                       /* SQL-2003-R */
-%token  FOR_SYSTEM_TIME_SYM           /* internal */
+%token  FOR_SYSTEM_TIME_SYM           /* INTERNAL */
 %token  FORMAT_SYM
 %token  FOUND_SYM                     /* SQL-2003-R */
 %token  FROM
@@ -1720,6 +1720,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  WITHOUT                       /* SQL-2003-R */
 %token  WITH_CUBE_SYM                 /* INTERNAL */
 %token  WITH_ROLLUP_SYM               /* INTERNAL */
+%token  WITH_SYSTEM_SYM               /* INTERNAL */
 %token  WORK_SYM                      /* SQL-2003-N */
 %token  WRAPPER_SYM
 %token  WRITE_SYM                     /* SQL-2003-N */
@@ -5902,7 +5903,7 @@ create_table_option:
               engine_option_value($1, &Lex->create_info.option_list,
                                   &Lex->option_list_last);
           }
-        | WITH SYSTEM VERSIONING
+        | WITH_SYSTEM_SYM VERSIONING
           {
             Vers_parse_info &info= Lex->vers_get_info();
             info.declared_system_versioning= true;
@@ -6694,7 +6695,7 @@ attribute:
             new (thd->mem_root)
               engine_option_value($1, &Lex->last_field->option_list, &Lex->option_list_last);
           }
-        | WITH SYSTEM VERSIONING
+        | WITH_SYSTEM_SYM VERSIONING
           {
             Lex->last_field->versioning = Column_definition::WITH_VERSIONING;
             Lex->create_info.vers_info.has_versioned_fields= true;
