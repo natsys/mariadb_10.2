@@ -11,3 +11,4 @@
 ##############################################################################
 
 innodb_defragment_fill_factor : MDEV-10771
+innodb_uninstall                : natsys: requires external innodb plugin
