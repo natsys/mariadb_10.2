@@ -104,6 +104,39 @@ row_get_rec_roll_ptr(
 	return(trx_read_roll_ptr(rec + offset + DATA_TRX_ID_LEN));
 }
 
+/*********************************************************************//**
+Reads sys_trx_end from a clustered index record.
+@return trx_id_t when row became versioned or TRX_ID_MAX if it's alive */
+UNIV_INLINE
+trx_id_t
+row_get_rec_sys_trx_end(
+/*=================*/
+	const rec_t*		rec,	/*!< in: record */
+	const dict_index_t*	index,	/*!< in: clustered index */
+	const ulint*		offsets)/*!< in: rec_get_offsets(rec, index) */
+{
+  ulint offset;
+
+  ut_ad(DICT_TF2_FLAG_IS_SET(index->table, DICT_TF2_VERSIONED));
+  ut_ad(dict_index_is_clust(index));
+  ut_ad(rec_offs_validate(rec, index, offsets));
+
+  // When row_id is also a PRIMARY KEY sys_trx_end field is not the last field
+  // in a row_t *. That's why we need this loop.
+  // TODO: replace linear search with something more performant.
+  for (ulint i = 0; i < dict_index_get_n_fields(index); ++i) {
+    if (dict_index_get_nth_col(index, i)->prtype & DATA_VERS_ROW_END) {
+      ulint len = 0;
+      const byte *field = rec_get_nth_field(rec, offsets, i, &len);
+      ut_a(len == 8);
+      return (mach_read_from_8(field));
+    }
+  }
+
+  ut_error; // unreachable code
+  return 0;
+}
+
 /*****************************************************************//**
 When an insert or purge to a table is performed, this function builds
 the entry to be inserted into or purged from an index on the table.

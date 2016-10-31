@@ -69,7 +69,18 @@ row_get_rec_roll_ptr(
 	const dict_index_t*	index,	/*!< in: clustered index */
 	const ulint*		offsets)/*!< in: rec_get_offsets(rec, index) */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-
+/*********************************************************************//**
+Reads sys_trx_end from a clustered index record.
+@return trx_id_t when row became versioned or TRX_ID_MAX if it's alive */
+UNIV_INLINE
+trx_id_t
+row_get_rec_sys_trx_end(
+/*====================*/
+	const rec_t*		rec,	/*!< in: record */
+	const dict_index_t*	index,	/*!< in: clustered index */
+        const ulint*		offsets)/*!< in: rec_get_offsets(rec, index) */
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
+/*********************************************************************//**
 /* Flags for row build type. */
 #define ROW_BUILD_NORMAL	0	/*!< build index row */
 #define ROW_BUILD_FOR_PURGE	1	/*!< build row for purge. */

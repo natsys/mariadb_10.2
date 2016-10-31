@@ -1755,18 +1755,59 @@ row_ins_check_foreign_constraint(
 		cmp = cmp_dtuple_rec(entry, rec, offsets);
 
 		if (cmp == 0) {
-			if (rec_get_deleted_flag(rec,
-						 rec_offs_comp(offsets))) {
-				err = row_ins_set_shared_rec_lock(
-					LOCK_ORDINARY, block,
-					rec, check_index, offsets, thr);
-				switch (err) {
-				case DB_SUCCESS_LOCKED_REC:
-				case DB_SUCCESS:
-					break;
-				default:
-					goto end_scan;
-				}
+                  if (DICT_TF2_FLAG_IS_SET(check_index->table,
+                                           DICT_TF2_VERSIONED)) {
+                    trx_id_t end_trx_id = 0;
+
+                    if (dict_index_is_clust(check_index)) {
+                      end_trx_id =
+                          row_get_rec_sys_trx_end(rec, check_index, offsets);
+                    } else {
+                      mem_heap_t *clust_heap = mem_heap_create(256);
+                      ulint clust_offsets_[REC_OFFS_NORMAL_SIZE];
+                      ulint *clust_offsets = clust_offsets_;
+                      rec_offs_init(clust_offsets_);
+                      btr_pcur_t clust_pcur;
+
+                      dict_index_t *clust_index =
+                          dict_table_get_first_index(check_index->table);
+
+                      dtuple_t *ref = row_build_row_ref(
+                          ROW_COPY_POINTERS, check_index, rec, clust_heap);
+
+                      mtr_t clust_mtr;
+                      mtr_start(&clust_mtr);
+                      btr_pcur_open(clust_index, ref, PAGE_CUR_GE,
+                                    BTR_SEARCH_LEAF, &clust_pcur, &clust_mtr);
+
+                      rec_t *clust_rec = btr_pcur_get_rec(&clust_pcur);
+
+                      clust_offsets =
+                          rec_get_offsets(clust_rec, clust_index, clust_offsets,
+                                          ULINT_UNDEFINED, &clust_heap);
+
+                      end_trx_id = row_get_rec_sys_trx_end(
+                          clust_rec, clust_index, clust_offsets);
+
+                      mtr_commit(&clust_mtr);
+                      btr_pcur_close(&clust_pcur);
+                      mem_heap_free(clust_heap);
+                    }
+
+                    if (end_trx_id != TRX_ID_MAX)
+                      continue;
+                  }
+
+                  if (rec_get_deleted_flag(rec, rec_offs_comp(offsets))) {
+                    err = row_ins_set_shared_rec_lock(
+                        LOCK_ORDINARY, block, rec, check_index, offsets, thr);
+                    switch (err) {
+                    case DB_SUCCESS_LOCKED_REC:
+                    case DB_SUCCESS:
+                      break;
+                    default:
+                      goto end_scan;
+                    }
 			} else {
 				/* Found a matching record. Lock only
 				a record because we can allow inserts

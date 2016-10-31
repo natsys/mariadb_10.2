@@ -1,0 +1,101 @@
+-- source suite/versioning/common.inc
+
+#################
+# Test RESTRICT #
+#################
+
+create table parent(
+  x int unsigned,
+  y int unsigned,
+  id int unique key
+) engine innodb;
+
+create table child(
+  y int unsigned,
+  z int unsigned,
+  id_xy int,
+  foreign key(id_xy) references parent(id)
+    on delete restrict
+    on update restrict
+) engine innodb with system versioning;
+
+insert into parent values(1, 2, 100011);
+insert into child values(101, 102, 100011);
+
+-- error ER_ROW_IS_REFERENCED_2
+delete from parent where id = 100011;
+delete from child where id_xy = 100011;
+delete from parent where id = 100011;
+select * from child for system_time from timestamp '0001-01-01 00:00:00' to timestamp now(6);
+
+insert into parent values(1, 2, 100011);
+insert into child values(101, 102, 100011);
+-- error ER_ROW_IS_REFERENCED_2
+update parent set id=id+1;
+delete from child;
+update parent set id=id+1;
+select * from child for system_time from timestamp '0001-01-01 00:00:00' to timestamp now(6);
+
+drop table child;
+drop table parent;
+
+##############################################
+# Test when clustered index is a foreign key #
+##############################################
+
+create table parent(
+  x int unsigned,
+  y int unsigned,
+  id int(10) unsigned unique key
+) engine innodb;
+
+create table child(
+  y int unsigned,
+  z int unsigned,
+  id_xy int(10) unsigned primary key,
+  foreign key(id_xy) references parent(id)
+) engine innodb with system versioning;
+
+insert into parent values(1, 2, 100011);
+insert into child values(101, 102, 100011);
+
+-- error ER_ROW_IS_REFERENCED_2
+delete from parent where id = 100011;
+select * from child;
+select * from child for system_time from timestamp '0001-01-01 00:00:00' to timestamp now(6);
+
+drop table child;
+drop table parent;
+
+################
+# Test CASCADE #
+################
+
+create table parent(
+  x int unsigned,
+  y int unsigned,
+  id int unique key
+) engine innodb;
+
+create table child(
+  y int unsigned,
+  z int unsigned,
+  id_xy int,
+  foreign key(id_xy) references parent(id)
+    on delete cascade
+    on update cascade
+) engine innodb with system versioning;
+
+insert into parent values(1, 2, 100011);
+insert into child values(101, 102, 100011);
+
+delete from parent where id = 100011;
+select * from child;
+select * from child for system_time from timestamp '0001-01-01 00:00:00' to timestamp now(6);
+
+drop table child;
+drop table parent;
+
+##########################
+
+drop procedure verify_vtq;
