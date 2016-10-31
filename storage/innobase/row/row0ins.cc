@@ -1755,14 +1755,27 @@ row_ins_check_foreign_constraint(
 		cmp = cmp_dtuple_rec(entry, rec, offsets);
 
 		if (cmp == 0) {
-			if (DICT_TF2_FLAG_IS_SET(check_table,
-						 DICT_TF2_VERSIONED)) {
+			if (DICT_TF2_FLAG_IS_SET(check_table, DICT_TF2_VERSIONED)) {
 				trx_id_t end_trx_id = 0;
+				ulint len;
 
 				if (dict_index_is_clust(check_index)) {
-					end_trx_id =
-						row_get_rec_sys_trx_end(rec, check_index, offsets);
+					ulint nfield = dict_col_get_clust_pos(
+						&check_table->cols[check_table->vers_row_end],
+						check_index);
+
+					const byte *field = rec_get_nth_field(
+						rec,
+						offsets,
+						nfield, &len);
+					ut_a(len == 8);
+
+					end_trx_id = mach_read_from_8(field);
 				} else {
+					rec_t *clust_rec;
+					ulint nfield;
+					const byte *field;
+					bool found = false;
 					mem_heap_t *clust_heap = mem_heap_create(256);
 					ulint clust_offsets_[REC_OFFS_NORMAL_SIZE];
 					ulint *clust_offsets = clust_offsets_;
@@ -1777,21 +1790,46 @@ row_ins_check_foreign_constraint(
 
 					mtr_t clust_mtr;
 					mtr_start(&clust_mtr);
-					btr_pcur_open(clust_index, ref, PAGE_CUR_GE,
+					btr_pcur_open_on_user_rec(clust_index, ref, PAGE_CUR_GE,
 						BTR_SEARCH_LEAF, &clust_pcur, &clust_mtr);
 
-					rec_t *clust_rec = btr_pcur_get_rec(&clust_pcur);
+					if (!btr_pcur_is_on_user_rec(&clust_pcur))
+						goto not_found;
 
-					clust_offsets =
-						rec_get_offsets(clust_rec, clust_index, clust_offsets,
-						ULINT_UNDEFINED, &clust_heap);
+					clust_rec = btr_pcur_get_rec(&clust_pcur);
+					clust_offsets = rec_get_offsets(
+						clust_rec,
+						clust_index,
+						clust_offsets,
+						ULINT_UNDEFINED,
+						&clust_heap);
+					if (0 != cmp_dtuple_rec(ref, clust_rec, clust_offsets))
+						goto not_found;
 
-					end_trx_id = row_get_rec_sys_trx_end(
-						clust_rec, clust_index, clust_offsets);
+					nfield = dict_col_get_clust_pos(
+						&check_table->cols[check_table->vers_row_end],
+						clust_index);
 
+					field = rec_get_nth_field(
+						clust_rec,
+						clust_offsets,
+						nfield, &len);
+					ut_a(len == 8);
+
+					end_trx_id = mach_read_from_8(field);
+					found = true;
+
+				not_found:
 					mtr_commit(&clust_mtr);
 					btr_pcur_close(&clust_pcur);
 					mem_heap_free(clust_heap);
+					if (!found) {
+						/* Something ugly happened: clustered index is out of sync.
+						   FIXME: print error message
+						 */
+						err = DB_NO_REFERENCED_ROW;
+						break;
+					}
 				}
 
 				if (end_trx_id != TRX_ID_MAX)
