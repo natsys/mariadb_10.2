@@ -1838,7 +1838,8 @@ row_ins_check_foreign_constraint(
 
 			if (rec_get_deleted_flag(rec, rec_offs_comp(offsets))) {
 				err = row_ins_set_shared_rec_lock(
-					LOCK_ORDINARY, block, rec, check_index, offsets, thr);
+					LOCK_ORDINARY, block,
+					rec, check_index, offsets, thr);
 				switch (err) {
 				case DB_SUCCESS_LOCKED_REC:
 				case DB_SUCCESS:
