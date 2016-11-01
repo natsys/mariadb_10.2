@@ -120,3 +120,39 @@ select * from child for system_time from timestamp '1-1-1' to timestamp now(6);
 
 drop table child;
 drop table parent;
+
+###########################
+# Parent table is foreign #
+###########################
+
+create or replace table parent(
+  id int unique key
+) engine innodb with system versioning;
+
+create or replace table child(
+  parent_id int,
+  foreign key(parent_id) references parent(id)
+) engine innodb;
+
+insert into parent values(1);
+insert into child values(1);
+-- error ER_ROW_IS_REFERENCED_2
+delete from parent;
+-- error ER_ROW_IS_REFERENCED_2
+update parent set id=2;
+
+delete from child;
+delete from parent;
+
+-- error ER_NO_REFERENCED_ROW_2
+insert into child values(1);
+
+insert into parent values(1);
+insert into child values(1);
+-- error ER_ROW_IS_REFERENCED_2
+delete from parent;
+-- error ER_ROW_IS_REFERENCED_2
+update parent set id=2;
+
+drop table child;
+drop table parent;
