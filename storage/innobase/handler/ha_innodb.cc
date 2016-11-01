@@ -9384,6 +9384,7 @@ calc_row_difference(
 	buf = (byte*) upd_buff;
 
 	prebuilt->upd_node->versioned = false;
+	prebuilt->upd_node->vers_delete = false;
 
 	for (sql_idx = 0,i=0; i < n_fields; i++, sql_idx++) {
 		field = table->field[sql_idx];
