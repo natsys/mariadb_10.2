@@ -1579,6 +1579,87 @@ private:
 	ulint&		counter;
 };
 
+/*********************************************************************//**
+Reads sys_trx_end field from clustered index row.
+@return trx_id_t */
+static
+trx_id_t
+row_ins_get_sys_trx_end_from_clust_rec(
+/*===================================*/
+			const rec_t *rec,	/*!< in: clustered row */
+			ulint *offsets,		/*!< in: offsets */
+			dict_index_t *index)	/*!< in: clustered index */
+{
+	ut_a(dict_index_is_clust(index));
+
+	ulint len;
+	ulint nfield = dict_col_get_clust_pos(
+		&index->table->cols[index->table->vers_row_end], index);
+	const byte *field = rec_get_nth_field(rec, offsets, nfield, &len);
+	ut_a(len == 8);
+	return(mach_read_from_8(field));
+}
+
+/*********************************************************************//**
+Performs search at clustered index and returns sys_trx_end if row was found.
+@return DB_SUCCESS, DB_NO_REFERENCED_ROW */
+static
+dberr_t
+row_ins_search_sys_trx_end(
+/*=======================*/
+			dict_index_t *index,	/*!< in: index of record */
+			const rec_t *rec,	/*!< in: record */
+			trx_id_t *end_trx_id)	/*!< out: end_trx_id */
+{
+	rec_t *clust_rec;
+	ulint nfield;
+	const byte *field;
+	bool found = false;
+	mem_heap_t *clust_heap = mem_heap_create(256);
+	ulint clust_offsets_[REC_OFFS_NORMAL_SIZE];
+	ulint *clust_offsets = clust_offsets_;
+	rec_offs_init(clust_offsets_);
+	btr_pcur_t clust_pcur;
+        dberr_t err;
+
+	dict_index_t *clust_index = dict_table_get_first_index(index->table);
+
+	dtuple_t *ref =
+		row_build_row_ref(ROW_COPY_POINTERS, index, rec, clust_heap);
+
+	mtr_t clust_mtr;
+	mtr_start(&clust_mtr);
+	btr_pcur_open_on_user_rec(clust_index, ref, PAGE_CUR_GE,
+				BTR_SEARCH_LEAF, &clust_pcur, &clust_mtr);
+
+	if (!btr_pcur_is_on_user_rec(&clust_pcur))
+		goto not_found;
+
+	clust_rec = btr_pcur_get_rec(&clust_pcur);
+	clust_offsets = rec_get_offsets(clust_rec, clust_index, clust_offsets,
+					ULINT_UNDEFINED, &clust_heap);
+	if (0 != cmp_dtuple_rec(ref, clust_rec, clust_offsets))
+		goto not_found;
+
+	*end_trx_id = row_ins_get_sys_trx_end_from_clust_rec(
+		clust_rec, clust_offsets, clust_index);
+	found = true;
+not_found:
+	mtr_commit(&clust_mtr);
+	btr_pcur_close(&clust_pcur);
+	mem_heap_free(clust_heap);
+	if (!found) {
+		/* Something ugly happened: clustered index is out of sync.
+		   FIXME: print error message
+		 */
+		err = DB_NO_REFERENCED_ROW;
+	} else {
+		err = DB_SUCCESS;
+	}
+
+        return(err);
+}
+
 /***************************************************************//**
 Checks if foreign key constraint fails for an index entry. Sets shared locks
 which lock either the success or the failure of the constraint. NOTE that
@@ -1760,76 +1841,13 @@ row_ins_check_foreign_constraint(
 				ulint len;
 
 				if (dict_index_is_clust(check_index)) {
-					ulint nfield = dict_col_get_clust_pos(
-						&check_table->cols[check_table->vers_row_end],
-						check_index);
-
-					const byte *field = rec_get_nth_field(
-						rec,
-						offsets,
-						nfield, &len);
-					ut_a(len == 8);
-
-					end_trx_id = mach_read_from_8(field);
-				} else {
-					rec_t *clust_rec;
-					ulint nfield;
-					const byte *field;
-					bool found = false;
-					mem_heap_t *clust_heap = mem_heap_create(256);
-					ulint clust_offsets_[REC_OFFS_NORMAL_SIZE];
-					ulint *clust_offsets = clust_offsets_;
-					rec_offs_init(clust_offsets_);
-					btr_pcur_t clust_pcur;
-
-					dict_index_t *clust_index =
-						dict_table_get_first_index(check_table);
-
-					dtuple_t *ref = row_build_row_ref(
-						ROW_COPY_POINTERS, check_index, rec, clust_heap);
-
-					mtr_t clust_mtr;
-					mtr_start(&clust_mtr);
-					btr_pcur_open_on_user_rec(clust_index, ref, PAGE_CUR_GE,
-						BTR_SEARCH_LEAF, &clust_pcur, &clust_mtr);
-
-					if (!btr_pcur_is_on_user_rec(&clust_pcur))
-						goto not_found;
-
-					clust_rec = btr_pcur_get_rec(&clust_pcur);
-					clust_offsets = rec_get_offsets(
-						clust_rec,
-						clust_index,
-						clust_offsets,
-						ULINT_UNDEFINED,
-						&clust_heap);
-					if (0 != cmp_dtuple_rec(ref, clust_rec, clust_offsets))
-						goto not_found;
-
-					nfield = dict_col_get_clust_pos(
-						&check_table->cols[check_table->vers_row_end],
-						clust_index);
-
-					field = rec_get_nth_field(
-						clust_rec,
-						clust_offsets,
-						nfield, &len);
-					ut_a(len == 8);
-
-					end_trx_id = mach_read_from_8(field);
-					found = true;
-
-				not_found:
-					mtr_commit(&clust_mtr);
-					btr_pcur_close(&clust_pcur);
-					mem_heap_free(clust_heap);
-					if (!found) {
-						/* Something ugly happened: clustered index is out of sync.
-						   FIXME: print error message
-						 */
-						err = DB_NO_REFERENCED_ROW;
-						break;
-					}
+					end_trx_id =
+						row_ins_get_sys_trx_end_from_clust_rec(
+						rec, offsets, check_index);
+				} else if (row_ins_search_sys_trx_end(
+						check_index, rec, &end_trx_id) !=
+						DB_SUCCESS) {
+					break;
 				}
 
 				if (end_trx_id != TRX_ID_MAX)
