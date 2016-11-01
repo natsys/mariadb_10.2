@@ -2621,6 +2621,7 @@ run_again:
 			ufield = &uvect->fields[0];
 			uvect->n_fields = 0;
 			node->is_delete = false;
+			node->vers_delete = true;
 			col_idx = table->vers_row_end;
 		} else {
 			ut_ad(uvect->n_fields < table->n_cols);
