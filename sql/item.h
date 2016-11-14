@@ -592,10 +592,21 @@ public:
   }
 };
 
+/* System versioning */
+class Vers_extended_item
+{
+public:
+  virtual vtq_record_t* vtq_cached_result()
+  {
+    return NULL;
+  }
+};
+
 
 class Item: public Value_source,
             public Type_std_attributes,
-            public Type_handler
+            public Type_handler,
+            public Vers_extended_item
 {
   void operator=(Item &);
   /**
