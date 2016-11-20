@@ -4412,6 +4412,7 @@ void Field_longlong::sql_type(String &res) const
 bool Field_longlong::set_max()
 {
   ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  set_notnull();
   int8store(ptr, unsigned_flag ? ULONGLONG_MAX : LONGLONG_MAX);
   return FALSE;
 }
@@ -5499,6 +5500,7 @@ bool Field_timestampf::set_max()
   DBUG_ENTER("Field_timestampf::set_max");
   ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
 
+  set_notnull();
   mi_int4store(ptr, TIMESTAMP_MAX_VALUE);
   memset(ptr + 4, 0x0, value_length() - 4);
 
