@@ -1979,7 +1979,7 @@ int check_that_all_fields_are_given_values(THD *thd, TABLE *entry,
   {
     if (!bitmap_is_set(write_set, (*field)->field_index) &&
         ((*field)->flags & NO_DEFAULT_VALUE_FLAG) &&
-        !((*field)->flags & (GENERATED_ROW_START_FLAG | GENERATED_ROW_END_FLAG)) &&
+        !(*field)->vers_sys_field() &&
         ((*field)->real_type() != MYSQL_TYPE_ENUM))
     {
       bool view= FALSE;
