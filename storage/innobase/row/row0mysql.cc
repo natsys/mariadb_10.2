@@ -2203,7 +2203,11 @@ run_again:
 		}
 	}
 
-	if (DICT_TF2_FLAG_IS_SET(node->table, DICT_TF2_VERSIONED)) {
+	if (DICT_TF2_FLAG_IS_SET(node->table, DICT_TF2_VERSIONED) &&
+		(node->versioned || node->vers_delete ||
+			// TODO: imrove this check (check if we touch only
+			// unversioned fields in foreigh table
+			node->foreign)) {
 		trx->vtq_notify_on_commit = true;
 	}
 
