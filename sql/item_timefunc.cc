@@ -3312,6 +3312,11 @@ VTQ_common<Item_func_X>::init_hton()
       hton= plugin_hton(plugin_int_to_ref(innodb_plugin));
       DBUG_ASSERT(hton);
     }
+    if (hton && !hton->versioned())
+    {
+      my_error(ER_VERS_ENGINE_UNSUPPORTED, MYF(0), Item::name ? Item::name : this->func_name());
+      hton= NULL;
+    }
   }
 }
 
@@ -3333,6 +3338,7 @@ Item_func_vtq_ts::get_date(MYSQL_TIME *res, ulonglong fuzzy_date)
   if (!hton)
     return true;
 
+  DBUG_ASSERT(hton->vers_query_trx_id);
   null_value= !hton->vers_query_trx_id(thd, res, trx_id, vtq_field);
 
   return false;
@@ -3384,6 +3390,7 @@ Item_func_vtq_id::get_by_trx_id(ulonglong trx_id)
     return 0;
   }
 
+  DBUG_ASSERT(hton->vers_query_trx_id);
   null_value= !hton->vers_query_trx_id(thd, &res, trx_id, vtq_field);
   return res;
 }
@@ -3394,6 +3401,7 @@ Item_func_vtq_id::get_by_commit_ts(MYSQL_TIME &commit_ts, bool backwards)
   THD *thd= current_thd; // can it differ from constructor's?
   DBUG_ASSERT(thd);
 
+  DBUG_ASSERT(hton->vers_query_commit_ts);
   null_value= !hton->vers_query_commit_ts(thd, &cached_result, commit_ts, VTQ_ALL, backwards);
   if (null_value)
   {
@@ -3506,6 +3514,7 @@ Item_func_vtq_trx_sees::val_int()
     return true;
   }
 
+  DBUG_ASSERT(hton->vers_trx_sees);
   bool result= false;
   null_value= !hton->vers_trx_sees(thd, result, trx_id1, trx_id0, commit_id1, iso_level1, commit_id0);
   return result;
