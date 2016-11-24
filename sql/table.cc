@@ -2258,7 +2258,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         DBUG_ASSERT(!reg_field->vcol_info);
         reg_field->vcol_info= vcol_info;
         share->virtual_fields++;
-        share->virtual_stored_fields++;         // For insert/load data
+        share->virtual_stored_fields= true;     // For insert/load data
         break;
       case 2:                                   // Default expression
         vcol_info->stored_in_db= 1;
@@ -5126,8 +5126,6 @@ void TABLE_LIST::cleanup_items()
     VIEW_CHECK_ERROR  FAILED
     VIEW_CHECK_SKIP   FAILED, but continue
 */
-
-const LEX_STRING view_check_name= { C_STRING_WITH_LEN("WITH CHECK OPTION") };
 
 
 int TABLE_LIST::view_check_option(THD *thd, bool ignore_failure)
