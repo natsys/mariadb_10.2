@@ -679,10 +679,6 @@ public:
    */
   virtual bool set_max()
   { DBUG_ASSERT(0); return false; }
-
-  /**
-     Used by System Versioning.
-   */
   virtual bool is_max()
   { DBUG_ASSERT(0); return false; }
 
@@ -949,6 +945,9 @@ public:
     return bitmap_is_set(table->has_value_set, field_index);
   }
   virtual void set_explicit_default(Item *value);
+
+  virtual my_time_t get_timestamp(const uchar *pos= NULL, ulong *sec_part= NULL) const
+  { DBUG_ASSERT(0); return 0; }
 
   /**
      Evaluates the @c INSERT default function and stores the result in the
@@ -2517,7 +2516,7 @@ public:
   bool set_max();
   bool is_max();
   void store_TIME(my_time_t timestamp, ulong sec_part);
-  my_time_t get_timestamp(const uchar *pos, ulong *sec_part) const;
+  my_time_t get_timestamp(const uchar *pos= NULL, ulong *sec_part= NULL) const;
   uint size_of() const { return sizeof(*this); }
 };
 
