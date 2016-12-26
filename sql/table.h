@@ -1523,6 +1523,12 @@ public:
     return s->versioned && !file->versioned();
   }
 
+  bool versioned_by_engine() const
+  {
+    DBUG_ASSERT(file);
+    return s->versioned && file->versioned();
+  }
+
   Field *vers_start_field() const
   {
     DBUG_ASSERT(s->versioned);
