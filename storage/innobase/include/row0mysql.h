@@ -292,7 +292,8 @@ row_table_got_default_clust_index(
 dberr_t
 row_update_for_mysql(
 	const byte*		mysql_rec,
-	row_prebuilt_t*		prebuilt)
+	row_prebuilt_t*		prebuilt,
+	bool			delete_history_row = false)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** Delete all rows for the given table by freeing/truncating indexes.
