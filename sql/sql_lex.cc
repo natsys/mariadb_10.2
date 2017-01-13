@@ -752,6 +752,8 @@ void lex_start(THD *thd)
   lex->frame_bottom_bound= NULL;
   lex->win_spec= NULL;
 
+  lex->vers_conditions.empty();
+
   lex->is_lex_started= TRUE;
   DBUG_VOID_RETURN;
 }
@@ -1296,6 +1298,19 @@ int MYSQLlex(YYSTYPE *yylval, THD *thd)
       lip->yylval= NULL;
       lip->lookahead_token= token;
       return FOR_SYM;
+    }
+    break;
+  case QUERY_SYM:
+    token= lex_one_token(yylval, thd);
+    lip->add_digest_token(token, yylval);
+    switch(token) {
+    case FOR_SYM:
+      return QUERY_FOR_SYM;
+    default:
+      lip->lookahead_yylval= lip->yylval;
+      lip->yylval= NULL;
+      lip->lookahead_token= token;
+      return QUERY_SYM;
     }
     break;
   default:
