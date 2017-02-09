@@ -5566,6 +5566,8 @@ public:
   static enum_field_types get_real_type(Item *);
   Field::geometry_type get_geometry_type() const { return geometry_type; };
   Item* get_copy(THD *thd, MEM_ROOT *mem_root) { return 0; }
+
+  uint flags;
 };
 
 
