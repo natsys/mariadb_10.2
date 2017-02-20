@@ -59,6 +59,10 @@ Smart ALTER TABLE
 #include <sql_acl.h>	// PROCESS_ACL
 #endif
 
+/* For supporting Native InnoDB Partitioning. */
+#include "partition_info.h"
+#include "ha_innopart.h"
+
 static const char *MSG_UNSUPPORTED_ALTER_ONLINE_ON_VIRTUAL_COLUMN=
 			"INPLACE ADD or DROP of virtual columns cannot be "
 			"combined with other ALTER TABLE actions";
@@ -9171,7 +9175,6 @@ public:
 	}
 };
 
-#ifdef MYSQL_INNODB_PARTITIONING
 
 /** Check if supported inplace alter table.
 @param[in]	altered_table	Altered MySQL table.
@@ -9495,7 +9498,7 @@ ha_innopart::notify_table_changed()
 		my_delete(tmp_par_path, MYF(0));
 	}
 }
-#endif /* MYSQL_INNODB_PARTITIONING */
+
 
 /**
 @param thd the session
