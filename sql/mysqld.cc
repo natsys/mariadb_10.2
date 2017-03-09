@@ -785,6 +785,8 @@ char *opt_logname, *opt_slow_logname, *opt_bin_logname;
 
 /* System Versioning */
 char *temporal_current_timestamp;
+my_bool force_versioning= false;
+ulong force_hidden= 2;
 
 /* Static variables */
 
