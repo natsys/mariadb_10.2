@@ -141,6 +141,7 @@ SET (SQL_SOURCE
                rpl_gtid.cc rpl_parallel.cc
                sql_type.cc sql_type.h
                item_windowfunc.cc sql_window.cc
+               item_vers.cc
 	       sql_cte.cc sql_cte.h
 	       ${WSREP_SOURCES}
                table_cache.cc encryption.cc temporary_tables.cc
