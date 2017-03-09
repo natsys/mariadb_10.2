@@ -387,6 +387,16 @@ static Sys_var_charptr sys_temporal_current_timestamp(
        GLOBAL_VAR(temporal_current_timestamp), CMD_LINE(REQUIRED_ARG, 'b'),
        IN_FS_CHARSET, DEFAULT("now"));
 
+static Sys_var_mybool Sys_force_versioning(
+       "force_versioning", "Makes all creating tables versioned by default",
+       GLOBAL_VAR(force_versioning), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+
+static Sys_var_ulong Sys_force_hidden(
+       "force_hidden", "Make versioning info hidden from everything "
+       "(2 - not specified, 0 - not hidden, 1 - hidden)",
+       GLOBAL_VAR(force_hidden), CMD_LINE(OPT_ARG),
+       VALID_RANGE(0, 2), DEFAULT(2), BLOCK_SIZE(1));
+
 static Sys_var_ulonglong Sys_binlog_cache_size(
        "binlog_cache_size", "The size of the transactional cache for "
        "updates to transactional engines for the binary log. "

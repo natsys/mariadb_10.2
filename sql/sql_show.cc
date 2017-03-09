@@ -1881,6 +1881,10 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
   {
     uint flags = field->flags;
 
+    if ((force_hidden == 1 || (force_hidden == 2 && force_versioning)) &&
+        (flags & (VERS_SYS_START_FLAG | VERS_SYS_END_FLAG)))
+      continue;
+
     if (ptr != table->field)
       packet->append(STRING_WITH_LEN(",\n"));
 
@@ -2052,7 +2056,8 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
                           hton->index_options);
   }
 
-  if (table->versioned())
+  if (table->versioned() &&
+      !(force_hidden == 1 || (force_hidden == 2 && force_versioning)))
   {
     const Field *fs = table->vers_start_field();
     const Field *fe = table->vers_end_field();
@@ -2151,7 +2156,8 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
       }
     }
 
-    if (table->versioned())
+    if (table->versioned() &&
+        !(force_hidden == 1 || (force_hidden == 2 && force_versioning)))
     {
       packet->append(STRING_WITH_LEN(" WITH SYSTEM VERSIONING"));
     }
