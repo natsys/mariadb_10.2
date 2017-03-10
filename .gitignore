@@ -477,4 +477,4 @@ FakesAssemblies/
 
 compile_commands.json
 .clang-format
-storage/innobase/.clang-format
+.kscope/
