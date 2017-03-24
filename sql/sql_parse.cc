@@ -3718,13 +3718,6 @@ mysql_execute_command(THD *thd)
     if (!(create_info.used_fields & HA_CREATE_USED_ENGINE))
       create_info.use_default_db_type(thd);
 
-    if (!create_info.like() &&
-        create_info.vers_info.check_and_fix_implicit(
-            thd, &alter_info, &create_info, create_table->table_name))
-    {
-      goto end_with_restore_list;
-    }
-
     /*
       If we are using SET CHARSET without DEFAULT, add an implicit
       DEFAULT to not confuse old users. (This may change).
@@ -3911,6 +3904,11 @@ mysql_execute_command(THD *thd)
       }
       else
       {
+        if (create_info.vers_info.check_and_fix_implicit(
+              thd, &alter_info, &create_info, create_table->table_name))
+        {
+          goto end_with_restore_list;
+        }
         /*
           In STATEMENT format, we probably have to replicate also temporary
           tables, like mysql replication does. Also check if the requested
