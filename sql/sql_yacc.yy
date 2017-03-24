@@ -6296,6 +6296,11 @@ field_def:
               my_yyabort_error((ER_VERS_WRONG_PARAMS, MYF(0), table_name, err));
             }
             *p= field_name;
+            if (lex->last_field->implicit_not_null)
+            {
+              lex->last_field->flags&= ~NOT_NULL_FLAG;
+              lex->last_field->implicit_not_null= false;
+            }
           }
         ;
 
@@ -6508,7 +6513,10 @@ field_type:
                 Unless --explicit-defaults-for-timestamp is given.
               */
               if (!opt_explicit_defaults_for_timestamp)
+              {
                 Lex->last_field->flags|= NOT_NULL_FLAG;
+                Lex->last_field->implicit_not_null= true;
+              }
               $$.set(opt_mysql56_temporal_format ? MYSQL_TYPE_TIMESTAMP2
                                                  : MYSQL_TYPE_TIMESTAMP, $2);
             }
@@ -6701,8 +6709,16 @@ opt_attribute_list:
         ;
 
 attribute:
-          NULL_SYM { Lex->last_field->flags&= ~ NOT_NULL_FLAG; }
-        | not NULL_SYM { Lex->last_field->flags|= NOT_NULL_FLAG; }
+          NULL_SYM
+          {
+            Lex->last_field->flags&= ~ NOT_NULL_FLAG;
+            Lex->last_field->implicit_not_null= false;
+          }
+        | not NULL_SYM
+          {
+            Lex->last_field->flags|= NOT_NULL_FLAG;
+            Lex->last_field->implicit_not_null= false;
+          }
         | DEFAULT column_default_expr { Lex->last_field->default_value= $2; }
         | ON UPDATE_SYM NOW_SYM opt_default_time_precision
           {
