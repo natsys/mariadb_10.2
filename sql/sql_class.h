@@ -788,6 +788,10 @@ typedef struct system_variables
   my_bool session_track_state_change;
 
   ulong threadpool_priority;
+
+  st_vers_current_time vers_current_time;
+  my_bool vers_force;
+  ulong vers_hide;
 } SV;
 
 /**

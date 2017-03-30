@@ -1803,6 +1803,7 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
   TABLE_SHARE *share= table->s;
   HA_CREATE_INFO create_info;
   sql_mode_t sql_mode= thd->variables.sql_mode;
+  ulong vers_hide= thd->variables.vers_hide;
   bool foreign_db_mode=  sql_mode & (MODE_POSTGRESQL | MODE_ORACLE |
                                      MODE_MSSQL | MODE_DB2 |
                                      MODE_MAXDB | MODE_ANSI);
