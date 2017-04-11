@@ -792,6 +792,7 @@ typedef struct system_variables
   st_vers_current_time vers_current_time;
   my_bool vers_force;
   ulong vers_hide;
+  my_bool vers_innodb_algorithm_simple;
 } SV;
 
 /**
