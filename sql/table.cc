@@ -3441,6 +3441,7 @@ partititon_err:
 
     if (err)
     {
+      outparam->file->ha_close();
       error= OPEN_FRM_OPEN_ERROR;
       error_reported= true;
       goto err;
