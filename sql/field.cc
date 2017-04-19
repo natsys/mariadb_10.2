@@ -4260,6 +4260,7 @@ int Field_longlong::store(longlong nr, bool unsigned_val)
     }
   }
 
+  set_notnull();
   int8store(ptr,nr);
   return error;
 }
