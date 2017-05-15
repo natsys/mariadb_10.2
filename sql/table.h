@@ -2893,6 +2893,9 @@ extern LEX_STRING SLOW_LOG_NAME;
 extern LEX_STRING INFORMATION_SCHEMA_NAME;
 extern LEX_STRING MYSQL_SCHEMA_NAME;
 
+/* System Versioning */
+extern LEX_STRING VERS_VTD_NAME;
+
 inline bool is_infoschema_db(const char *name, size_t len)
 {
   return (INFORMATION_SCHEMA_NAME.length == len &&

@@ -56,6 +56,7 @@
 #include "sql_audit.h"
 #include "sql_sequence.h"
 #include "tztime.h"
+#include "vtmd.h"                 // System Versioning
 
 
 #ifdef __WIN__
@@ -9566,6 +9567,12 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
     (void) quick_rm_table(thd, new_db_type, alter_ctx.new_db,
                           alter_ctx.tmp_name, FN_IS_TMP);
     goto err_with_mdl;
+  }
+
+  if (versioned && new_versioned && thd->variables.vers_ddl_survival)
+  {
+    if (VTMD_table::write_row(thd))
+      goto err_with_mdl;
   }
 
   // Rename the new table to the correct name.

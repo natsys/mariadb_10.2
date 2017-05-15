@@ -67,6 +67,9 @@ LEX_STRING GENERAL_LOG_NAME= {C_STRING_WITH_LEN("general_log")};
 /* SLOW_LOG name */
 LEX_STRING SLOW_LOG_NAME= {C_STRING_WITH_LEN("slow_log")};
 
+/* System Versioning */
+LEX_STRING VERS_VTD_NAME= {C_STRING_WITH_LEN("innodb_vtd")};
+
 /* 
   Keyword added as a prefix when parsing the defining expression for a
   virtual column read from the column definition saved in the frm file
@@ -273,6 +276,12 @@ TABLE_CATEGORY get_table_category(const LEX_STRING *db, const LEX_STRING *name)
     if ((name->length == SLOW_LOG_NAME.length) &&
         (my_strcasecmp(system_charset_info,
                        SLOW_LOG_NAME.str,
+                       name->str) == 0))
+      return TABLE_CATEGORY_LOG;
+
+    if ((name->length == VERS_VTD_NAME.length) &&
+        (my_strcasecmp(system_charset_info,
+                       VERS_VTD_NAME.str,
                        name->str) == 0))
       return TABLE_CATEGORY_LOG;
   }
