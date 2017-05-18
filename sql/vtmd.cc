@@ -2,6 +2,8 @@
 #include "sql_base.h"
 #include "sql_class.h"
 
+LEX_STRING VERS_VTMD_NAME= {C_STRING_WITH_LEN("vtmd")};
+
 bool VTMD_table::write_row(THD *thd)
 {
   TABLE_LIST table_list;
@@ -20,8 +22,8 @@ bool VTMD_table::write_row(THD *thd)
   thd->variables.option_bits&= ~OPTION_BIN_LOG;
 
   table_list.init_one_table(MYSQL_SCHEMA_NAME.str, MYSQL_SCHEMA_NAME.length,
-                            VERS_VTD_NAME.str, VERS_VTD_NAME.length,
-                            VERS_VTD_NAME.str,
+                            VERS_VTMD_NAME.str, VERS_VTMD_NAME.length,
+                            VERS_VTMD_NAME.str,
                             TL_WRITE_CONCURRENT_INSERT);
 
   if (!(table= open_log_table(thd, &table_list, &open_tables_backup)))
