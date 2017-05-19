@@ -21,6 +21,7 @@ public:
     COL_RENAMES
   };
 
+  static bool find_alive(THD *thd, TABLE *table);
   static bool write_row(THD *thd);
 };
 
