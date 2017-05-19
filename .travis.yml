@@ -5,22 +5,18 @@ branches:
   only:
     - natsys/trunk
 
-# non-container builds don't have enough RAM to reliably compile
-sudo: required
+git:
+  depth: 2
+
+sudo: false
 dist: trusty
 
 language: cpp
 compiler:
-  - gcc
+  - clang
 cache:
   - apt
   - ccache
-
-env:
-  matrix:
-    - GCC_VERSION=4.8
-    - GCC_VERSION=5
-    - GCC_VERSION=6
 
 addons:
   apt:
@@ -62,9 +58,14 @@ addons:
       - valgrind
 
 env:
-  - BUILD_TYPE="-DCMAKE_BUILD_TYPE=Debug -DWITH_JEMALLOC=yes -DSECURITY_HARDENED=no -DWITH_PIC=no ${TRAVIS_BUILD_DIR}" MTR_FLAGS=""
-  - BUILD_TYPE="-DCMAKE_BUILD_TYPE=Debug -DSECURITY_HARDENED=no -DWITH_PIC=no ${TRAVIS_BUILD_DIR}" MTR_FLAGS="--valgrind --valgrind-option=--show-reachable=no --valgrind-option=--num-callers=120"
-  - BUILD_TYPE="-DCMAKE_BUILD_TYPE=RelWithDebInfo -DWITH_JEMALLOC=yes -DSECURITY_HARDENED=yes ${TRAVIS_BUILD_DIR}" MTR_FLAGS=""
+  global:
+    - RELEASE="-DCMAKE_BUILD_TYPE=RelWithDebInfo -DWITH_JEMALLOC=yes -DSECURITY_HARDENED=yes"
+  matrix:
+    - BUILD_TYPE="-DCMAKE_BUILD_TYPE=Debug -DWITH_JEMALLOC=yes" SUITES=versioning
+    - BUILD_TYPE="-DCMAKE_BUILD_TYPE=Debug" MTR_FLAGS="--valgrind --valgrind-option=--show-reachable=no --valgrind-option=--num-callers=120" SUITES=versioning
+    - BUILD_TYPE=${RELEASE} SUITES=main,archive,optimizer_unfixed_bugs,parts,sys_vars,unit,vcol,innodb,innodb_gis,innodb_zip,innodb_fts
+    - BUILD_TYPE=${RELEASE} SUITES=rpl
+    - BUILD_TYPE=${RELEASE} SUITES=binlog,binlog_encryption,encryption,rocksdb,csv,federated,funcs_1,funcs_2,gcol,handler,heap,json,maria,percona,perfschema,plugins,multi_source,roles
 
 # libsnappy-dev # https://github.com/travis-ci/apt-package-whitelist/issues/3880
 # liblzma-dev # https://github.com/travis-ci/apt-package-whitelist/issues/3879
@@ -73,5 +74,15 @@ env:
 
 script:
   - ${CC} --version ; ${CXX} --version
-  - cd "${TRAVIS_BUILD_DIR}"
-  - "cmake -DWITH_INNOBASE_STORAGE_ENGINE=1 -DWITHOUT_TOKUDB_STORAGE_ENGINE=1 -DWITHOUT_ROCKSDB_STORAGE_ENGINE=1 $BUILD_TYPE && make -j $(grep -c processor /proc/cpuinfo) && cd ./mysql-test && ./mtr $MTR_FLAGS --mem --suite=versioning --force --max-test-fail=0"
+  - export MTR_MEM=/tmp
+  - cmake
+     -DWITH_UNIT_TESTS=0
+     -DWITH_UNITTEST=0
+     -DWITH_INNOBASE_STORAGE_ENGINE=1
+     -DWITHOUT_TOKUDB_STORAGE_ENGINE=1
+     -DWITHOUT_ROCKSDB_STORAGE_ENGINE=1
+     -DWITHOUT_MROONGA_STORAGE_ENGINE=1
+     ${BUILD_TYPE}
+  - make -j $(grep -c processor /proc/cpuinfo)
+  - cd ./mysql-test
+  - ./mtr ${MTR_FLAGS} -mem -pa=6 -force -max-test-fail=0 -suite=${SUITES} -skip-test-list='../skip_tests_travis'
