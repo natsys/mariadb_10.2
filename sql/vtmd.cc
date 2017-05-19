@@ -6,11 +6,12 @@
 
 LEX_STRING VERS_VTMD_NAME= {C_STRING_WITH_LEN("vtmd")};
 
-bool VTMD_table::find_alive(THD *thd, TABLE *table)
+bool VTMD_table::find_alive(THD *thd, TABLE *table, bool &found)
 {
   int error;
-  int UNINIT_VAR(keynum);
+  int keynum= 1;
   auto_afree_ptr<char> key(NULL);
+  found= false;
 
   if (key.get() == NULL)
   {
@@ -31,11 +32,15 @@ bool VTMD_table::find_alive(THD *thd, TABLE *table)
                                             HA_READ_KEY_EXACT);
   if (error)
   {
-    if (error == HA_ERR_RECORD_DELETED)
-      error= HA_ERR_KEY_NOT_FOUND;
+    if (error == HA_ERR_RECORD_DELETED || error == HA_ERR_KEY_NOT_FOUND)
+      return false;
     table->file->print_error(error, MYF(0));
     return true;
   }
+
+  restore_record(table, record[1]);
+
+  found= true;
   return false;
 }
 
@@ -46,6 +51,7 @@ bool VTMD_table::write_row(THD *thd)
   bool result= true;
   bool need_close= false;
   bool need_rnd_end= false;
+  bool found;
   int error;
   Open_tables_backup open_tables_backup;
   ulonglong save_thd_options;
@@ -65,6 +71,15 @@ bool VTMD_table::write_row(THD *thd)
     goto err;
   need_close= true;
 
+  if (!table->versioned())
+  {
+    my_message(ER_VERS_VTMD_ERROR, "VTMD is not versioned", MYF(0));
+    goto err;
+  }
+
+  if (VTMD_table::find_alive(thd, table, found))
+    goto err;
+
   if ((error= table->file->extra(HA_EXTRA_MARK_AS_LOG_TABLE)) ||
       (error= table->file->ha_rnd_init(0)))
   {
@@ -83,12 +98,27 @@ bool VTMD_table::write_row(THD *thd)
   }
 
   table->field[OLD_NAME]->set_null();
-  table->field[NAME]->store(STRING_WITH_LEN("name"), system_charset_info);
+  {
+    time_t t= time(NULL);
+    char *tmp= ctime(&t);
+    table->field[NAME]->store(tmp, strlen(tmp) - 5, system_charset_info);
+  }
   table->field[NAME]->set_notnull();
   table->field[FRM_IMAGE]->set_null();
   table->field[COL_RENAMES]->set_null();
 
-  if ((error= table->file->ha_write_row(table->record[0]))  )
+  if (found)
+  {
+    table->mark_columns_needed_for_update();
+    error= table->file->ha_update_row(table->record[1], table->record[0]);
+  }
+  else
+  {
+    table->mark_columns_needed_for_insert();
+    error= table->file->ha_write_row(table->record[0]);
+  }
+
+  if (error)
   {
     table->file->print_error(error, MYF(0));
     goto err;
