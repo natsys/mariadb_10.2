@@ -7649,6 +7649,27 @@ void TABLE::vers_update_fields()
   DBUG_VOID_RETURN;
 }
 
+
+bool TABLE_LIST::vers_vtmd_name(String& out)
+{
+  static const char *vtmd_suffix= "_vtmd";
+  static const size_t vtmd_suffix_len= strlen(vtmd_suffix);
+  if (table_name_length > NAME_CHAR_LEN - vtmd_suffix_len)
+  {
+    my_printf_error(ER_VERS_VTMD_ERROR, "Table name is longer than %d characters", MYF(0), NAME_CHAR_LEN - vtmd_suffix_len);
+    return true;
+  }
+  out.set(table_name, table_name_length, table_alias_charset);
+  if (out.append(vtmd_suffix, vtmd_suffix_len + 1))
+  {
+    my_message(ER_VERS_VTMD_ERROR, "Failed allocate VTMD name", MYF(0));
+    return true;
+  }
+  out.length(out.length() - 1);
+  return false;
+}
+
+
 /**
    Reset markers that fields are being updated
 */

@@ -1,10 +1,35 @@
 #include "vtmd.h"
 #include "sql_base.h"
 #include "sql_class.h"
+#include "sql_table.h"
 #include "rpl_utility.h" // auto_afree_ptr
 #include "key.h"
 
 LEX_STRING VERS_VTMD_NAME= {C_STRING_WITH_LEN("vtmd")};
+
+bool VTMD_table::create(THD *thd)
+{
+  Table_specification_st create_info;
+  TABLE_LIST src_table, table;
+  create_info.init(DDL_options_st::OPT_LIKE);
+  create_info.alias= "vtmd0";
+  table.init_one_table(
+    STRING_WITH_LEN("test"),
+    create_info.alias,
+    strlen(create_info.alias),
+    create_info.alias,
+    TL_READ);
+  src_table.init_one_table(
+    MYSQL_SCHEMA_NAME.str,
+    MYSQL_SCHEMA_NAME.length,
+    STRING_WITH_LEN("vtmd"),
+    "vtmd",
+    TL_READ);
+
+  mysql_create_like_table(thd, &table, &src_table, &create_info);
+
+  return false;
+}
 
 bool VTMD_table::find_alive(THD *thd, TABLE *table, bool &found)
 {
@@ -44,10 +69,10 @@ bool VTMD_table::find_alive(THD *thd, TABLE *table, bool &found)
   return false;
 }
 
-bool VTMD_table::write_row(THD *thd)
+bool VTMD_table::write_row(THD *thd, TABLE_LIST &about)
 {
   TABLE_LIST table_list;
-  TABLE *table;
+  TABLE *vtmd;
   bool result= true;
   bool need_close= false;
   bool need_rnd_end= false;
@@ -62,65 +87,79 @@ bool VTMD_table::write_row(THD *thd)
   save_thd_options= thd->variables.option_bits;
   thd->variables.option_bits&= ~OPTION_BIN_LOG;
 
-  table_list.init_one_table(MYSQL_SCHEMA_NAME.str, MYSQL_SCHEMA_NAME.length,
-                            VERS_VTMD_NAME.str, VERS_VTMD_NAME.length,
-                            VERS_VTMD_NAME.str,
+  String vtmd_name;
+  if (about.vers_vtmd_name(vtmd_name))
+    goto err;
+
+  table_list.init_one_table(about.db, about.db_length,
+                            vtmd_name.ptr(), vtmd_name.length(),
+                            vtmd_name.ptr(),
                             TL_WRITE_CONCURRENT_INSERT);
 
-  if (!(table= open_log_table(thd, &table_list, &open_tables_backup)))
-    goto err;
+  if (!(vtmd= open_log_table(thd, &table_list, &open_tables_backup)))
+  {
+    if (new_stmt_da.is_error() && new_stmt_da.sql_errno() == ER_NO_SUCH_TABLE)
+    {
+      if (VTMD_table::create(thd))
+        goto err;
+      if (!(vtmd= open_log_table(thd, &table_list, &open_tables_backup)))
+        goto err;
+    }
+    else
+      goto err;
+  }
   need_close= true;
 
-  if (!table->versioned())
+  if (!vtmd->versioned())
   {
     my_message(ER_VERS_VTMD_ERROR, "VTMD is not versioned", MYF(0));
     goto err;
   }
 
-  if (VTMD_table::find_alive(thd, table, found))
+  if (VTMD_table::find_alive(thd, vtmd, found))
     goto err;
 
-  if ((error= table->file->extra(HA_EXTRA_MARK_AS_LOG_TABLE)) ||
-      (error= table->file->ha_rnd_init(0)))
+  if ((error= vtmd->file->extra(HA_EXTRA_MARK_AS_LOG_TABLE)) ||
+      (error= vtmd->file->ha_rnd_init(0)))
   {
-    table->file->print_error(error, MYF(0));
+    vtmd->file->print_error(error, MYF(0));
     goto err;
   }
   need_rnd_end= true;
 
   /* Honor next number columns if present */
-  table->next_number_field= table->found_next_number_field;
+  vtmd->next_number_field= vtmd->found_next_number_field;
 
-  if (table->s->fields != 6)
+  if (vtmd->s->fields != 6)
   {
-    my_printf_error(ER_VERS_VTMD_ERROR, "unexpected fields count: %d", MYF(0), table->s->fields);
+    my_printf_error(ER_VERS_VTMD_ERROR, "unexpected fields count: %d", MYF(0), vtmd->s->fields);
     goto err;
   }
 
-  table->field[OLD_NAME]->set_null();
+  vtmd->field[OLD_NAME]->set_null();
   {
     time_t t= time(NULL);
     char *tmp= ctime(&t);
-    table->field[NAME]->store(tmp, strlen(tmp) - 5, system_charset_info);
+    vtmd->field[NAME]->store(tmp, strlen(tmp) - 5, system_charset_info);
   }
-  table->field[NAME]->set_notnull();
-  table->field[FRM_IMAGE]->set_null();
-  table->field[COL_RENAMES]->set_null();
+  vtmd->field[NAME]->set_notnull();
+  vtmd->field[FRM_IMAGE]->set_null();
+  vtmd->field[COL_RENAMES]->set_null();
 
   if (found)
   {
-    table->mark_columns_needed_for_update();
-    error= table->file->ha_update_row(table->record[1], table->record[0]);
+    vtmd->mark_columns_needed_for_update();
+    error= vtmd->file->ha_update_row(vtmd->record[1], vtmd->record[0]);
   }
   else
   {
-    table->mark_columns_needed_for_insert();
-    error= table->file->ha_write_row(table->record[0]);
+    vtmd->mark_columns_needed_for_insert();
+    error= vtmd->file->ha_write_row(vtmd->record[0]);
   }
 
   if (error)
   {
-    table->file->print_error(error, MYF(0));
+    vtmd->file->print_error(error, MYF(0));
     goto err;
   }
 
@@ -134,8 +173,8 @@ err:
 
   if (need_rnd_end)
   {
-    table->file->ha_rnd_end();
-    table->file->ha_release_auto_increment();
+    vtmd->file->ha_rnd_end();
+    vtmd->file->ha_release_auto_increment();
   }
 
   if (need_close)

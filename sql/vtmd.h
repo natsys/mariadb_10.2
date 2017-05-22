@@ -21,8 +21,9 @@ public:
     COL_RENAMES
   };
 
+  static bool create(THD *thd);
   static bool find_alive(THD *thd, TABLE *table, bool &found);
-  static bool write_row(THD *thd);
+  static bool write_row(THD *thd, TABLE_LIST &about);
 };
 
 #endif // VTMD_INCLUDED
