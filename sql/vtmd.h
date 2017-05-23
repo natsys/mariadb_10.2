@@ -21,7 +21,7 @@ public:
     COL_RENAMES
   };
 
-  static bool create(THD *thd);
+  static bool create(THD *thd, String &vtmd_name, TABLE_LIST &about);
   static bool find_alive(THD *thd, TABLE *table, bool &found);
   static bool write_row(THD *thd, TABLE_LIST &about);
 };

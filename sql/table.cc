@@ -1208,6 +1208,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   uint ext_key_parts= 0;
   plugin_ref se_plugin= 0;
   const uchar *system_period= 0;
+  bool vtmd_used= false;
+  share->vtmd= false;
   const uchar *extra2_field_flags= 0;
   size_t extra2_field_flags_length= 0;
 
@@ -1314,6 +1316,12 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           goto err;
         extra2_field_flags= extra2;
         extra2_field_flags_length= length;
+        break;
+      case EXTRA2_VTMD:
+        if (vtmd_used)
+          goto err;
+        share->vtmd= *extra2;
+        vtmd_used= true;
         break;
       default:
         /* abort frm parsing if it's an unknown but important extra2 value */
@@ -7656,7 +7664,7 @@ bool TABLE_LIST::vers_vtmd_name(String& out)
   static const size_t vtmd_suffix_len= strlen(vtmd_suffix);
   if (table_name_length > NAME_CHAR_LEN - vtmd_suffix_len)
   {
-    my_printf_error(ER_VERS_VTMD_ERROR, "Table name is longer than %d characters", MYF(0), NAME_CHAR_LEN - vtmd_suffix_len);
+    my_printf_error(ER_VERS_VTMD_ERROR, "Table name is longer than %d characters", MYF(0), int(NAME_CHAR_LEN - vtmd_suffix_len));
     return true;
   }
   out.set(table_name, table_name_length, table_alias_charset);

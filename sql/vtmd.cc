@@ -7,17 +7,17 @@
 
 LEX_STRING VERS_VTMD_NAME= {C_STRING_WITH_LEN("vtmd")};
 
-bool VTMD_table::create(THD *thd)
+bool VTMD_table::create(THD *thd, String &vtmd_name, TABLE_LIST &about)
 {
   Table_specification_st create_info;
   TABLE_LIST src_table, table;
   create_info.init(DDL_options_st::OPT_LIKE);
-  create_info.alias= "vtmd0";
+  create_info.options|= HA_VTMD;
+  create_info.alias= vtmd_name.ptr();
   table.init_one_table(
-    STRING_WITH_LEN("test"),
-    create_info.alias,
-    strlen(create_info.alias),
-    create_info.alias,
+    about.db, about.db_length,
+    vtmd_name.ptr(), vtmd_name.length(),
+    vtmd_name.ptr(),
     TL_READ);
   src_table.init_one_table(
     MYSQL_SCHEMA_NAME.str,
@@ -26,9 +26,11 @@ bool VTMD_table::create(THD *thd)
     "vtmd",
     TL_READ);
 
-  mysql_create_like_table(thd, &table, &src_table, &create_info);
+  Query_tables_backup backup(thd);
+  thd->lex->sql_command= backup.get().sql_command;
+  thd->lex->add_to_query_tables(&src_table);
 
-  return false;
+  return mysql_create_like_table(thd, &table, &src_table, &create_info);
 }
 
 bool VTMD_table::find_alive(THD *thd, TABLE *table, bool &found)
@@ -100,7 +102,7 @@ bool VTMD_table::write_row(THD *thd, TABLE_LIST &about)
   {
     if (new_stmt_da.is_error() && new_stmt_da.sql_errno() == ER_NO_SUCH_TABLE)
     {
-      if (VTMD_table::create(thd))
+      if (VTMD_table::create(thd, vtmd_name, about))
         goto err;
       if (!(vtmd= open_log_table(thd, &table_list, &open_tables_backup)))
         goto err;
