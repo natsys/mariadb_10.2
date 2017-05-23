@@ -43,7 +43,6 @@
 #include "rpl_filter.h"
 #include "sql_cte.h"
 #include "ha_sequence.h"
-#include "vtmd.h"               // System Versioning
 
 /* For MySQL 5.7 virtual fields */
 #define MYSQL57_GENERATED_FIELD 128
@@ -274,12 +273,6 @@ TABLE_CATEGORY get_table_category(const LEX_STRING *db, const LEX_STRING *name)
     if ((name->length == SLOW_LOG_NAME.length) &&
         (my_strcasecmp(system_charset_info,
                        SLOW_LOG_NAME.str,
-                       name->str) == 0))
-      return TABLE_CATEGORY_LOG;
-
-    if ((name->length == VERS_VTMD_NAME.length) &&
-        (my_strcasecmp(system_charset_info,
-                       VERS_VTMD_NAME.str,
                        name->str) == 0))
       return TABLE_CATEGORY_LOG;
   }
@@ -1321,6 +1314,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         if (vtmd_used)
           goto err;
         share->vtmd= *extra2;
+        if (share->vtmd)
+          share->table_category= TABLE_CATEGORY_LOG;
         vtmd_used= true;
         break;
       default:

@@ -5,8 +5,6 @@
 #include "unireg.h"
 #include <mysqld_error.h>
 
-extern LEX_STRING VERS_VTMD_NAME;
-
 class THD;
 
 class VTMD_table

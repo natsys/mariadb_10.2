@@ -5,7 +5,31 @@
 #include "rpl_utility.h" // auto_afree_ptr
 #include "key.h"
 
-LEX_STRING VERS_VTMD_NAME= {C_STRING_WITH_LEN("vtmd")};
+class MDL_auto_lock
+{
+  THD *thd;
+  TABLE_LIST &table;
+  bool error;
+
+public:
+  MDL_auto_lock(THD *_thd, TABLE_LIST &_table) :
+    thd(_thd), table(_table)
+  {
+    DBUG_ASSERT(thd);
+    table.mdl_request.init(MDL_key::TABLE, table.db, table.table_name, MDL_EXCLUSIVE, MDL_EXPLICIT);
+    error= thd->mdl_context.acquire_lock(&table.mdl_request, thd->variables.lock_wait_timeout);
+  }
+  ~MDL_auto_lock()
+  {
+    if (!error)
+    {
+      DBUG_ASSERT(table.mdl_request.ticket);
+      thd->mdl_context.release_lock(table.mdl_request.ticket);
+      table.mdl_request.ticket= NULL;
+    }
+  }
+  bool acquire_error() const { return error; }
+};
 
 bool VTMD_table::create(THD *thd, String &vtmd_name, TABLE_LIST &about)
 {
@@ -29,6 +53,10 @@ bool VTMD_table::create(THD *thd, String &vtmd_name, TABLE_LIST &about)
   Query_tables_backup backup(thd);
   thd->lex->sql_command= backup.get().sql_command;
   thd->lex->add_to_query_tables(&src_table);
+
+  MDL_auto_lock mdl_lock(thd, table);
+  if (mdl_lock.acquire_error())
+    return true;
 
   return mysql_create_like_table(thd, &table, &src_table, &create_info);
 }
@@ -73,7 +101,7 @@ bool VTMD_table::find_alive(THD *thd, TABLE *table, bool &found)
 
 bool VTMD_table::write_row(THD *thd, TABLE_LIST &about)
 {
-  TABLE_LIST table_list;
+  TABLE_LIST vtmd_tl;
   TABLE *vtmd;
   bool result= true;
   bool need_close= false;
@@ -93,22 +121,25 @@ bool VTMD_table::write_row(THD *thd, TABLE_LIST &about)
   if (about.vers_vtmd_name(vtmd_name))
     goto err;
 
-  table_list.init_one_table(about.db, about.db_length,
-                            vtmd_name.ptr(), vtmd_name.length(),
-                            vtmd_name.ptr(),
-                            TL_WRITE_CONCURRENT_INSERT);
-
-  if (!(vtmd= open_log_table(thd, &table_list, &open_tables_backup)))
+  for (int tries= 2; tries; --tries)
   {
-    if (new_stmt_da.is_error() && new_stmt_da.sql_errno() == ER_NO_SUCH_TABLE)
+    vtmd_tl.init_one_table(
+      about.db, about.db_length,
+      vtmd_name.ptr(), vtmd_name.length(),
+      vtmd_name.ptr(),
+      TL_WRITE_CONCURRENT_INSERT);
+
+    vtmd= open_log_table(thd, &vtmd_tl, &open_tables_backup);
+    if (vtmd)
+      break;
+
+    if (tries == 2 && new_stmt_da.is_error() && new_stmt_da.sql_errno() == ER_NO_SUCH_TABLE)
     {
       if (VTMD_table::create(thd, vtmd_name, about))
         goto err;
-      if (!(vtmd= open_log_table(thd, &table_list, &open_tables_backup)))
-        goto err;
+      continue;
     }
-    else
-      goto err;
+    goto err;
   }
   need_close= true;
 
