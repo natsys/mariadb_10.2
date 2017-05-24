@@ -1,0 +1,10 @@
+archive.mysqlhotcopy_archive : fails in Travis CI
+main.mysql_upgrade : fails in Travis CI
+main.mysqlhotcopy_myisam : fails in Travis CI
+main.information_schema_inno : fails in Travis CI
+binlog.binlog_unsafe : fails in Travis CI
+plugins.server_audit : fails in Travis CI
+plugins.thread_pool_server_audit : fails in Travis CI
+plugins.two_password_validations : fails in Travis CI
+plugins.cracklib_password_check : fails in Travis CI
+encryption.encrypt_and_grep : fails in Travis CI
