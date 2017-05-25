@@ -175,14 +175,13 @@ VTMD_table::write_row(THD *thd)
     goto err;
   }
 
-  vtmd->field[OLD_NAME]->set_null();
   {
     time_t t= time(NULL);
     char *tmp= ctime(&t);
     vtmd->field[NAME]->store(tmp, strlen(tmp) - 5, system_charset_info);
   }
   vtmd->field[NAME]->set_notnull();
-  vtmd->field[FRM_IMAGE]->set_null();
+  vtmd->field[ARCHIVE_NAME]->set_null();
   vtmd->field[COL_RENAMES]->set_null();
 
   if (found)

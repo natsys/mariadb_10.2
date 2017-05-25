@@ -19,9 +19,8 @@ public:
   enum {
     TRX_ID_START= 0,
     TRX_ID_END,
-    OLD_NAME,
     NAME,
-    FRM_IMAGE,
+    ARCHIVE_NAME,
     COL_RENAMES
   };
 
