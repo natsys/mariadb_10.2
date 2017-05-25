@@ -33,7 +33,7 @@ public:
 
   bool create(THD *thd, String &vtmd_name);
   bool find_record(THD *thd, ulonglong sys_trx_end, bool &found);
-  bool write_row(THD *thd);
+  bool write_row(THD *thd, const char* archive_name= NULL);
 };
 
 #endif // VTMD_INCLUDED

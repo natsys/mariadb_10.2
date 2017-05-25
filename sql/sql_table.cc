@@ -9624,7 +9624,7 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
   {
     DBUG_ASSERT(table_list);
     VTMD_table vtmd(*table_list);
-    if (vtmd.write_row(thd))
+    if (vtmd.write_row(thd, backup_name))
       goto err_with_mdl_after_alter;
   }
 

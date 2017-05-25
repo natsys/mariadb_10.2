@@ -9527,6 +9527,9 @@ ha_innobase::update_row(
 
 	innobase_srv_conc_enter_innodb(m_prebuilt);
 
+	if (!table->versioned())
+		m_prebuilt->upd_node->versioned = false;
+
 	if (m_prebuilt->upd_node->versioned && !is_innopart()) {
 		vers_set_fields = true;
 		if (thd_sql_command(m_user_thd) == SQLCOM_ALTER_TABLE && !table->s->vtmd)

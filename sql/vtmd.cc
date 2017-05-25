@@ -106,7 +106,7 @@ VTMD_table::find_record(THD *thd, ulonglong sys_trx_end, bool &found)
 }
 
 bool
-VTMD_table::write_row(THD *thd)
+VTMD_table::write_row(THD *thd, const char* archive_name)
 {
   TABLE_LIST vtmd_tl;
   bool result= true;
@@ -179,13 +179,17 @@ VTMD_table::write_row(THD *thd)
     goto err;
   }
 
-  {
-    time_t t= time(NULL);
-    char *tmp= ctime(&t);
-    vtmd->field[FLD_NAME]->store(tmp, strlen(tmp) - 5, system_charset_info);
-  }
+  vtmd->field[FLD_NAME]->store(about.table_name, about.table_name_length, system_charset_info);
   vtmd->field[FLD_NAME]->set_notnull();
-  vtmd->field[FLD_ARCHIVE_NAME]->set_null();
+  if (archive_name)
+  {
+    vtmd->field[FLD_ARCHIVE_NAME]->store(archive_name, strlen(archive_name), files_charset_info);
+    vtmd->field[FLD_ARCHIVE_NAME]->set_notnull();
+  }
+  else
+  {
+    vtmd->field[FLD_ARCHIVE_NAME]->set_null();
+  }
   vtmd->field[FLD_COL_RENAMES]->set_null();
 
   if (found)
@@ -197,7 +201,20 @@ VTMD_table::write_row(THD *thd)
       goto err;
     }
     vtmd->mark_columns_needed_for_update(); // not needed?
-    error= vtmd->file->ha_update_row(vtmd->record[1], vtmd->record[0]);
+    if (archive_name)
+    {
+      vtmd->s->versioned= false;
+      error= vtmd->file->ha_update_row(vtmd->record[1], vtmd->record[0]);
+      vtmd->s->versioned= true;
+      if (!error)
+      {
+        store_record(vtmd, record[1]);
+        vtmd->field[FLD_ARCHIVE_NAME]->set_null();
+        error= vtmd->file->ha_update_row(vtmd->record[1], vtmd->record[0]);
+      }
+    }
+    else
+      error= vtmd->file->ha_update_row(vtmd->record[1], vtmd->record[0]);
   }
   else
   {
