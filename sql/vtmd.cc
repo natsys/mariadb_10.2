@@ -31,7 +31,8 @@ public:
   bool acquire_error() const { return error; }
 };
 
-bool VTMD_table::create(THD *thd, String &vtmd_name, TABLE_LIST &about)
+bool
+VTMD_table::create(THD *thd, String &vtmd_name)
 {
   Table_specification_st create_info;
   TABLE_LIST src_table, table;
@@ -61,16 +62,19 @@ bool VTMD_table::create(THD *thd, String &vtmd_name, TABLE_LIST &about)
   return mysql_create_like_table(thd, &table, &src_table, &create_info);
 }
 
-bool VTMD_table::find_alive(THD *thd, TABLE *table, bool &found)
+bool
+VTMD_table::find_record(THD *thd, ulonglong sys_trx_end, bool &found)
 {
   int error;
   int keynum= 1;
   auto_afree_ptr<char> key(NULL);
   found= false;
 
+  DBUG_ASSERT(vtmd);
+
   if (key.get() == NULL)
   {
-    key.assign(static_cast<char*>(my_alloca(table->s->max_unique_length)));
+    key.assign(static_cast<char*>(my_alloca(vtmd->s->max_unique_length)));
     if (key.get() == NULL)
     {
       my_message(ER_VERS_VTMD_ERROR, "failed to allocate key buffer", MYF(0));
@@ -78,10 +82,12 @@ bool VTMD_table::find_alive(THD *thd, TABLE *table, bool &found)
     }
   }
 
-  table->vers_end_field()->set_max();
-  key_copy((uchar*)key.get(), table->record[0], table->key_info + keynum, 0);
+  DBUG_ASSERT(sys_trx_end);
+  vtmd->vers_end_field()->set_notnull();
+  vtmd->vers_end_field()->store(sys_trx_end, true);
+  key_copy((uchar*)key.get(), vtmd->record[0], vtmd->key_info + keynum, 0);
 
-  error= table->file->ha_index_read_idx_map(table->record[1], keynum,
+  error= vtmd->file->ha_index_read_idx_map(vtmd->record[1], keynum,
                                             (const uchar*)key.get(),
                                             HA_WHOLE_KEY,
                                             HA_READ_KEY_EXACT);
@@ -89,20 +95,20 @@ bool VTMD_table::find_alive(THD *thd, TABLE *table, bool &found)
   {
     if (error == HA_ERR_RECORD_DELETED || error == HA_ERR_KEY_NOT_FOUND)
       return false;
-    table->file->print_error(error, MYF(0));
+    vtmd->file->print_error(error, MYF(0));
     return true;
   }
 
-  restore_record(table, record[1]);
+  restore_record(vtmd, record[1]);
 
   found= true;
   return false;
 }
 
-bool VTMD_table::write_row(THD *thd, TABLE_LIST &about)
+bool
+VTMD_table::write_row(THD *thd)
 {
   TABLE_LIST vtmd_tl;
-  TABLE *vtmd;
   bool result= true;
   bool need_close= false;
   bool need_rnd_end= false;
@@ -135,7 +141,7 @@ bool VTMD_table::write_row(THD *thd, TABLE_LIST &about)
 
     if (tries == 2 && new_stmt_da.is_error() && new_stmt_da.sql_errno() == ER_NO_SUCH_TABLE)
     {
-      if (VTMD_table::create(thd, vtmd_name, about))
+      if (create(thd, vtmd_name))
         goto err;
       continue;
     }
@@ -149,7 +155,7 @@ bool VTMD_table::write_row(THD *thd, TABLE_LIST &about)
     goto err;
   }
 
-  if (VTMD_table::find_alive(thd, vtmd, found))
+  if (find_record(thd, ULONGLONG_MAX, found))
     goto err;
 
   if ((error= vtmd->file->extra(HA_EXTRA_MARK_AS_LOG_TABLE)) ||

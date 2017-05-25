@@ -9612,7 +9612,8 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
   if (versioned && new_versioned && thd->variables.vers_ddl_survival)
   {
     DBUG_ASSERT(table_list);
-    if (VTMD_table::write_row(thd, *table_list))
+    VTMD_table vtmd(*table_list);
+    if (vtmd.write_row(thd))
       goto err_with_mdl_after_alter;
   }
 
