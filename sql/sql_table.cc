@@ -5041,11 +5041,22 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
     {
       thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
       result= 1;
+      goto err;
     }
     else
     {
       TABLE *table= pos_in_locked_tables->table;
       table->mdl_ticket->downgrade_lock(MDL_SHARED_NO_READ_WRITE);
+    }
+  }
+
+  if (create_info->versioned() && thd->variables.vers_ddl_survival)
+  {
+    VTMD_table vtmd(*create_table);
+    if (vtmd.write_row(thd))
+    {
+      result= 1;
+      goto err;
     }
   }
 

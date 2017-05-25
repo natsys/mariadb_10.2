@@ -17,11 +17,16 @@ private:
 
 public:
   enum {
-    TRX_ID_START= 0,
-    TRX_ID_END,
-    NAME,
-    ARCHIVE_NAME,
-    COL_RENAMES
+    FLD_START= 0,
+    FLD_END,
+    FLD_NAME,
+    FLD_ARCHIVE_NAME,
+    FLD_COL_RENAMES,
+    FIELD_COUNT
+  };
+
+  enum {
+    IDX_END= 0
   };
 
   VTMD_table(TABLE_LIST &_about) : vtmd(NULL), about(_about) {}

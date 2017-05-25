@@ -5,6 +5,8 @@
 #include "rpl_utility.h" // auto_afree_ptr
 #include "key.h"
 
+LEX_STRING VERS_VTMD_TEMPLATE= {C_STRING_WITH_LEN("vtmd_template")};
+
 class MDL_auto_lock
 {
   THD *thd;
@@ -45,10 +47,9 @@ VTMD_table::create(THD *thd, String &vtmd_name)
     vtmd_name.ptr(),
     TL_READ);
   src_table.init_one_table(
-    MYSQL_SCHEMA_NAME.str,
-    MYSQL_SCHEMA_NAME.length,
-    STRING_WITH_LEN("vtmd"),
-    "vtmd",
+    LEX_STRING_WITH_LEN(MYSQL_SCHEMA_NAME),
+    LEX_STRING_WITH_LEN(VERS_VTMD_TEMPLATE),
+    VERS_VTMD_TEMPLATE.str,
     TL_READ);
 
   Query_tables_backup backup(thd);
@@ -66,7 +67,6 @@ bool
 VTMD_table::find_record(THD *thd, ulonglong sys_trx_end, bool &found)
 {
   int error;
-  int keynum= 1;
   auto_afree_ptr<char> key(NULL);
   found= false;
 
@@ -85,9 +85,9 @@ VTMD_table::find_record(THD *thd, ulonglong sys_trx_end, bool &found)
   DBUG_ASSERT(sys_trx_end);
   vtmd->vers_end_field()->set_notnull();
   vtmd->vers_end_field()->store(sys_trx_end, true);
-  key_copy((uchar*)key.get(), vtmd->record[0], vtmd->key_info + keynum, 0);
+  key_copy((uchar*)key.get(), vtmd->record[0], vtmd->key_info + IDX_END, 0);
 
-  error= vtmd->file->ha_index_read_idx_map(vtmd->record[1], keynum,
+  error= vtmd->file->ha_index_read_idx_map(vtmd->record[1], IDX_END,
                                             (const uchar*)key.get(),
                                             HA_WHOLE_KEY,
                                             HA_READ_KEY_EXACT);
@@ -113,12 +113,13 @@ VTMD_table::write_row(THD *thd)
   bool need_close= false;
   bool need_rnd_end= false;
   bool found;
+  bool created= false;
   int error;
   Open_tables_backup open_tables_backup;
   ulonglong save_thd_options;
-  Diagnostics_area new_stmt_da(thd->query_id, false, true);
-  Diagnostics_area *save_stmt_da= thd->get_stmt_da();
-  thd->set_stmt_da(&new_stmt_da);
+  Diagnostics_area local_da(thd->query_id, false, true);
+  Diagnostics_area *saved_da= thd->get_stmt_da();
+  thd->set_stmt_da(&local_da);
 
   save_thd_options= thd->variables.option_bits;
   thd->variables.option_bits&= ~OPTION_BIN_LOG;
@@ -127,7 +128,7 @@ VTMD_table::write_row(THD *thd)
   if (about.vers_vtmd_name(vtmd_name))
     goto err;
 
-  for (int tries= 2; tries; --tries)
+  while (true)
   {
     vtmd_tl.init_one_table(
       about.db, about.db_length,
@@ -139,10 +140,12 @@ VTMD_table::write_row(THD *thd)
     if (vtmd)
       break;
 
-    if (tries == 2 && new_stmt_da.is_error() && new_stmt_da.sql_errno() == ER_NO_SUCH_TABLE)
+    if (!created && local_da.is_error() && local_da.sql_errno() == ER_NO_SUCH_TABLE)
     {
+      local_da.reset_diagnostics_area();
       if (create(thd, vtmd_name))
         goto err;
+      created= true;
       continue;
     }
     goto err;
@@ -155,7 +158,7 @@ VTMD_table::write_row(THD *thd)
     goto err;
   }
 
-  if (find_record(thd, ULONGLONG_MAX, found))
+  if (!created && find_record(thd, ULONGLONG_MAX, found))
     goto err;
 
   if ((error= vtmd->file->extra(HA_EXTRA_MARK_AS_LOG_TABLE)) ||
@@ -169,29 +172,36 @@ VTMD_table::write_row(THD *thd)
   /* Honor next number columns if present */
   vtmd->next_number_field= vtmd->found_next_number_field;
 
-  if (vtmd->s->fields != 6)
+  if (vtmd->s->fields != FIELD_COUNT)
   {
-    my_printf_error(ER_VERS_VTMD_ERROR, "unexpected fields count: %d", MYF(0), vtmd->s->fields);
+    my_printf_error(ER_VERS_VTMD_ERROR, "`%s.%s` unexpected fields count: %d", MYF(0),
+                    vtmd->s->db.str, vtmd->s->table_name.str, vtmd->s->fields);
     goto err;
   }
 
   {
     time_t t= time(NULL);
     char *tmp= ctime(&t);
-    vtmd->field[NAME]->store(tmp, strlen(tmp) - 5, system_charset_info);
+    vtmd->field[FLD_NAME]->store(tmp, strlen(tmp) - 5, system_charset_info);
   }
-  vtmd->field[NAME]->set_notnull();
-  vtmd->field[ARCHIVE_NAME]->set_null();
-  vtmd->field[COL_RENAMES]->set_null();
+  vtmd->field[FLD_NAME]->set_notnull();
+  vtmd->field[FLD_ARCHIVE_NAME]->set_null();
+  vtmd->field[FLD_COL_RENAMES]->set_null();
 
   if (found)
   {
-    vtmd->mark_columns_needed_for_update();
+    if (thd->lex->sql_command == SQLCOM_CREATE_TABLE)
+    {
+      my_printf_error(ER_VERS_VTMD_ERROR, "`%s.%s` exists and not empty!", MYF(0),
+                      vtmd->s->db.str, vtmd->s->table_name.str);
+      goto err;
+    }
+    vtmd->mark_columns_needed_for_update(); // not needed?
     error= vtmd->file->ha_update_row(vtmd->record[1], vtmd->record[0]);
   }
   else
   {
-    vtmd->mark_columns_needed_for_insert();
+    vtmd->mark_columns_needed_for_insert(); // not needed?
     error= vtmd->file->ha_write_row(vtmd->record[0]);
   }
 
@@ -204,10 +214,10 @@ VTMD_table::write_row(THD *thd)
   result= false;
 
 err:
-  thd->set_stmt_da(save_stmt_da);
+  thd->set_stmt_da(saved_da);
 
   if (result)
-    my_error(ER_VERS_VTMD_ERROR, MYF(0), new_stmt_da.message());
+    my_error(ER_VERS_VTMD_ERROR, MYF(0), local_da.message());
 
   if (need_rnd_end)
   {

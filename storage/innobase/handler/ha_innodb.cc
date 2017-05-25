@@ -8717,11 +8717,11 @@ no_commit:
 
 	innobase_srv_conc_enter_innodb(m_prebuilt);
 
-	vers_set_fields = table->versioned() && (
-		!is_innopart() &&
-		sql_command != SQLCOM_CREATE_TABLE) ?
-			ROW_INS_VERSIONED :
-			ROW_INS_NORMAL;
+	vers_set_fields = (table->versioned() && !is_innopart() &&
+		(sql_command != SQLCOM_CREATE_TABLE || table->s->vtmd))
+		?
+		ROW_INS_VERSIONED :
+		ROW_INS_NORMAL;
 
 	/* Step-5: Execute insert graph that will result in actual insert. */
 	error = row_insert_for_mysql((byte*) record, m_prebuilt, vers_set_fields);
@@ -9529,8 +9529,7 @@ ha_innobase::update_row(
 
 	if (m_prebuilt->upd_node->versioned && !is_innopart()) {
 		vers_set_fields = true;
-		if (thd_sql_command(m_user_thd) == SQLCOM_ALTER_TABLE &&
-			table->s->table_category != TABLE_CATEGORY_LOG)
+		if (thd_sql_command(m_user_thd) == SQLCOM_ALTER_TABLE && !table->s->vtmd)
 		{
 			m_prebuilt->upd_node->vers_delete = true;
 		} else {
