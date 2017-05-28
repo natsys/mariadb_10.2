@@ -34,6 +34,7 @@ public:
   bool create(THD *thd, String &vtmd_name);
   bool find_record(THD *thd, ulonglong sys_trx_end, bool &found);
   bool write_row(THD *thd, const char* archive_name= NULL);
+  bool try_rename(THD *thd, const char* new_db, const char *new_alias);
 };
 
 #endif // VTMD_INCLUDED

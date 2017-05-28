@@ -248,3 +248,60 @@ err:
   thd->variables.option_bits= save_thd_options;
   return result;
 }
+
+bool VTMD_table::try_rename(THD *thd, const char *new_db, const char *new_alias)
+{
+  DBUG_ASSERT(new_db && new_alias);
+  bool result= true;
+  bool vtmd_exists;
+
+  TABLE_LIST new_table;
+  String new_vtmd_name;
+  handlerton *hton;
+
+  Diagnostics_area local_da(thd->query_id, false, true);
+  Diagnostics_area *saved_da= thd->get_stmt_da();
+  thd->set_stmt_da(&local_da);
+
+  String vtmd_name;
+  if (about.vers_vtmd_name(vtmd_name))
+    goto err;
+
+  vtmd_exists= ha_table_exists(thd, about.db, vtmd_name.ptr(), &hton);
+
+  if (!hton) {
+    my_printf_error(ER_VERS_VTMD_ERROR, "`%s.%s` handlerton empty!", MYF(0),
+                        about.db, vtmd_name.ptr());
+    goto err;
+  }
+
+  new_table.init_one_table(
+    new_db, strlen(new_db),
+    new_alias, strlen(new_alias),
+    new_alias, TL_READ);
+
+  if (new_table.vers_vtmd_name(new_vtmd_name))
+    goto err;
+
+  if (ha_table_exists(thd, new_db, new_vtmd_name.ptr()))
+  {
+    my_printf_error(ER_VERS_VTMD_ERROR, "`%s.%s` table already exists!", MYF(0),
+                        new_db, new_vtmd_name.ptr());
+    goto err;
+  }
+
+  if (vtmd_exists)
+    result= mysql_rename_table(
+      hton,
+      new_db, vtmd_name.ptr(),
+      new_db, new_vtmd_name.ptr(),
+      NO_FK_CHECKS);
+
+err:
+  thd->set_stmt_da(saved_da);
+
+  if (result)
+    my_error(ER_VERS_VTMD_ERROR, MYF(0), local_da.message());
+
+  return result;
+}
