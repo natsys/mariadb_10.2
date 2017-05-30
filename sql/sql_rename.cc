@@ -299,11 +299,23 @@ do_rename(THD *thd, TABLE_LIST *ren_table, char *new_db, char *new_table_name,
         LEX_STRING new_db_name= { (char*)new_db, strlen(new_db)};
         (void) rename_table_in_stat_tables(thd, &db_name, &table_name,
                                            &new_db_name, &new_table);
-        if ((rc= Table_triggers_list::change_table_name(thd, ren_table->db,
+        VTMD_table vtmd(*ren_table);
+        String vtmd_new_name;
+        rc= vtmd.try_rename(thd, new_db, new_alias, vtmd_new_name);
+
+        if (!rc)
+        {
+          rc= Table_triggers_list::change_table_name(thd, ren_table->db,
                                                         old_alias,
                                                         ren_table->table_name,
                                                         new_db,
-                                                        new_alias)))
+                                                        new_alias);
+          if (rc)
+          {
+            vtmd.revert_rename(thd, new_db, vtmd_new_name);
+          }
+        }
+        if (rc)
         {
           /*
             We've succeeded in renaming table's .frm and in updating
@@ -333,13 +345,6 @@ do_rename(THD *thd, TABLE_LIST *ren_table, char *new_db, char *new_table_name,
   else
   {
     my_error(ER_NO_SUCH_TABLE, MYF(0), ren_table->db, old_alias);
-  }
-
-  if (!rc)
-  {
-    VTMD_table vtmd(*ren_table);
-    rc= vtmd.try_rename(thd, new_db, new_alias);
-    // FIXME: revert on error
   }
 
   if (rc && !skip_error)

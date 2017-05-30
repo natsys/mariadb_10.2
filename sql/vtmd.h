@@ -11,6 +11,8 @@ class VTMD_table
 {
   TABLE *vtmd;
   TABLE_LIST &about;
+  String vtmd_name;
+  handlerton *hton;
 
 private:
   VTMD_table(const VTMD_table&); // prohibit copying references
@@ -29,12 +31,17 @@ public:
     IDX_END= 0
   };
 
-  VTMD_table(TABLE_LIST &_about) : vtmd(NULL), about(_about) {}
+  VTMD_table(TABLE_LIST &_about) :
+    vtmd(NULL),
+    about(_about),
+    hton(NULL)
+  {}
 
   bool create(THD *thd, String &vtmd_name);
   bool find_record(THD *thd, ulonglong sys_trx_end, bool &found);
   bool write_row(THD *thd, const char* archive_name= NULL);
-  bool try_rename(THD *thd, const char* new_db, const char *new_alias);
+  bool try_rename(THD *thd, const char* new_db, const char *new_alias, String &vtmd_new_name);
+  bool revert_rename(THD *thd, const char *new_db, String &vtmd_new_name);
 };
 
 #endif // VTMD_INCLUDED

@@ -1,6 +1,7 @@
 #include "vtmd.h"
 #include "sql_base.h"
 #include "sql_class.h"
+#include "sql_handler.h" // mysql_ha_rm_tables()
 #include "sql_table.h"
 #include "rpl_utility.h" // auto_afree_ptr
 #include "key.h"
@@ -31,6 +32,33 @@ public:
     }
   }
   bool acquire_error() const { return error; }
+};
+
+
+class Local_da : public Diagnostics_area
+{
+  THD *thd;
+  uint sql_error;
+  Diagnostics_area *saved_da;
+
+public:
+  Local_da(THD *_thd, uint _sql_error= 0) :
+    Diagnostics_area(_thd->query_id, false, true),
+    thd(_thd),
+    sql_error(_sql_error),
+    saved_da(_thd->get_stmt_da())
+  {
+    thd->set_stmt_da(this);
+  }
+  ~Local_da()
+  {
+    DBUG_ASSERT(saved_da && thd);
+    thd->set_stmt_da(saved_da);
+    if (is_error())
+      my_error(sql_error ? sql_error : sql_errno(), MYF(0), message());
+    if (warn_count() > error_count())
+      saved_da->copy_non_errors_from_wi(thd, get_warning_info());
+  }
 };
 
 bool
@@ -117,125 +145,119 @@ VTMD_table::write_row(THD *thd, const char* archive_name)
   int error;
   Open_tables_backup open_tables_backup;
   ulonglong save_thd_options;
-  Diagnostics_area local_da(thd->query_id, false, true);
-  Diagnostics_area *saved_da= thd->get_stmt_da();
-  thd->set_stmt_da(&local_da);
-
-  save_thd_options= thd->variables.option_bits;
-  thd->variables.option_bits&= ~OPTION_BIN_LOG;
-
-  String vtmd_name;
-  if (about.vers_vtmd_name(vtmd_name))
-    goto err;
-
-  while (true)
   {
-    vtmd_tl.init_one_table(
-      about.db, about.db_length,
-      vtmd_name.ptr(), vtmd_name.length(),
-      vtmd_name.ptr(),
-      TL_WRITE_CONCURRENT_INSERT);
+    Local_da local_da(thd, ER_VERS_VTMD_ERROR);
 
-    vtmd= open_log_table(thd, &vtmd_tl, &open_tables_backup);
-    if (vtmd)
-      break;
+    save_thd_options= thd->variables.option_bits;
+    thd->variables.option_bits&= ~OPTION_BIN_LOG;
 
-    if (!created && local_da.is_error() && local_da.sql_errno() == ER_NO_SUCH_TABLE)
+    if (about.vers_vtmd_name(vtmd_name))
+      goto err;
+
+    while (true)
     {
-      local_da.reset_diagnostics_area();
-      if (create(thd, vtmd_name))
-        goto err;
-      created= true;
-      continue;
-    }
-    goto err;
-  }
-  need_close= true;
+      vtmd_tl.init_one_table(
+        about.db, about.db_length,
+        vtmd_name.ptr(), vtmd_name.length(),
+        vtmd_name.ptr(),
+        TL_WRITE_CONCURRENT_INSERT);
 
-  if (!vtmd->versioned())
-  {
-    my_message(ER_VERS_VTMD_ERROR, "VTMD is not versioned", MYF(0));
-    goto err;
-  }
+      vtmd= open_log_table(thd, &vtmd_tl, &open_tables_backup);
+      if (vtmd)
+        break;
 
-  if (!created && find_record(thd, ULONGLONG_MAX, found))
-    goto err;
-
-  if ((error= vtmd->file->extra(HA_EXTRA_MARK_AS_LOG_TABLE)) ||
-      (error= vtmd->file->ha_rnd_init(0)))
-  {
-    vtmd->file->print_error(error, MYF(0));
-    goto err;
-  }
-  need_rnd_end= true;
-
-  /* Honor next number columns if present */
-  vtmd->next_number_field= vtmd->found_next_number_field;
-
-  if (vtmd->s->fields != FIELD_COUNT)
-  {
-    my_printf_error(ER_VERS_VTMD_ERROR, "`%s.%s` unexpected fields count: %d", MYF(0),
-                    vtmd->s->db.str, vtmd->s->table_name.str, vtmd->s->fields);
-    goto err;
-  }
-
-  vtmd->field[FLD_NAME]->store(about.table_name, about.table_name_length, system_charset_info);
-  vtmd->field[FLD_NAME]->set_notnull();
-  if (archive_name)
-  {
-    vtmd->field[FLD_ARCHIVE_NAME]->store(archive_name, strlen(archive_name), files_charset_info);
-    vtmd->field[FLD_ARCHIVE_NAME]->set_notnull();
-  }
-  else
-  {
-    vtmd->field[FLD_ARCHIVE_NAME]->set_null();
-  }
-  vtmd->field[FLD_COL_RENAMES]->set_null();
-
-  if (found)
-  {
-    if (thd->lex->sql_command == SQLCOM_CREATE_TABLE)
-    {
-      my_printf_error(ER_VERS_VTMD_ERROR, "`%s.%s` exists and not empty!", MYF(0),
-                      vtmd->s->db.str, vtmd->s->table_name.str);
+      if (!created && local_da.is_error() && local_da.sql_errno() == ER_NO_SUCH_TABLE)
+      {
+        local_da.reset_diagnostics_area();
+        if (create(thd, vtmd_name))
+          goto err;
+        created= true;
+        continue;
+      }
       goto err;
     }
-    vtmd->mark_columns_needed_for_update(); // not needed?
+    need_close= true;
+
+    if (!vtmd->versioned())
+    {
+      my_message(ER_VERS_VTMD_ERROR, "VTMD is not versioned", MYF(0));
+      goto err;
+    }
+
+    if (!created && find_record(thd, ULONGLONG_MAX, found))
+      goto err;
+
+    if ((error= vtmd->file->extra(HA_EXTRA_MARK_AS_LOG_TABLE)) ||
+        (error= vtmd->file->ha_rnd_init(0)))
+    {
+      vtmd->file->print_error(error, MYF(0));
+      goto err;
+    }
+    need_rnd_end= true;
+
+    /* Honor next number columns if present */
+    vtmd->next_number_field= vtmd->found_next_number_field;
+
+    if (vtmd->s->fields != FIELD_COUNT)
+    {
+      my_printf_error(ER_VERS_VTMD_ERROR, "`%s.%s` unexpected fields count: %d", MYF(0),
+                      vtmd->s->db.str, vtmd->s->table_name.str, vtmd->s->fields);
+      goto err;
+    }
+
+    vtmd->field[FLD_NAME]->store(about.table_name, about.table_name_length, system_charset_info);
+    vtmd->field[FLD_NAME]->set_notnull();
     if (archive_name)
     {
-      vtmd->s->versioned= false;
-      error= vtmd->file->ha_update_row(vtmd->record[1], vtmd->record[0]);
-      vtmd->s->versioned= true;
-      if (!error)
-      {
-        store_record(vtmd, record[1]);
-        vtmd->field[FLD_ARCHIVE_NAME]->set_null();
-        error= vtmd->file->ha_update_row(vtmd->record[1], vtmd->record[0]);
-      }
+      vtmd->field[FLD_ARCHIVE_NAME]->store(archive_name, strlen(archive_name), files_charset_info);
+      vtmd->field[FLD_ARCHIVE_NAME]->set_notnull();
     }
     else
-      error= vtmd->file->ha_update_row(vtmd->record[1], vtmd->record[0]);
-  }
-  else
-  {
-    vtmd->mark_columns_needed_for_insert(); // not needed?
-    error= vtmd->file->ha_write_row(vtmd->record[0]);
-  }
+    {
+      vtmd->field[FLD_ARCHIVE_NAME]->set_null();
+    }
+    vtmd->field[FLD_COL_RENAMES]->set_null();
 
-  if (error)
-  {
-    vtmd->file->print_error(error, MYF(0));
-    goto err;
-  }
+    if (found)
+    {
+      if (thd->lex->sql_command == SQLCOM_CREATE_TABLE)
+      {
+        my_printf_error(ER_VERS_VTMD_ERROR, "`%s.%s` exists and not empty!", MYF(0),
+                        vtmd->s->db.str, vtmd->s->table_name.str);
+        goto err;
+      }
+      vtmd->mark_columns_needed_for_update(); // not needed?
+      if (archive_name)
+      {
+        vtmd->s->versioned= false;
+        error= vtmd->file->ha_update_row(vtmd->record[1], vtmd->record[0]);
+        vtmd->s->versioned= true;
+        if (!error)
+        {
+          store_record(vtmd, record[1]);
+          vtmd->field[FLD_ARCHIVE_NAME]->set_null();
+          error= vtmd->file->ha_update_row(vtmd->record[1], vtmd->record[0]);
+        }
+      }
+      else
+        error= vtmd->file->ha_update_row(vtmd->record[1], vtmd->record[0]);
+    }
+    else
+    {
+      vtmd->mark_columns_needed_for_insert(); // not needed?
+      error= vtmd->file->ha_write_row(vtmd->record[0]);
+    }
 
-  result= false;
+    if (error)
+    {
+      vtmd->file->print_error(error, MYF(0));
+      goto err;
+    }
+
+    result= false;
+  }
 
 err:
-  thd->set_stmt_da(saved_da);
-
-  if (result)
-    my_error(ER_VERS_VTMD_ERROR, MYF(0), local_da.message());
-
   if (need_rnd_end)
   {
     vtmd->file->ha_rnd_end();
@@ -249,30 +271,23 @@ err:
   return result;
 }
 
-bool VTMD_table::try_rename(THD *thd, const char *new_db, const char *new_alias)
+bool
+VTMD_table::try_rename(THD *thd, const char *new_db, const char *new_alias, String &vtmd_new_name)
 {
   DBUG_ASSERT(new_db && new_alias);
-  bool result= true;
-  bool vtmd_exists;
 
+  Local_da local_da(thd, ER_VERS_VTMD_ERROR);
   TABLE_LIST new_table;
-  String new_vtmd_name;
-  handlerton *hton;
 
-  Diagnostics_area local_da(thd->query_id, false, true);
-  Diagnostics_area *saved_da= thd->get_stmt_da();
-  thd->set_stmt_da(&local_da);
-
-  String vtmd_name;
   if (about.vers_vtmd_name(vtmd_name))
-    goto err;
+    return true;
 
-  vtmd_exists= ha_table_exists(thd, about.db, vtmd_name.ptr(), &hton);
+  bool vtmd_exists= ha_table_exists(thd, about.db, vtmd_name.ptr(), &hton);
 
-  if (!hton) {
+  if (vtmd_exists && !hton) {
     my_printf_error(ER_VERS_VTMD_ERROR, "`%s.%s` handlerton empty!", MYF(0),
                         about.db, vtmd_name.ptr());
-    goto err;
+    return true;
   }
 
   new_table.init_one_table(
@@ -280,28 +295,59 @@ bool VTMD_table::try_rename(THD *thd, const char *new_db, const char *new_alias)
     new_alias, strlen(new_alias),
     new_alias, TL_READ);
 
-  if (new_table.vers_vtmd_name(new_vtmd_name))
-    goto err;
+  if (new_table.vers_vtmd_name(vtmd_new_name))
+    return true;
 
-  if (ha_table_exists(thd, new_db, new_vtmd_name.ptr()))
+  if (ha_table_exists(thd, new_db, vtmd_new_name.ptr()))
   {
-    my_printf_error(ER_VERS_VTMD_ERROR, "`%s.%s` table already exists!", MYF(0),
-                        new_db, new_vtmd_name.ptr());
-    goto err;
+    if (vtmd_exists)
+    {
+      my_printf_error(ER_VERS_VTMD_ERROR, "`%s.%s` table already exists!", MYF(0),
+                          new_db, vtmd_new_name.ptr());
+      return true;
+    }
+    push_warning_printf(
+        thd, Sql_condition::WARN_LEVEL_WARN,
+        ER_VERS_VTMD_ERROR,
+        "`%s.%s` table already exists!",
+        new_db, vtmd_new_name.ptr());
+    return false;
   }
 
   if (vtmd_exists)
-    result= mysql_rename_table(
+  {
+    TABLE_LIST vtmd_tl;
+    vtmd_tl.init_one_table(
+      about.db, about.db_length,
+      vtmd_name.ptr(), vtmd_name.length(),
+      vtmd_name.ptr(),
+      TL_WRITE_ONLY);
+    mysql_ha_rm_tables(thd, &vtmd_tl);
+    if (lock_table_names(thd, &vtmd_tl, 0, thd->variables.lock_wait_timeout, 0))
+      return true;
+    bool rc= mysql_rename_table(
       hton,
       new_db, vtmd_name.ptr(),
-      new_db, new_vtmd_name.ptr(),
-      NO_FK_CHECKS);
+      new_db, vtmd_new_name.ptr(),
+      0);
+    if (!rc) {
+      query_cache_invalidate3(thd, &vtmd_tl, 0);
+    }
+    return rc;
+  }
+  return false;
+}
 
-err:
-  thd->set_stmt_da(saved_da);
+bool
+VTMD_table::revert_rename(THD *thd, const char *new_db, String &vtmd_new_name)
+{
+  DBUG_ASSERT(hton);
+  Local_da local_da(thd, ER_VERS_VTMD_ERROR);
 
-  if (result)
-    my_error(ER_VERS_VTMD_ERROR, MYF(0), local_da.message());
-
-  return result;
+  bool rc= mysql_rename_table(
+    hton,
+    new_db, vtmd_new_name.ptr(),
+    new_db, vtmd_name.ptr(),
+    NO_FK_CHECKS);
+  return rc;
 }
