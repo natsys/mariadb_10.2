@@ -1,4 +1,33 @@
 -- source include/have_innodb.inc
+delimiter ~~;
+create or replace procedure drop_archives (in vtmd varchar(64))
+begin
+  declare archive_name varchar(64);
+  declare cur_done bool default false;
+  declare cur cursor for
+    select cur_tmp.archive_name from cur_tmp;
+  declare continue handler for not found set cur_done = true;
+
+  set @tmp= concat('
+    create or replace temporary table
+    cur_tmp as
+      select vtmd.archive_name from ', vtmd, ' as vtmd
+      for system_time all
+      where vtmd.archive_name is not null');
+  prepare stmt from @tmp; execute stmt; drop prepare stmt;
+
+  open cur;
+  fetch_loop: loop
+    fetch cur into archive_name;
+    if cur_done then
+      leave fetch_loop;
+    end if;
+    set @tmp= concat('drop table ', archive_name);
+    prepare stmt from @tmp; execute stmt; drop prepare stmt;
+  end loop;
+end~~
+delimiter ;~~
+
 # create
 set versioning_ddl_survival= off;
 create or replace table t0 (x int) with system versioning;
@@ -26,11 +55,14 @@ select
   substr(archive_name, 1, char_length(name)) as C_archive_name
 from t0_vtmd for system_time all;
 
+call drop_archives('t0_vtmd');
 drop table t0_vtmd;
 alter table t0 drop column y;
 select * from t0_vtmd for system_time all;
 
+call drop_archives('t0_vtmd');
 drop tables t0, t0_vtmd;
+drop procedure drop_archives;
 
 # rename
 set versioning_ddl_survival= off;
