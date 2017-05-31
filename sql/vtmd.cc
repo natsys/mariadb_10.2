@@ -4,6 +4,7 @@
 #include "sql_handler.h" // mysql_ha_rm_tables()
 #include "sql_table.h"
 #include "rpl_utility.h" // auto_afree_ptr
+#include "table_cache.h" // tdc_remove_table()
 #include "key.h"
 
 LEX_STRING VERS_VTMD_TEMPLATE= {C_STRING_WITH_LEN("vtmd_template")};
@@ -322,12 +323,14 @@ VTMD_table::try_rename(THD *thd, const char *new_db, const char *new_alias, Stri
       vtmd_name.ptr(), vtmd_name.length(),
       vtmd_name.ptr(),
       TL_WRITE_ONLY);
+    vtmd_tl.mdl_request.set_type(MDL_EXCLUSIVE);
     mysql_ha_rm_tables(thd, &vtmd_tl);
     if (lock_table_names(thd, &vtmd_tl, 0, thd->variables.lock_wait_timeout, 0))
       return true;
+    tdc_remove_table(thd, TDC_RT_REMOVE_ALL, about.db, vtmd_name.ptr(), false);
     bool rc= mysql_rename_table(
       hton,
-      new_db, vtmd_name.ptr(),
+      about.db, vtmd_name.ptr(),
       new_db, vtmd_new_name.ptr(),
       0);
     if (!rc) {
