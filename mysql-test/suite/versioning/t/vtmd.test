@@ -1,0 +1,28 @@
+-- source include/have_innodb.inc
+
+# rename
+set versioning_ddl_survival= off;
+create or replace table x0 (x int) with system versioning;
+set versioning_ddl_survival= on;
+rename table x0 to d0;
+show tables;
+
+drop table d0;
+create or replace table x0 (x int) with system versioning;
+rename table x0 to d0;
+show tables;
+
+--error ER_VERS_VTMD_ERROR
+create or replace table x0 (x int) with system versioning;
+
+drop table x0_vtmd, d0;
+create or replace table x0 (x int) with system versioning;
+
+--error ER_VERS_VTMD_ERROR
+rename table x0 to d0;
+
+drop table x0_vtmd;
+rename table x0 to d0;
+show tables;
+
+drop tables d0, d0_vtmd;
