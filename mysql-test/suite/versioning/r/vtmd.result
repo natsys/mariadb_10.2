@@ -1,4 +1,35 @@
 set versioning_ddl_survival= off;
+create or replace table t0 (x int) with system versioning;
+show tables;
+Tables_in_test
+t0
+set versioning_ddl_survival= on;
+create or replace table t0 (x int) with system versioning;
+show tables;
+Tables_in_test
+t0
+t0_vtmd
+show create table t0_vtmd;
+Table	Create Table
+t0_vtmd	CREATE TABLE `t0_vtmd` (
+  `start` bigint(20) unsigned GENERATED ALWAYS AS ROW START COMMENT 'TRX_ID of table lifetime start',
+  `end` bigint(20) unsigned GENERATED ALWAYS AS ROW END NOT NULL COMMENT 'TRX_ID of table lifetime end',
+  `name` varchar(64) COLLATE utf8_bin NOT NULL COMMENT 'Table name during period [start, end)',
+  `archive_name` varchar(64) COLLATE utf8_bin DEFAULT NULL COMMENT 'Name of archive table',
+  `col_renames` blob DEFAULT NULL COMMENT 'Column name mappings from previous lifetime',
+  PRIMARY KEY (`end`),
+  PERIOD FOR SYSTEM_TIME (`start`, `end`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin STATS_PERSISTENT=0 WITH SYSTEM VERSIONING
+select * from t0_vtmd for system_time all;
+start	end	name	archive_name	col_renames
+1292	18446744073709551615	t0	NULL	NULL
+set versioning_ddl_survival= off;
+drop table t0;
+set versioning_ddl_survival= on;
+create or replace table t0 (x int) with system versioning;
+ERROR HY000: VTMD error: `test.t0_vtmd` exists and not empty!
+drop tables t0, t0_vtmd;
+set versioning_ddl_survival= off;
 create or replace table x0 (x int) with system versioning;
 set versioning_ddl_survival= on;
 rename table x0 to d0;

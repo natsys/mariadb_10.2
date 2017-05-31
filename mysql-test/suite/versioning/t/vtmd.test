@@ -1,4 +1,36 @@
 -- source include/have_innodb.inc
+# create
+set versioning_ddl_survival= off;
+create or replace table t0 (x int) with system versioning;
+show tables;
+set versioning_ddl_survival= on;
+create or replace table t0 (x int) with system versioning;
+show tables;
+show create table t0_vtmd;
+select * from t0_vtmd for system_time all;
+
+set versioning_ddl_survival= off;
+drop table t0;
+set versioning_ddl_survival= on;
+--error ER_VERS_VTMD_ERROR
+create or replace table t0 (x int) with system versioning;
+
+# alter
+alter table t0 add column (y int);
+set @inf= 0xFFFFFFFFFFFFFFFF + 0;
+select start from t0_vtmd for system_time all where end < @inf into @start;
+select
+  start = @start as A_start,
+  (@start:= end) and end = @inf as B_end,
+  name,
+  substr(archive_name, 1, char_length(name)) as C_archive_name
+from t0_vtmd for system_time all;
+
+drop table t0_vtmd;
+alter table t0 drop column y;
+select * from t0_vtmd for system_time all;
+
+drop tables t0, t0_vtmd;
 
 # rename
 set versioning_ddl_survival= off;
