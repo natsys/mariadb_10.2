@@ -81,7 +81,9 @@ alter table t0 drop column y;
 call check_vtmd('t0_vtmd');
 
 call drop_archives('t0_vtmd');
+set versioning_ddl_survival= off;
 drop tables t0, t0_vtmd;
+set versioning_ddl_survival= on;
 
 # rename
 set versioning_ddl_survival= off;
@@ -90,7 +92,9 @@ set versioning_ddl_survival= on;
 rename table x0 to d0;
 show tables;
 
+set versioning_ddl_survival= off;
 drop table d0;
+set versioning_ddl_survival= on;
 create or replace table x0 (x int) with system versioning;
 rename table x0 to d0;
 show tables;
@@ -108,6 +112,14 @@ drop table x0_vtmd;
 rename table x0 to d0;
 show tables;
 
-drop tables d0, d0_vtmd;
+rename table d0 to duck;
+rename table duck to bay;
+rename table bay to sheer;
+rename table sheer to t0;
+
+call check_vtmd('t0_vtmd');
+
+set versioning_ddl_survival= off;
+drop tables t0, t0_vtmd;
 drop procedure check_vtmd;
 drop procedure drop_archives;
