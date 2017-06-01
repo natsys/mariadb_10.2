@@ -7653,7 +7653,7 @@ void TABLE::vers_update_fields()
 }
 
 
-bool TABLE_LIST::vers_vtmd_name(String& out)
+bool TABLE_LIST::vers_vtmd_name(String& out) const
 {
   static const char *vtmd_suffix= "_vtmd";
   static const size_t vtmd_suffix_len= strlen(vtmd_suffix);

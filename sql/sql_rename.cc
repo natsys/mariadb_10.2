@@ -300,8 +300,7 @@ do_rename(THD *thd, TABLE_LIST *ren_table, char *new_db, char *new_table_name,
         (void) rename_table_in_stat_tables(thd, &db_name, &table_name,
                                            &new_db_name, &new_table);
         VTMD_table vtmd(*ren_table);
-        String vtmd_new_name;
-        rc= vtmd.try_rename(thd, new_db, new_alias, vtmd_new_name);
+        rc= vtmd.try_rename(thd, new_db_name, new_table);
 
         if (!rc)
         {
@@ -312,7 +311,7 @@ do_rename(THD *thd, TABLE_LIST *ren_table, char *new_db, char *new_table_name,
                                                         new_alias);
           if (rc)
           {
-            vtmd.revert_rename(thd, new_db, vtmd_new_name);
+            vtmd.revert_rename(thd, new_db_name);
           }
         }
         if (rc)

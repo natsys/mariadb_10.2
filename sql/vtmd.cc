@@ -273,10 +273,8 @@ err:
 }
 
 bool
-VTMD_table::try_rename(THD *thd, const char *new_db, const char *new_alias, String &vtmd_new_name)
+VTMD_table::try_rename(THD *thd, LEX_STRING &new_db, LEX_STRING &new_alias)
 {
-  DBUG_ASSERT(new_db && new_alias);
-
   Local_da local_da(thd, ER_VERS_VTMD_ERROR);
   TABLE_LIST new_table;
 
@@ -292,26 +290,26 @@ VTMD_table::try_rename(THD *thd, const char *new_db, const char *new_alias, Stri
   }
 
   new_table.init_one_table(
-    new_db, strlen(new_db),
-    new_alias, strlen(new_alias),
-    new_alias, TL_READ);
+    LEX_STRING_WITH_LEN(new_db),
+    LEX_STRING_WITH_LEN(new_alias),
+    new_alias.str, TL_READ);
 
   if (new_table.vers_vtmd_name(vtmd_new_name))
     return true;
 
-  if (ha_table_exists(thd, new_db, vtmd_new_name.ptr()))
+  if (ha_table_exists(thd, new_db.str, vtmd_new_name.ptr()))
   {
     if (vtmd_exists)
     {
       my_printf_error(ER_VERS_VTMD_ERROR, "`%s.%s` table already exists!", MYF(0),
-                          new_db, vtmd_new_name.ptr());
+                          new_db.str, vtmd_new_name.ptr());
       return true;
     }
     push_warning_printf(
         thd, Sql_condition::WARN_LEVEL_WARN,
         ER_VERS_VTMD_ERROR,
         "`%s.%s` table already exists!",
-        new_db, vtmd_new_name.ptr());
+        new_db.str, vtmd_new_name.ptr());
     return false;
   }
 
@@ -331,8 +329,8 @@ VTMD_table::try_rename(THD *thd, const char *new_db, const char *new_alias, Stri
     bool rc= mysql_rename_table(
       hton,
       about.db, vtmd_name.ptr(),
-      new_db, vtmd_new_name.ptr(),
-      0);
+      new_db.str, vtmd_new_name.ptr(),
+      NO_FK_CHECKS);
     if (!rc) {
       query_cache_invalidate3(thd, &vtmd_tl, 0);
     }
@@ -342,15 +340,15 @@ VTMD_table::try_rename(THD *thd, const char *new_db, const char *new_alias, Stri
 }
 
 bool
-VTMD_table::revert_rename(THD *thd, const char *new_db, String &vtmd_new_name)
+VTMD_table::revert_rename(THD *thd, LEX_STRING &new_db)
 {
   DBUG_ASSERT(hton);
   Local_da local_da(thd, ER_VERS_VTMD_ERROR);
 
   bool rc= mysql_rename_table(
     hton,
-    new_db, vtmd_new_name.ptr(),
-    new_db, vtmd_name.ptr(),
+    new_db.str, vtmd_new_name.ptr(),
+    new_db.str, vtmd_name.ptr(),
     NO_FK_CHECKS);
   return rc;
 }
