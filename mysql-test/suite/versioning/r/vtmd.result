@@ -1,4 +1,4 @@
-create or replace procedure drop_archives (in vtmd varchar(64))
+create or replace procedure drop_archives (in vtmd_name varchar(64))
 begin
 declare archive_name varchar(64);
 declare cur_done bool default false;
@@ -8,7 +8,7 @@ declare continue handler for not found set cur_done = true;
 set @tmp= concat('
     create or replace temporary table
     cur_tmp as
-      select vtmd.archive_name from ', vtmd, ' as vtmd
+      select vtmd.archive_name from ', vtmd_name, ' as vtmd
       for system_time all
       where vtmd.archive_name is not null');
 prepare stmt from @tmp; execute stmt; drop prepare stmt;
@@ -21,6 +21,27 @@ end if;
 set @tmp= concat('drop table ', archive_name);
 prepare stmt from @tmp; execute stmt; drop prepare stmt;
 end loop;
+drop table cur_tmp;
+end~~
+create or replace procedure check_vtmd (in vtmd_name varchar(64))
+begin
+set @tmp= concat('
+    create or replace temporary table
+    tmp_vtmd as
+      select * from ', vtmd_name, ' as vtmd
+      for system_time all');
+prepare stmt from @tmp; execute stmt; drop prepare stmt;
+set @inf= 0xFFFFFFFFFFFFFFFF + 0;
+set @start= null;
+select start from tmp_vtmd for system_time all order by start limit 1 into @start;
+select @start > 0 and @start < @inf;
+select
+start = @start as A_start,
+(@start:= end) and end = @inf as B_end,
+name,
+substr(archive_name, 1, char_length(name)) as C_archive_name
+from tmp_vtmd for system_time all;
+drop table tmp_vtmd;
 end~~
 set versioning_ddl_survival= off;
 create or replace table t0 (x int) with system versioning;
@@ -53,34 +74,22 @@ set versioning_ddl_survival= on;
 create or replace table t0 (x int) with system versioning;
 ERROR HY000: VTMD error: `test.t0_vtmd` exists and not empty!
 alter table t0 add column (y int);
-set @inf= 0xFFFFFFFFFFFFFFFF + 0;
-select start from t0_vtmd for system_time all where end < @inf into @start;
-select @start > 0 and @start < @inf;
+call check_vtmd('t0_vtmd');
 @start > 0 and @start < @inf
 1
-select
-start = @start as A_start,
-(@start:= end) and end = @inf as B_end,
-name,
-substr(archive_name, 1, char_length(name)) as C_archive_name
-from t0_vtmd for system_time all;
 A_start	B_end	name	C_archive_name
 1	0	t0	t0
 1	1	t0	NULL
 call drop_archives('t0_vtmd');
 drop table t0_vtmd;
 alter table t0 drop column y;
-select
-start > 0 and start < @inf as A_start,
-end = @inf as B_end,
-name,
-substr(archive_name, 1, char_length(name)) as C_archive_name
-from t0_vtmd for system_time all;
+call check_vtmd('t0_vtmd');
+@start > 0 and @start < @inf
+1
 A_start	B_end	name	C_archive_name
 1	1	t0	t0
 call drop_archives('t0_vtmd');
 drop tables t0, t0_vtmd;
-drop procedure drop_archives;
 set versioning_ddl_survival= off;
 create or replace table x0 (x int) with system versioning;
 set versioning_ddl_survival= on;
@@ -95,6 +104,12 @@ show tables;
 Tables_in_test
 d0
 d0_vtmd
+call check_vtmd('d0_vtmd');
+@start > 0 and @start < @inf
+1
+A_start	B_end	name	C_archive_name
+1	0	x0	NULL
+1	1	d0	NULL
 set versioning_ddl_survival= off;
 drop table d0;
 set versioning_ddl_survival= on;
@@ -110,3 +125,5 @@ Tables_in_test
 d0
 d0_vtmd
 drop tables d0, d0_vtmd;
+drop procedure check_vtmd;
+drop procedure drop_archives;
