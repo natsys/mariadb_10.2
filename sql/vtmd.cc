@@ -333,6 +333,8 @@ VTMD_table::try_rename(THD *thd, LEX_STRING &new_db, LEX_STRING &new_alias)
       NO_FK_CHECKS);
     if (!rc) {
       query_cache_invalidate3(thd, &vtmd_tl, 0);
+      VTMD_table new_vtmd(new_table);
+      rc= new_vtmd.write_row(thd);
     }
     return rc;
   }
