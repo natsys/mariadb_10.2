@@ -347,10 +347,26 @@ VTMD_rename::revert_rename(THD *thd, LEX_STRING &new_db)
   DBUG_ASSERT(hton);
   Local_da local_da(thd, ER_VERS_VTMD_ERROR);
 
+  TABLE_LIST vtmd_tl;
+  vtmd_tl.init_one_table(
+    about.db, about.db_length,
+    vtmd_new_name.ptr(), vtmd_new_name.length(),
+    vtmd_new_name.ptr(),
+    TL_WRITE_ONLY);
+  vtmd_tl.mdl_request.set_type(MDL_EXCLUSIVE);
+  mysql_ha_rm_tables(thd, &vtmd_tl);
+  if (lock_table_names(thd, &vtmd_tl, 0, thd->variables.lock_wait_timeout, 0))
+    return true;
+  tdc_remove_table(thd, TDC_RT_REMOVE_ALL, new_db.str, vtmd_new_name.ptr(), false);
+
   bool rc= mysql_rename_table(
     hton,
     new_db.str, vtmd_new_name.ptr(),
     new_db.str, vtmd_name.ptr(),
     NO_FK_CHECKS);
+
+  if (!rc) {
+    query_cache_invalidate3(thd, &vtmd_tl, 0);
+  }
   return rc;
 }
