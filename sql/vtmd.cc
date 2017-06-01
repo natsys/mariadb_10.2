@@ -273,7 +273,7 @@ err:
 }
 
 bool
-VTMD_table::try_rename(THD *thd, LEX_STRING &new_db, LEX_STRING &new_alias)
+VTMD_rename::try_rename(THD *thd, LEX_STRING &new_db, LEX_STRING &new_alias)
 {
   Local_da local_da(thd, ER_VERS_VTMD_ERROR);
   TABLE_LIST new_table;
@@ -342,7 +342,7 @@ VTMD_table::try_rename(THD *thd, LEX_STRING &new_db, LEX_STRING &new_alias)
 }
 
 bool
-VTMD_table::revert_rename(THD *thd, LEX_STRING &new_db)
+VTMD_rename::revert_rename(THD *thd, LEX_STRING &new_db)
 {
   DBUG_ASSERT(hton);
   Local_da local_da(thd, ER_VERS_VTMD_ERROR);

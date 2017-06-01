@@ -9,11 +9,10 @@ class THD;
 
 class VTMD_table
 {
+protected:
   TABLE *vtmd;
   const TABLE_LIST &about;
   String vtmd_name;
-  String vtmd_new_name;
-  handlerton *hton;
 
 private:
   VTMD_table(const VTMD_table&); // prohibit copying references
@@ -34,13 +33,26 @@ public:
 
   VTMD_table(TABLE_LIST &_about) :
     vtmd(NULL),
-    about(_about),
-    hton(NULL)
+    about(_about)
   {}
 
   bool create(THD *thd, String &vtmd_name);
   bool find_record(THD *thd, ulonglong sys_trx_end, bool &found);
   bool write_row(THD *thd, const char* archive_name= NULL);
+
+};
+
+class VTMD_rename : public VTMD_table
+{
+  String vtmd_new_name;
+  handlerton *hton;
+
+public:
+  VTMD_rename(TABLE_LIST &_about) :
+    VTMD_table(_about),
+    hton(NULL)
+  {}
+
   bool try_rename(THD *thd, LEX_STRING &new_db, LEX_STRING &new_alias);
   bool revert_rename(THD *thd, LEX_STRING &new_db);
 };

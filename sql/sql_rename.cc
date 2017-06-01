@@ -299,7 +299,7 @@ do_rename(THD *thd, TABLE_LIST *ren_table, char *new_db, char *new_table_name,
         LEX_STRING new_db_name= { (char*)new_db, strlen(new_db)};
         (void) rename_table_in_stat_tables(thd, &db_name, &table_name,
                                            &new_db_name, &new_table);
-        VTMD_table vtmd(*ren_table);
+        VTMD_rename vtmd(*ren_table);
         rc= vtmd.try_rename(thd, new_db_name, new_table);
 
         if (!rc)
