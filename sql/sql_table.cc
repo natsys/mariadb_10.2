@@ -2472,11 +2472,27 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
                                                  table->table_name,
                                                  MDL_EXCLUSIVE));
 
-      // Remove extension for delete
-      *(end= path + path_length - reg_ext_length)= '\0';
+      VTMD_drop vtmd(*table);
+      if (thd->variables.vers_ddl_survival &&
+        table_type && table_type != view_pseudo_hton)
+      {
+        error= vtmd.check_exists(thd);
+        if (error)
+          goto non_tmp_err;
+        if (!vtmd.exists)
+          goto drop_table;
+        error= mysql_rename_table(table_type, table->db, table->table_name,
+                                   table->db, "FIXME", NO_FK_CHECKS);
+      }
+      else
+      {
+      drop_table:
+        // Remove extension for delete
+        *(end= path + path_length - reg_ext_length)= '\0';
 
-      error= ha_delete_table(thd, table_type, path, db, table->table_name,
-                             !dont_log_query);
+        error= ha_delete_table(thd, table_type, path, db, table->table_name,
+                              !dont_log_query);
+      }
 
       if (!error)
       {
@@ -2511,6 +2527,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
         else if (frm_delete_error && if_exists)
           thd->clear_error();
       }
+    non_tmp_err:
       non_tmp_error|= MY_TEST(error);
     }
 
@@ -2521,8 +2538,8 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
       !drop_view &&
       !drop_sequence)
     {
-      VTMD_table vtmd(*table);
-      //error= vtmd.write_row(thd);
+      VTMD_drop vtmd(*table);
+      error= vtmd.try_update(thd);
     }
 
     if (error)
@@ -5065,7 +5082,7 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
   if (create_info->versioned() && thd->variables.vers_ddl_survival)
   {
     VTMD_table vtmd(*create_table);
-    if (vtmd.write_row(thd))
+    if (vtmd.update(thd))
     {
       result= 1;
       goto err;
@@ -5179,20 +5196,10 @@ static void make_unique_constraint_name(THD *thd, LEX_STRING *name,
 ** Alter a table definition
 ****************************************************************************/
 
-// Works as NOW(6)
-static MYSQL_TIME vers_thd_get_now(THD *thd)
-{
-  MYSQL_TIME now;
-  thd->variables.time_zone->gmt_sec_to_TIME(&now, thd->query_start());
-  now.second_part= thd->query_start_sec_part();
-  thd->time_zone_used= 1;
-  return now;
-}
-
 static void vers_table_name_date(THD *thd, const char *table_name,
                                  char *new_name, size_t new_name_size)
 {
-  const MYSQL_TIME now= vers_thd_get_now(thd);
+  const MYSQL_TIME now= thd->query_start_TIME();
   my_snprintf(new_name, new_name_size, "%s_%04d%02d%02d_%02d%02d%02d_%06d",
               table_name, now.year, now.month, now.day, now.hour, now.minute,
               now.second, now.second_part);
@@ -5209,7 +5216,7 @@ bool operator!=(const MYSQL_TIME &lhs, const MYSQL_TIME &rhs)
 // Sets sys_trx_end=MAX for rows with sys_trx_end=now(6)
 static bool vers_reset_alter_copy(THD *thd, TABLE *table)
 {
-  const MYSQL_TIME now= vers_thd_get_now(thd);
+  const MYSQL_TIME query_start= thd->query_start_TIME();
 
   READ_RECORD info;
   int error= 0;
@@ -5225,7 +5232,7 @@ static bool vers_reset_alter_copy(THD *thd, TABLE *table)
     MYSQL_TIME current;
     if (table->vers_end_field()->get_date(&current, 0))
       goto err_read_record;
-    if (current != now)
+    if (current != query_start)
     {
       continue;
     }
@@ -9636,7 +9643,7 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
   {
     DBUG_ASSERT(table_list);
     VTMD_table vtmd(*table_list);
-    if (vtmd.write_row(thd, backup_name))
+    if (vtmd.update(thd, backup_name))
       goto err_with_mdl_after_alter;
   }
 
@@ -9828,7 +9835,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   bool make_unversioned= from->versioned() && !to->versioned();
   bool keep_versioned= from->versioned() && to->versioned();
   Field *to_sys_trx_start= NULL, *to_sys_trx_end= NULL, *from_sys_trx_end= NULL;
-  MYSQL_TIME now;
+  MYSQL_TIME query_start;
   DBUG_ENTER("copy_data_between_tables");
 
   /* Two or 3 stages; Sorting, copying data and update indexes */
@@ -9930,7 +9937,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 
   if (make_versioned)
   {
-    now= vers_thd_get_now(thd);
+    query_start= thd->query_start_TIME();
     to_sys_trx_start= to->vers_start_field();
     to_sys_trx_end= to->vers_end_field();
   }
@@ -9943,10 +9950,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     to->file->vers_auto_decrement= 0xffffffffffffffff;
     if (thd->variables.vers_ddl_survival)
     {
-      thd->variables.time_zone->gmt_sec_to_TIME(&now, thd->query_start());
-      now.second_part= thd->query_start_sec_part();
-      thd->time_zone_used= 1;
-
+      query_start= thd->query_start_TIME();
       from_sys_trx_end= from->vers_end_field();
       to_sys_trx_start= to->vers_start_field();
     }
@@ -10010,7 +10014,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     {
       to_sys_trx_start->set_notnull(to_sys_trx_start->null_offset());
       // TODO: write directly to record bypassing the same checks on every call
-      to_sys_trx_start->store_time(&now);
+      to_sys_trx_start->store_time(&query_start);
 
       static const timeval max_tv= {0x7fffffff, 0};
       static const uint dec= 6;
@@ -10028,9 +10032,9 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
         continue; // Do not copy history rows.
 
       store_record(from, record[1]);
-      from->vers_end_field()->store_time(&now);
+      from->vers_end_field()->store_time(&query_start);
       from->file->ha_update_row(from->record[1], from->record[0]);
-      to_sys_trx_start->store_time(&now);
+      to_sys_trx_start->store_time(&query_start);
     }
 
     prev_insert_id= to->file->next_insert_id;

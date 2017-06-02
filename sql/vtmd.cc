@@ -135,7 +135,7 @@ VTMD_table::find_record(THD *thd, ulonglong sys_trx_end, bool &found)
 }
 
 bool
-VTMD_table::write_row(THD *thd, const char* archive_name)
+VTMD_table::update(THD *thd, const char* archive_name)
 {
   TABLE_LIST vtmd_tl;
   bool result= true;
@@ -276,6 +276,9 @@ inline
 bool
 VTMD_exists::check_exists(THD *thd)
 {
+  if (about.vers_vtmd_name(vtmd_name))
+    return true;
+
   exists= ha_table_exists(thd, about.db, vtmd_name.ptr(), &hton);
 
   if (exists && !hton) {
@@ -291,9 +294,6 @@ VTMD_rename::try_rename(THD *thd, LEX_STRING &new_db, LEX_STRING &new_alias)
 {
   Local_da local_da(thd, ER_VERS_VTMD_ERROR);
   TABLE_LIST new_table;
-
-  if (about.vers_vtmd_name(vtmd_name))
-    return true;
 
   if (check_exists(thd))
     return true;
@@ -343,7 +343,7 @@ VTMD_rename::try_rename(THD *thd, LEX_STRING &new_db, LEX_STRING &new_alias)
     if (!rc) {
       query_cache_invalidate3(thd, &vtmd_tl, 0);
       VTMD_table new_vtmd(new_table);
-      rc= new_vtmd.write_row(thd);
+      rc= new_vtmd.update(thd);
     }
     return rc;
   }
@@ -378,4 +378,18 @@ VTMD_rename::revert_rename(THD *thd, LEX_STRING &new_db)
     query_cache_invalidate3(thd, &vtmd_tl, 0);
   }
   return rc;
+}
+
+bool
+VTMD_drop::try_update(THD *thd)
+{
+  Local_da local_da(thd, ER_VERS_VTMD_ERROR);
+
+  if (check_exists(thd))
+    return true;
+
+  if (!exists)
+    return false;
+
+  return update(thd);
 }

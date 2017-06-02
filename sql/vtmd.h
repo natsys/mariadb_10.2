@@ -38,13 +38,15 @@ public:
 
   bool create(THD *thd, String &vtmd_name);
   bool find_record(THD *thd, ulonglong sys_trx_end, bool &found);
-  bool write_row(THD *thd, const char* archive_name= NULL);
+  bool update(THD *thd, const char* archive_name= NULL);
 };
 
 class VTMD_exists : public VTMD_table
 {
 protected:
   handlerton *hton;
+
+public:
   bool exists;
 
 public:
@@ -76,6 +78,8 @@ public:
   VTMD_drop(TABLE_LIST &_about) :
     VTMD_exists(_about)
   {}
+
+  bool try_update(THD *thd);
 };
 
 
