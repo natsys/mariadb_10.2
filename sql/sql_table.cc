@@ -2534,6 +2534,9 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
     if (!error && vtmd.exists)
     {
       error= vtmd.update(thd);
+      if (error)
+        mysql_rename_table(table_type, table->db, vtmd.archive_name(),
+                                   table->db, table->table_name, NO_FK_CHECKS);
     }
 
     if (error)

@@ -96,8 +96,15 @@ public:
     return archive_name_;
   }
 
+  const char* archive_name() const
+  {
+    DBUG_ASSERT(*archive_name_);
+    return archive_name_;
+  }
+
   bool update(THD *thd)
   {
+    DBUG_ASSERT(*archive_name_);
     return VTMD_exists::update(thd, archive_name_);
   }
 };
