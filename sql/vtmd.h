@@ -39,6 +39,13 @@ public:
   bool create(THD *thd, String &vtmd_name);
   bool find_record(THD *thd, ulonglong sys_trx_end, bool &found);
   bool update(THD *thd, const char* archive_name= NULL);
+
+  static void archive_name(THD *thd, const char *table_name, char *new_name, size_t new_name_size);
+  void archive_name(THD *thd, char *new_name, size_t new_name_size)
+  {
+    archive_name(thd, about.table_name, new_name, new_name_size);
+  }
+
 };
 
 class VTMD_exists : public VTMD_table
@@ -74,12 +81,25 @@ public:
 
 class VTMD_drop : public VTMD_exists
 {
+  char archive_name_[FN_LEN];
+
 public:
   VTMD_drop(TABLE_LIST &_about) :
     VTMD_exists(_about)
-  {}
+  {
+    *archive_name_= 0;
+  }
 
-  bool try_update(THD *thd);
+  const char* archive_name(THD *thd)
+  {
+    VTMD_table::archive_name(thd, archive_name_, sizeof(archive_name_));
+    return archive_name_;
+  }
+
+  bool update(THD *thd)
+  {
+    return VTMD_exists::update(thd, archive_name_);
+  }
 };
 
 

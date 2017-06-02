@@ -2277,6 +2277,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
     char *db=table->db;
     size_t db_length= table->db_length;
     handlerton *table_type= 0;
+    VTMD_drop vtmd(*table);
 
     DBUG_PRINT("table", ("table_l: '%s'.'%s'  table: 0x%lx  s: 0x%lx",
                          table->db, table->table_name, (long) table->table,
@@ -2472,7 +2473,9 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
                                                  table->table_name,
                                                  MDL_EXCLUSIVE));
 
-      VTMD_drop vtmd(*table);
+      // Remove extension for delete
+      *(end= path + path_length - reg_ext_length)= '\0';
+
       if (thd->variables.vers_ddl_survival &&
         table_type && table_type != view_pseudo_hton)
       {
@@ -2482,14 +2485,11 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
         if (!vtmd.exists)
           goto drop_table;
         error= mysql_rename_table(table_type, table->db, table->table_name,
-                                   table->db, "FIXME", NO_FK_CHECKS);
+                                   table->db, vtmd.archive_name(thd), NO_FK_CHECKS);
       }
       else
       {
       drop_table:
-        // Remove extension for delete
-        *(end= path + path_length - reg_ext_length)= '\0';
-
         error= ha_delete_table(thd, table_type, path, db, table->table_name,
                               !dont_log_query);
       }
@@ -2531,15 +2531,9 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
       non_tmp_error|= MY_TEST(error);
     }
 
-    if (!error &&
-      thd->variables.vers_ddl_survival &&
-      thd->lex->sql_command == SQLCOM_DROP_TABLE &&
-      !drop_temporary &&
-      !drop_view &&
-      !drop_sequence)
+    if (!error && vtmd.exists)
     {
-      VTMD_drop vtmd(*table);
-      error= vtmd.try_update(thd);
+      error= vtmd.update(thd);
     }
 
     if (error)
@@ -5195,15 +5189,6 @@ static void make_unique_constraint_name(THD *thd, LEX_STRING *name,
 /****************************************************************************
 ** Alter a table definition
 ****************************************************************************/
-
-static void vers_table_name_date(THD *thd, const char *table_name,
-                                 char *new_name, size_t new_name_size)
-{
-  const MYSQL_TIME now= thd->query_start_TIME();
-  my_snprintf(new_name, new_name_size, "%s_%04d%02d%02d_%02d%02d%02d_%06d",
-              table_name, now.year, now.month, now.day, now.hour, now.minute,
-              now.second, now.second_part);
-}
 
 bool operator!=(const MYSQL_TIME &lhs, const MYSQL_TIME &rhs)
 {
@@ -9583,7 +9568,7 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
   */
   char backup_name[FN_LEN];
   if (versioned && thd->variables.vers_ddl_survival)
-    vers_table_name_date(thd, alter_ctx.table_name, backup_name,
+    VTMD_table::archive_name(thd, alter_ctx.table_name, backup_name,
                          sizeof(backup_name));
   else
     my_snprintf(backup_name, sizeof(backup_name), "%s2-%lx-%lx",

@@ -53,12 +53,18 @@ public:
   }
   ~Local_da()
   {
+    if (saved_da)
+      finish();
+  }
+  void finish()
+  {
     DBUG_ASSERT(saved_da && thd);
     thd->set_stmt_da(saved_da);
     if (is_error())
       my_error(sql_error ? sql_error : sql_errno(), MYF(0), message());
     if (warn_count() > error_count())
       saved_da->copy_non_errors_from_wi(thd, get_warning_info());
+    saved_da= NULL;
   }
 };
 
@@ -235,9 +241,16 @@ VTMD_table::update(THD *thd, const char* archive_name)
         vtmd->s->versioned= true;
         if (!error)
         {
-          store_record(vtmd, record[1]);
-          vtmd->field[FLD_ARCHIVE_NAME]->set_null();
-          error= vtmd->file->ha_update_row(vtmd->record[1], vtmd->record[0]);
+          if (thd->lex->sql_command == SQLCOM_DROP_TABLE)
+          {
+            error= vtmd->file->ha_delete_row(vtmd->record[0]);
+          }
+          else
+          {
+            store_record(vtmd, record[1]);
+            vtmd->field[FLD_ARCHIVE_NAME]->set_null();
+            error= vtmd->file->ha_update_row(vtmd->record[1], vtmd->record[0]);
+          }
         }
       }
       else
@@ -342,6 +355,7 @@ VTMD_rename::try_rename(THD *thd, LEX_STRING &new_db, LEX_STRING &new_alias)
       NO_FK_CHECKS);
     if (!rc) {
       query_cache_invalidate3(thd, &vtmd_tl, 0);
+      local_da.finish();
       VTMD_table new_vtmd(new_table);
       rc= new_vtmd.update(thd);
     }
@@ -380,16 +394,14 @@ VTMD_rename::revert_rename(THD *thd, LEX_STRING &new_db)
   return rc;
 }
 
-bool
-VTMD_drop::try_update(THD *thd)
+void VTMD_table::archive_name(
+  THD* thd,
+  const char* table_name,
+  char* new_name,
+  size_t new_name_size)
 {
-  Local_da local_da(thd, ER_VERS_VTMD_ERROR);
-
-  if (check_exists(thd))
-    return true;
-
-  if (!exists)
-    return false;
-
-  return update(thd);
+  const MYSQL_TIME now= thd->query_start_TIME();
+  my_snprintf(new_name, new_name_size, "%s_%04d%02d%02d_%02d%02d%02d_%06d",
+              table_name, now.year, now.month, now.day, now.hour, now.minute,
+              now.second, now.second_part);
 }
