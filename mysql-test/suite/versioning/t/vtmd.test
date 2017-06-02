@@ -107,6 +107,7 @@ create or replace table x0 (x int) with system versioning;
 
 --error ER_VERS_VTMD_ERROR
 rename table x0 to d0;
+show tables;
 
 drop table x0_vtmd;
 rename table x0 to d0;

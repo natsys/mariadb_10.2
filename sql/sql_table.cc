@@ -2513,6 +2513,18 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
       }
       non_tmp_error|= MY_TEST(error);
     }
+
+    if (!error &&
+      thd->variables.vers_ddl_survival &&
+      thd->lex->sql_command == SQLCOM_DROP_TABLE &&
+      !drop_temporary &&
+      !drop_view &&
+      !drop_sequence)
+    {
+      VTMD_table vtmd(*table);
+      //error= vtmd.write_row(thd);
+    }
+
     if (error)
     {
       if (wrong_tables.length())

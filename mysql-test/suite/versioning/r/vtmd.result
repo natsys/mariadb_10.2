@@ -89,7 +89,9 @@ call check_vtmd('t0_vtmd');
 A_start	B_end	name	C_archive_name
 1	1	t0	t0
 call drop_archives('t0_vtmd');
+set versioning_ddl_survival= off;
 drop tables t0, t0_vtmd;
+set versioning_ddl_survival= on;
 set versioning_ddl_survival= off;
 create or replace table x0 (x int) with system versioning;
 set versioning_ddl_survival= on;
@@ -97,7 +99,9 @@ rename table x0 to d0;
 show tables;
 Tables_in_test
 d0
+set versioning_ddl_survival= off;
 drop table d0;
+set versioning_ddl_survival= on;
 create or replace table x0 (x int) with system versioning;
 rename table x0 to d0;
 show tables;
@@ -116,6 +120,11 @@ set versioning_ddl_survival= on;
 create or replace table x0 (x int) with system versioning;
 rename table x0 to d0;
 ERROR HY000: VTMD error: `test.d0_vtmd` table already exists!
+show tables;
+Tables_in_test
+d0_vtmd
+x0
+x0_vtmd
 drop table x0_vtmd;
 rename table x0 to d0;
 Warnings:
@@ -124,6 +133,21 @@ show tables;
 Tables_in_test
 d0
 d0_vtmd
-drop tables d0, d0_vtmd;
+rename table d0 to duck;
+rename table duck to bay;
+rename table bay to sheer;
+rename table sheer to t0;
+call check_vtmd('t0_vtmd');
+@start > 0 and @start < @inf
+1
+A_start	B_end	name	C_archive_name
+1	0	x0	NULL
+1	0	d0	NULL
+1	0	duck	NULL
+1	0	bay	NULL
+1	0	sheer	NULL
+1	1	t0	NULL
+set versioning_ddl_survival= off;
+drop tables t0, t0_vtmd;
 drop procedure check_vtmd;
 drop procedure drop_archives;
