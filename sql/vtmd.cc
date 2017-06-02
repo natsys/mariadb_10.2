@@ -272,6 +272,20 @@ err:
   return result;
 }
 
+inline
+bool
+VTMD_exists::check_exists(THD *thd)
+{
+  exists= ha_table_exists(thd, about.db, vtmd_name.ptr(), &hton);
+
+  if (exists && !hton) {
+    my_printf_error(ER_VERS_VTMD_ERROR, "`%s.%s` handlerton empty!", MYF(0),
+                        about.db, vtmd_name.ptr());
+    return true;
+  }
+  return false;
+}
+
 bool
 VTMD_rename::try_rename(THD *thd, LEX_STRING &new_db, LEX_STRING &new_alias)
 {
@@ -281,13 +295,8 @@ VTMD_rename::try_rename(THD *thd, LEX_STRING &new_db, LEX_STRING &new_alias)
   if (about.vers_vtmd_name(vtmd_name))
     return true;
 
-  bool vtmd_exists= ha_table_exists(thd, about.db, vtmd_name.ptr(), &hton);
-
-  if (vtmd_exists && !hton) {
-    my_printf_error(ER_VERS_VTMD_ERROR, "`%s.%s` handlerton empty!", MYF(0),
-                        about.db, vtmd_name.ptr());
+  if (check_exists(thd))
     return true;
-  }
 
   new_table.init_one_table(
     LEX_STRING_WITH_LEN(new_db),
@@ -299,7 +308,7 @@ VTMD_rename::try_rename(THD *thd, LEX_STRING &new_db, LEX_STRING &new_alias)
 
   if (ha_table_exists(thd, new_db.str, vtmd_new_name.ptr()))
   {
-    if (vtmd_exists)
+    if (exists)
     {
       my_printf_error(ER_VERS_VTMD_ERROR, "`%s.%s` table already exists!", MYF(0),
                           new_db.str, vtmd_new_name.ptr());
@@ -313,7 +322,7 @@ VTMD_rename::try_rename(THD *thd, LEX_STRING &new_db, LEX_STRING &new_alias)
     return false;
   }
 
-  if (vtmd_exists)
+  if (exists)
   {
     TABLE_LIST vtmd_tl;
     vtmd_tl.init_one_table(
