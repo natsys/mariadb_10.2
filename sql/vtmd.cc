@@ -146,8 +146,7 @@ VTMD_table::update(THD *thd, const char* archive_name)
   TABLE_LIST vtmd_tl;
   bool result= true;
   bool need_close= false;
-  bool need_rnd_end= false;
-  bool found;
+  bool found= false;
   bool created= false;
   int error;
   Open_tables_backup open_tables_backup;
@@ -159,7 +158,7 @@ VTMD_table::update(THD *thd, const char* archive_name)
     thd->variables.option_bits&= ~OPTION_BIN_LOG;
 
     if (about.vers_vtmd_name(vtmd_name))
-      goto err;
+      goto quit;
 
     while (true)
     {
@@ -177,30 +176,28 @@ VTMD_table::update(THD *thd, const char* archive_name)
       {
         local_da.reset_diagnostics_area();
         if (create(thd, vtmd_name))
-          goto err;
+          goto quit;
         created= true;
         continue;
       }
-      goto err;
+      goto quit;
     }
     need_close= true;
 
     if (!vtmd->versioned())
     {
       my_message(ER_VERS_VTMD_ERROR, "VTMD is not versioned", MYF(0));
-      goto err;
+      goto quit;
     }
 
     if (!created && find_record(thd, ULONGLONG_MAX, found))
-      goto err;
+      goto quit;
 
-    if ((error= vtmd->file->extra(HA_EXTRA_MARK_AS_LOG_TABLE)) ||
-        (error= vtmd->file->ha_rnd_init(0)))
+    if ((error= vtmd->file->extra(HA_EXTRA_MARK_AS_LOG_TABLE)))
     {
       vtmd->file->print_error(error, MYF(0));
-      goto err;
+      goto quit;
     }
-    need_rnd_end= true;
 
     /* Honor next number columns if present */
     vtmd->next_number_field= vtmd->found_next_number_field;
@@ -209,14 +206,14 @@ VTMD_table::update(THD *thd, const char* archive_name)
     {
       my_printf_error(ER_VERS_VTMD_ERROR, "`%s.%s` unexpected fields count: %d", MYF(0),
                       vtmd->s->db.str, vtmd->s->table_name.str, vtmd->s->fields);
-      goto err;
+      goto quit;
     }
 
     vtmd->field[FLD_NAME]->store(about.table_name, about.table_name_length, system_charset_info);
     vtmd->field[FLD_NAME]->set_notnull();
     if (archive_name)
     {
-      vtmd->field[FLD_ARCHIVE_NAME]->store(archive_name, strlen(archive_name), files_charset_info);
+      vtmd->field[FLD_ARCHIVE_NAME]->store(archive_name, strlen(archive_name), table_alias_charset);
       vtmd->field[FLD_ARCHIVE_NAME]->set_notnull();
     }
     else
@@ -231,7 +228,7 @@ VTMD_table::update(THD *thd, const char* archive_name)
       {
         my_printf_error(ER_VERS_VTMD_ERROR, "`%s.%s` exists and not empty!", MYF(0),
                         vtmd->s->db.str, vtmd->s->table_name.str);
-        goto err;
+        goto quit;
       }
       vtmd->mark_columns_needed_for_update(); // not needed?
       if (archive_name)
@@ -251,33 +248,48 @@ VTMD_table::update(THD *thd, const char* archive_name)
             store_record(vtmd, record[1]);
             vtmd->field[FLD_ARCHIVE_NAME]->set_null();
             error= vtmd->file->ha_update_row(vtmd->record[1], vtmd->record[0]);
+            if (error)
+              goto err;
             ulonglong find_start= (ulonglong) vtmd->vers_start_field()->val_int();
-            char buf[NAME_CHAR_LEN];
-            String archive(buf, sizeof(buf), table_alias_charset);
+            String archive;
             for (int pass= 0; pass < 2; ++pass)
             {
-              bool found2;
+              bool got_null= false;
               ulonglong sys_trx_end= find_start;
               while (true)
               {
+                bool found2;
                 if (find_record(thd, sys_trx_end, found2))
-                  goto err;
+                  goto quit;
                 if (!found2)
-                  break;
+                {
+                  ++pass; break;
+                }
                 if (!vtmd->field[FLD_ARCHIVE_NAME]->is_null())
                 {
                   if (pass == 0)
-                    vtmd->field[FLD_ARCHIVE_NAME]->val_str(&archive);
+                  {
+                    if (got_null)
+                      vtmd->field[FLD_ARCHIVE_NAME]->val_str(&archive);
+                    else
+                      ++pass;
+                  }
                   break;
                 }
+                else if (pass == 0)
+                  got_null= true;
                 if (pass == 1)
                 {
-                  // write archive_name
+                  DBUG_ASSERT(!archive.is_empty());
+                  store_record(vtmd, record[1]);
+                  vtmd->field[FLD_ARCHIVE_NAME]->store(archive.ptr(), archive.length(), table_alias_charset);
+                  vtmd->field[FLD_ARCHIVE_NAME]->set_notnull();
+                  error= vtmd->file->ha_update_row(vtmd->record[1], vtmd->record[0]);
+                  if (error)
+                    goto err;
                 }
                 sys_trx_end= (ulonglong) vtmd->vers_start_field()->val_int();
               }
-              if (!found2)
-                break;
             }
           }
         }
@@ -293,20 +305,15 @@ VTMD_table::update(THD *thd, const char* archive_name)
 
     if (error)
     {
+err:
       vtmd->file->print_error(error, MYF(0));
-      goto err;
+      goto quit;
     }
 
     result= false;
   }
 
-err:
-  if (need_rnd_end)
-  {
-    vtmd->file->ha_rnd_end();
-    vtmd->file->ha_release_auto_increment();
-  }
-
+quit:
   if (need_close)
     close_log_table(thd, &open_tables_backup);
 
