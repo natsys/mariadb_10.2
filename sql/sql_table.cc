@@ -2476,7 +2476,8 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
       // Remove extension for delete
       *(end= path + path_length - reg_ext_length)= '\0';
 
-      if (thd->variables.vers_ddl_survival &&
+      if (thd->lex->sql_command == SQLCOM_DROP_TABLE &&
+        thd->variables.vers_ddl_survival &&
         table_type && table_type != view_pseudo_hton)
       {
         error= vtmd.check_exists(thd);

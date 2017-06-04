@@ -149,6 +149,7 @@ VTMD_table::update(THD *thd, const char* archive_name)
   bool found= false;
   bool created= false;
   int error;
+  size_t an_len= 0;
   Open_tables_backup open_tables_backup;
   ulonglong save_thd_options;
   {
@@ -160,7 +161,7 @@ VTMD_table::update(THD *thd, const char* archive_name)
     if (about.vers_vtmd_name(vtmd_name))
       goto quit;
 
-    while (true)
+    while (true) // max 2 iterations
     {
       vtmd_tl.init_one_table(
         about.db, about.db_length,
@@ -213,7 +214,8 @@ VTMD_table::update(THD *thd, const char* archive_name)
     vtmd->field[FLD_NAME]->set_notnull();
     if (archive_name)
     {
-      vtmd->field[FLD_ARCHIVE_NAME]->store(archive_name, strlen(archive_name), table_alias_charset);
+      an_len= strlen(archive_name);
+      vtmd->field[FLD_ARCHIVE_NAME]->store(archive_name, an_len, table_alias_charset);
       vtmd->field[FLD_ARCHIVE_NAME]->set_notnull();
     }
     else
@@ -236,6 +238,7 @@ VTMD_table::update(THD *thd, const char* archive_name)
         vtmd->s->versioned= false;
         error= vtmd->file->ha_update_row(vtmd->record[1], vtmd->record[0]);
         vtmd->s->versioned= true;
+
         if (!error)
         {
           if (thd->lex->sql_command == SQLCOM_DROP_TABLE)
@@ -245,58 +248,38 @@ VTMD_table::update(THD *thd, const char* archive_name)
           else
           {
             DBUG_ASSERT(thd->lex->sql_command == SQLCOM_ALTER_TABLE);
+            ulonglong sys_trx_end= (ulonglong) vtmd->vers_start_field()->val_int();
             store_record(vtmd, record[1]);
             vtmd->field[FLD_ARCHIVE_NAME]->set_null();
             error= vtmd->file->ha_update_row(vtmd->record[1], vtmd->record[0]);
             if (error)
               goto err;
-            ulonglong find_start= (ulonglong) vtmd->vers_start_field()->val_int();
-            String archive;
-            for (int pass= 0; pass < 2; ++pass)
-            {
-              bool got_null= false;
-              ulonglong sys_trx_end= find_start;
-              while (true)
-              {
-                bool found2;
-                if (find_record(thd, sys_trx_end, found2))
-                  goto quit;
-                if (!found2)
-                {
-                  ++pass; break;
-                }
-                if (!vtmd->field[FLD_ARCHIVE_NAME]->is_null())
-                {
-                  if (pass == 0)
-                  {
-                    if (got_null)
-                      vtmd->field[FLD_ARCHIVE_NAME]->val_str(&archive);
-                    else
-                      ++pass;
-                  }
-                  break;
-                }
-                else if (pass == 0)
-                  got_null= true;
-                if (pass == 1)
-                {
-                  DBUG_ASSERT(!archive.is_empty());
-                  store_record(vtmd, record[1]);
-                  vtmd->field[FLD_ARCHIVE_NAME]->store(archive.ptr(), archive.length(), table_alias_charset);
-                  vtmd->field[FLD_ARCHIVE_NAME]->set_notnull();
-                  error= vtmd->file->ha_update_row(vtmd->record[1], vtmd->record[0]);
-                  if (error)
-                    goto err;
-                }
-                sys_trx_end= (ulonglong) vtmd->vers_start_field()->val_int();
-              }
-            }
-          }
-        }
-      }
+
+            DBUG_ASSERT(an_len);
+            while (true)
+            { // fill archive_name of last sequential renames
+              bool found;
+              if (find_record(thd, sys_trx_end, found))
+                goto quit;
+              if (!found || !vtmd->field[FLD_ARCHIVE_NAME]->is_null())
+                break;
+
+              store_record(vtmd, record[1]);
+              vtmd->field[FLD_ARCHIVE_NAME]->store(archive_name, an_len, table_alias_charset);
+              vtmd->field[FLD_ARCHIVE_NAME]->set_notnull();
+              vtmd->s->versioned= false;
+              error= vtmd->file->ha_update_row(vtmd->record[1], vtmd->record[0]);
+              vtmd->s->versioned= true;
+              if (error)
+                goto err;
+              sys_trx_end= (ulonglong) vtmd->vers_start_field()->val_int();
+            } // while (true)
+          } // else (thd->lex->sql_command != SQLCOM_DROP_TABLE)
+        } // if (!error)
+      } // if (archive_name)
       else
         error= vtmd->file->ha_update_row(vtmd->record[1], vtmd->record[0]);
-    }
+    } // if (found)
     else
     {
       vtmd->mark_columns_needed_for_insert(); // not needed?

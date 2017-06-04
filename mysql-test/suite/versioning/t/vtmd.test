@@ -13,7 +13,8 @@ begin
     cur_tmp as
       select vtmd.archive_name from ', vtmd_name, ' as vtmd
       for system_time all
-      where vtmd.archive_name is not null');
+      where vtmd.archive_name is not null
+      group by vtmd.archive_name');
   prepare stmt from @tmp; execute stmt; drop prepare stmt;
 
   open cur;
@@ -48,7 +49,7 @@ begin
     start = @start as A_start,
     (@start:= end) and end = @inf as B_end,
     name,
-    substr(archive_name, 1, char_length(name)) as C_archive_name
+    substr(archive_name, 1, instr(archive_name, '_')) as C_archive_name
   from tmp_vtmd for system_time all;
 
   drop table tmp_vtmd;
@@ -117,8 +118,11 @@ rename table d0 to duck;
 rename table duck to bay;
 rename table bay to sheer;
 rename table sheer to t0;
-
 call check_vtmd('t0_vtmd');
+
+alter table t0 add column (y int);
+call check_vtmd('t0_vtmd');
+call drop_archives('t0_vtmd');
 
 set versioning_ddl_survival= off;
 drop tables t0, t0_vtmd;

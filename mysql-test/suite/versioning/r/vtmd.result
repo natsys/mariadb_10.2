@@ -10,7 +10,8 @@ set @tmp= concat('
     cur_tmp as
       select vtmd.archive_name from ', vtmd_name, ' as vtmd
       for system_time all
-      where vtmd.archive_name is not null');
+      where vtmd.archive_name is not null
+      group by vtmd.archive_name');
 prepare stmt from @tmp; execute stmt; drop prepare stmt;
 open cur;
 fetch_loop: loop
@@ -39,7 +40,7 @@ select
 start = @start as A_start,
 (@start:= end) and end = @inf as B_end,
 name,
-substr(archive_name, 1, char_length(name)) as C_archive_name
+substr(archive_name, 1, instr(archive_name, '_')) as C_archive_name
 from tmp_vtmd for system_time all;
 drop table tmp_vtmd;
 end~~
@@ -78,7 +79,7 @@ call check_vtmd('t0_vtmd');
 @start > 0 and @start < @inf
 1
 A_start	B_end	name	C_archive_name
-1	0	t0	t0
+1	0	t0	t0_
 1	1	t0	NULL
 call drop_archives('t0_vtmd');
 drop table t0_vtmd;
@@ -87,7 +88,7 @@ call check_vtmd('t0_vtmd');
 @start > 0 and @start < @inf
 1
 A_start	B_end	name	C_archive_name
-1	1	t0	t0
+1	1	t0	t0_
 call drop_archives('t0_vtmd');
 set versioning_ddl_survival= off;
 drop tables t0, t0_vtmd;
@@ -147,6 +148,19 @@ A_start	B_end	name	C_archive_name
 1	0	bay	NULL
 1	0	sheer	NULL
 1	1	t0	NULL
+alter table t0 add column (y int);
+call check_vtmd('t0_vtmd');
+@start > 0 and @start < @inf
+1
+A_start	B_end	name	C_archive_name
+1	0	x0	t0_
+1	0	d0	t0_
+1	0	duck	t0_
+1	0	bay	t0_
+1	0	sheer	t0_
+1	0	t0	t0_
+1	1	t0	NULL
+call drop_archives('t0_vtmd');
 set versioning_ddl_survival= off;
 drop tables t0, t0_vtmd;
 drop procedure check_vtmd;
