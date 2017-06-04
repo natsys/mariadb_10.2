@@ -247,9 +247,38 @@ VTMD_table::update(THD *thd, const char* archive_name)
           }
           else
           {
+            DBUG_ASSERT(thd->lex->sql_command == SQLCOM_ALTER_TABLE);
             store_record(vtmd, record[1]);
             vtmd->field[FLD_ARCHIVE_NAME]->set_null();
             error= vtmd->file->ha_update_row(vtmd->record[1], vtmd->record[0]);
+            ulonglong find_start= (ulonglong) vtmd->vers_start_field()->val_int();
+            char buf[NAME_CHAR_LEN];
+            String archive(buf, sizeof(buf), table_alias_charset);
+            for (int pass= 0; pass < 2; ++pass)
+            {
+              bool found2;
+              ulonglong sys_trx_end= find_start;
+              while (true)
+              {
+                if (find_record(thd, sys_trx_end, found2))
+                  goto err;
+                if (!found2)
+                  break;
+                if (!vtmd->field[FLD_ARCHIVE_NAME]->is_null())
+                {
+                  if (pass == 0)
+                    vtmd->field[FLD_ARCHIVE_NAME]->val_str(&archive);
+                  break;
+                }
+                if (pass == 1)
+                {
+                  // write archive_name
+                }
+                sys_trx_end= (ulonglong) vtmd->vers_start_field()->val_int();
+              }
+              if (!found2)
+                break;
+            }
           }
         }
       }

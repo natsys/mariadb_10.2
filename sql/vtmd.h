@@ -81,7 +81,7 @@ public:
 
 class VTMD_drop : public VTMD_exists
 {
-  char archive_name_[FN_LEN];
+  char archive_name_[NAME_CHAR_LEN];
 
 public:
   VTMD_drop(TABLE_LIST &_about) :
