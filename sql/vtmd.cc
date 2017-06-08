@@ -35,6 +35,53 @@ public:
   bool acquire_error() const { return error; }
 };
 
+struct Compare_strncmp
+{
+  int operator()(const LEX_STRING& a, const LEX_STRING& b) const
+  {
+    return strncmp(a.str, b.str, a.length);
+  }
+};
+
+template <CHARSET_INFO* &charset= system_charset_info>
+struct Compare_my_strcasecmp
+{
+  int operator()(const LEX_STRING& a, const LEX_STRING& b) const
+  {
+    DBUG_ASSERT(a.str[a.length] == 0 && b.str[b.length] == 0);
+    return my_strcasecmp(charset, a.str, b.str);
+  }
+};
+
+typedef Compare_my_strcasecmp<files_charset_info> Compare_fs;
+
+template <class Compare= Compare_strncmp>
+struct CString_any : public LEX_STRING
+{
+public:
+  CString_any(char *_str, size_t _len)
+  {
+    str= _str;
+    length= _len;
+  }
+  CString_any(LEX_STRING& src)
+  {
+    str= src.str;
+    length= src.length;
+  }
+  bool operator== (const CString_any& b) const
+  {
+    return length == b.length && 0 == Compare()(*this, b);
+  }
+  bool operator!= (const CString_any& b) const
+  {
+    return !(*this == b);
+  }
+};
+
+typedef CString_any<> CString;
+typedef CString_any<Compare_fs> CString_fs;
+
 
 class Local_da : public Diagnostics_area
 {
@@ -120,9 +167,9 @@ VTMD_table::find_record(THD *thd, ulonglong sys_trx_end, bool &found)
   DBUG_ASSERT(sys_trx_end);
   vtmd->vers_end_field()->set_notnull();
   vtmd->vers_end_field()->store(sys_trx_end, true);
-  key_copy((uchar*)key.get(), vtmd->record[0], vtmd->key_info + IDX_END, 0);
+  key_copy((uchar*)key.get(), vtmd->record[0], vtmd->key_info + IDX_TRX_END, 0);
 
-  error= vtmd->file->ha_index_read_idx_map(vtmd->record[1], IDX_END,
+  error= vtmd->file->ha_index_read_idx_map(vtmd->record[1], IDX_TRX_END,
                                             (const uchar*)key.get(),
                                             HA_WHOLE_KEY,
                                             HA_READ_KEY_EXACT);
@@ -313,12 +360,80 @@ VTMD_exists::check_exists(THD *thd)
 
   exists= ha_table_exists(thd, about.db, vtmd_name.ptr(), &hton);
 
-  if (exists && !hton) {
+  if (exists && !hton)
+  {
     my_printf_error(ER_VERS_VTMD_ERROR, "`%s.%s` handlerton empty!", MYF(0),
                         about.db, vtmd_name.ptr());
     return true;
   }
   return false;
+}
+
+bool
+VTMD_rename::move_archives(THD *thd, LEX_STRING &new_db)
+{
+  Open_tables_backup open_tables_backup;
+  TABLE_LIST vtmd_tl;
+  vtmd_tl.init_one_table(
+    about.db, about.db_length,
+    vtmd_name.ptr(), vtmd_name.length(),
+    vtmd_name.ptr(),
+    TL_READ);
+  vtmd= open_log_table(thd, &vtmd_tl, &open_tables_backup);
+  if (vtmd)
+  {
+    vtmd->key_info[IDX_ARCHIVE_NAME].flags= HA_READ_AFTER_KEY;
+    vtmd->file->ha_start_keyread(IDX_ARCHIVE_NAME);
+    if (!vtmd->file->ha_index_init(IDX_ARCHIVE_NAME, true))
+    {
+      auto_afree_ptr<char> key(NULL);
+      if (key.get() == NULL)
+      {
+        key.assign(static_cast<char*>(my_alloca(400)));
+        if (key.get() == NULL)
+        {
+          my_message(ER_VERS_VTMD_ERROR, "failed to allocate key buffer", MYF(0));
+          return true;
+        }
+      }
+      int rc= vtmd->file->ha_index_first(vtmd->record[0]);
+      String archive;
+      ulonglong start;
+      while (!rc)
+      {
+        start= (ulonglong) vtmd->vers_start_field()->val_int();
+        if (!vtmd->field[FLD_ARCHIVE_NAME]->is_null())
+        {
+          vtmd->field[FLD_ARCHIVE_NAME]->val_str(&archive);
+          key_copy((uchar*)key.get(),
+                    vtmd->record[0],
+                    &vtmd->key_info[IDX_ARCHIVE_NAME],
+                    vtmd->key_info[IDX_ARCHIVE_NAME].key_length,
+                    false);
+          rc= vtmd->file->ha_index_read_map(
+            vtmd->record[0],
+            (uchar *)key.get(),
+            vtmd->key_info[IDX_ARCHIVE_NAME].ext_key_part_map,
+            HA_READ_PREFIX_LAST);
+          if (!rc)
+            rc= vtmd->file->ha_index_next(vtmd->record[0]);
+        }
+        else
+        {
+          archive.length(0);
+          rc= vtmd->file->ha_index_next(vtmd->record[0]);
+        }
+      }
+      if (rc && rc != HA_ERR_END_OF_FILE)
+      {
+        vtmd->file->print_error(rc, MYF(0));
+      }
+      vtmd->file->ha_index_end();
+    }
+    vtmd->file->ha_end_keyread();
+    close_log_table(thd, &open_tables_backup);
+  }
+  return true;
 }
 
 bool
@@ -372,7 +487,12 @@ VTMD_rename::try_rename(THD *thd, LEX_STRING &new_db, LEX_STRING &new_alias)
       about.db, vtmd_name.ptr(),
       new_db.str, vtmd_new_name.ptr(),
       NO_FK_CHECKS);
-    if (!rc) {
+    if (!rc && CString_fs(about.db, about.db_length) != new_db)
+    {
+      rc= move_archives(thd, new_db);
+    }
+    if (!rc)
+    {
       query_cache_invalidate3(thd, &vtmd_tl, 0);
       local_da.finish();
       VTMD_table new_vtmd(new_table);
@@ -407,9 +527,9 @@ VTMD_rename::revert_rename(THD *thd, LEX_STRING &new_db)
     new_db.str, vtmd_name.ptr(),
     NO_FK_CHECKS);
 
-  if (!rc) {
+  if (!rc)
     query_cache_invalidate3(thd, &vtmd_tl, 0);
-  }
+
   return rc;
 }
 

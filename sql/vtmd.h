@@ -28,7 +28,8 @@ public:
   };
 
   enum {
-    IDX_END= 0
+    IDX_TRX_END= 0,
+    IDX_ARCHIVE_NAME
   };
 
   VTMD_table(TABLE_LIST &_about) :
@@ -76,6 +77,7 @@ public:
   {}
 
   bool try_rename(THD *thd, LEX_STRING &new_db, LEX_STRING &new_alias);
+  bool move_archives(THD *thd, LEX_STRING &new_db);
   bool revert_rename(THD *thd, LEX_STRING &new_db);
 };
 

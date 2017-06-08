@@ -64,6 +64,7 @@ t0_vtmd	CREATE TABLE `t0_vtmd` (
   `archive_name` varchar(64) COLLATE utf8_bin DEFAULT NULL COMMENT 'Name of archive table',
   `col_renames` blob DEFAULT NULL COMMENT 'Column name mappings from previous lifetime',
   PRIMARY KEY (`end`),
+  KEY `archive_name` (`archive_name`),
   PERIOD FOR SYSTEM_TIME (`start`, `end`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin STATS_PERSISTENT=0 WITH SYSTEM VERSIONING
 select * from t0_vtmd for system_time all;
