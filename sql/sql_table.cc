@@ -9605,6 +9605,16 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
     goto err_with_mdl;
   }
 
+  if (versioned && new_versioned && thd->variables.vers_ddl_survival)
+  {
+    DBUG_ASSERT(table_list);
+    VTMD_table vtmd(*table_list);
+    if (vtmd.update(thd, backup_name))
+    {
+      goto err_after_rename;
+    }
+  }
+
   // Check if we renamed the table and if so update trigger files.
   if (alter_ctx.is_table_renamed())
   {
@@ -9615,6 +9625,7 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
                                                alter_ctx.new_db,
                                                alter_ctx.new_alias))
     {
+err_after_rename:
       // Rename succeeded, delete the new table.
       (void) quick_rm_table(thd, new_db_type,
                             alter_ctx.new_db, alter_ctx.new_alias, 0);
@@ -9626,14 +9637,6 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
     }
     rename_table_in_stat_tables(thd, alter_ctx.db,alter_ctx.alias,
                                 alter_ctx.new_db, alter_ctx.new_alias);
-  }
-
-  if (versioned && new_versioned && thd->variables.vers_ddl_survival)
-  {
-    DBUG_ASSERT(table_list);
-    VTMD_table vtmd(*table_list);
-    if (vtmd.update(thd, backup_name))
-      goto err_with_mdl_after_alter;
   }
 
   // ALTER TABLE succeeded, delete the backup of the old table.
