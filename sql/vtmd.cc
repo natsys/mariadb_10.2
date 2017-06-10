@@ -3,7 +3,6 @@
 #include "sql_class.h"
 #include "sql_handler.h" // mysql_ha_rm_tables()
 #include "sql_table.h"
-#include "rpl_utility.h" // auto_afree_ptr
 #include "table_cache.h" // tdc_remove_table()
 #include "key.h"
 
@@ -146,31 +145,24 @@ VTMD_table::create(THD *thd, String &vtmd_name)
 }
 
 bool
-VTMD_table::find_record(THD *thd, ulonglong sys_trx_end, bool &found)
+VTMD_table::find_record(ulonglong sys_trx_end, bool &found)
 {
   int error;
-  auto_afree_ptr<char> key(NULL);
+  key_buf_t key;
   found= false;
 
   DBUG_ASSERT(vtmd);
 
-  if (key.get() == NULL)
-  {
-    key.assign(static_cast<char*>(my_alloca(vtmd->s->max_unique_length)));
-    if (key.get() == NULL)
-    {
-      my_message(ER_VERS_VTMD_ERROR, "failed to allocate key buffer", MYF(0));
-      return true;
-    }
-  }
+  if (key.allocate(vtmd->s->max_unique_length))
+    return true;
 
   DBUG_ASSERT(sys_trx_end);
   vtmd->vers_end_field()->set_notnull();
   vtmd->vers_end_field()->store(sys_trx_end, true);
-  key_copy((uchar*)key.get(), vtmd->record[0], vtmd->key_info + IDX_TRX_END, 0);
+  key_copy(key, vtmd->record[0], vtmd->key_info + IDX_TRX_END, 0);
 
   error= vtmd->file->ha_index_read_idx_map(vtmd->record[1], IDX_TRX_END,
-                                            (const uchar*)key.get(),
+                                            key,
                                             HA_WHOLE_KEY,
                                             HA_READ_KEY_EXACT);
   if (error)
@@ -192,7 +184,7 @@ VTMD_table::update(THD *thd, const char* archive_name)
 {
   TABLE_LIST vtmd_tl;
   bool result= true;
-  bool need_close= false;
+  bool close_log= false;
   bool found= false;
   bool created= false;
   int error;
@@ -230,7 +222,7 @@ VTMD_table::update(THD *thd, const char* archive_name)
       }
       goto quit;
     }
-    need_close= true;
+    close_log= true;
 
     if (!vtmd->versioned())
     {
@@ -238,7 +230,7 @@ VTMD_table::update(THD *thd, const char* archive_name)
       goto quit;
     }
 
-    if (!created && find_record(thd, ULONGLONG_MAX, found))
+    if (!created && find_record(ULONGLONG_MAX, found))
       goto quit;
 
     if ((error= vtmd->file->extra(HA_EXTRA_MARK_AS_LOG_TABLE)))
@@ -306,7 +298,7 @@ VTMD_table::update(THD *thd, const char* archive_name)
             while (true)
             { // fill archive_name of last sequential renames
               bool found;
-              if (find_record(thd, sys_trx_end, found))
+              if (find_record(sys_trx_end, found))
                 goto quit;
               if (!found || !vtmd->field[FLD_ARCHIVE_NAME]->is_null())
                 break;
@@ -344,7 +336,7 @@ err:
   }
 
 quit:
-  if (need_close)
+  if (close_log)
     close_log_table(thd, &open_tables_backup);
 
   thd->variables.option_bits= save_thd_options;
@@ -370,70 +362,71 @@ VTMD_exists::check_exists(THD *thd)
 }
 
 bool
-VTMD_rename::move_archives(THD *thd, LEX_STRING &new_db)
+VTMD_rename::move_archives(THD *thd, TABLE_LIST &vtmd_tl, LEX_STRING &new_db)
 {
+  int error;
+  bool rc= false;
+  String archive;
+  bool end_keyread= false;
+  bool index_end= false;
   Open_tables_backup open_tables_backup;
-  TABLE_LIST vtmd_tl;
-  vtmd_tl.init_one_table(
-    about.db, about.db_length,
-    vtmd_name.ptr(), vtmd_name.length(),
-    vtmd_name.ptr(),
-    TL_READ);
+  key_buf_t key;
+
   vtmd= open_log_table(thd, &vtmd_tl, &open_tables_backup);
-  if (vtmd)
+  if (!vtmd)
+    return true;
+
+  if (key.allocate(vtmd->key_info[IDX_ARCHIVE_NAME].key_length))
+    return true;
+
+  if ((error= vtmd->file->ha_start_keyread(IDX_ARCHIVE_NAME)))
+    goto err;
+  end_keyread= true;
+
+  if ((error= vtmd->file->ha_index_init(IDX_ARCHIVE_NAME, true)))
+    goto err;
+  index_end= true;
+
+  error= vtmd->file->ha_index_first(vtmd->record[0]);
+  while (!error)
   {
-    vtmd->key_info[IDX_ARCHIVE_NAME].flags= HA_READ_AFTER_KEY;
-    vtmd->file->ha_start_keyread(IDX_ARCHIVE_NAME);
-    if (!vtmd->file->ha_index_init(IDX_ARCHIVE_NAME, true))
+    if (!vtmd->field[FLD_ARCHIVE_NAME]->is_null())
     {
-      auto_afree_ptr<char> key(NULL);
-      if (key.get() == NULL)
-      {
-        key.assign(static_cast<char*>(my_alloca(400)));
-        if (key.get() == NULL)
-        {
-          my_message(ER_VERS_VTMD_ERROR, "failed to allocate key buffer", MYF(0));
-          return true;
-        }
-      }
-      int rc= vtmd->file->ha_index_first(vtmd->record[0]);
-      String archive;
-      ulonglong start;
-      while (!rc)
-      {
-        start= (ulonglong) vtmd->vers_start_field()->val_int();
-        if (!vtmd->field[FLD_ARCHIVE_NAME]->is_null())
-        {
-          vtmd->field[FLD_ARCHIVE_NAME]->val_str(&archive);
-          key_copy((uchar*)key.get(),
-                    vtmd->record[0],
-                    &vtmd->key_info[IDX_ARCHIVE_NAME],
-                    vtmd->key_info[IDX_ARCHIVE_NAME].key_length,
-                    false);
-          rc= vtmd->file->ha_index_read_map(
-            vtmd->record[0],
-            (uchar *)key.get(),
-            vtmd->key_info[IDX_ARCHIVE_NAME].ext_key_part_map,
-            HA_READ_PREFIX_LAST);
-          if (!rc)
-            rc= vtmd->file->ha_index_next(vtmd->record[0]);
-        }
-        else
-        {
-          archive.length(0);
-          rc= vtmd->file->ha_index_next(vtmd->record[0]);
-        }
-      }
-      if (rc && rc != HA_ERR_END_OF_FILE)
-      {
-        vtmd->file->print_error(rc, MYF(0));
-      }
-      vtmd->file->ha_index_end();
+      vtmd->field[FLD_ARCHIVE_NAME]->val_str(&archive);
+      key_copy(key,
+                vtmd->record[0],
+                &vtmd->key_info[IDX_ARCHIVE_NAME],
+                vtmd->key_info[IDX_ARCHIVE_NAME].key_length,
+                false);
+      error= vtmd->file->ha_index_read_map(
+        vtmd->record[0],
+        key,
+        vtmd->key_info[IDX_ARCHIVE_NAME].ext_key_part_map,
+        HA_READ_PREFIX_LAST);
+      if (!error)
+        error= vtmd->file->ha_index_next(vtmd->record[0]);
     }
-    vtmd->file->ha_end_keyread();
-    close_log_table(thd, &open_tables_backup);
+    else
+    {
+      archive.length(0);
+      error= vtmd->file->ha_index_next(vtmd->record[0]);
+    }
   }
-  return true;
+
+  if (error && error != HA_ERR_END_OF_FILE)
+  {
+err:
+    vtmd->file->print_error(error, MYF(0));
+    rc= true;
+  }
+
+  if (index_end)
+    vtmd->file->ha_index_end();
+  if (end_keyread)
+    vtmd->file->ha_end_keyread();
+
+  close_log_table(thd, &open_tables_backup);
+  return rc;
 }
 
 bool
@@ -478,6 +471,12 @@ VTMD_rename::try_rename(THD *thd, LEX_STRING &new_db, LEX_STRING &new_alias)
       vtmd_name.ptr(),
       TL_WRITE_ONLY);
     vtmd_tl.mdl_request.set_type(MDL_EXCLUSIVE);
+    if (CString_fs(about.db, about.db_length) != new_db)
+    {
+      // Move archives before VTMD so if the operation is interrupted, it could be continued.
+      if (move_archives(thd, vtmd_tl, new_db))
+        return true;
+    }
     mysql_ha_rm_tables(thd, &vtmd_tl);
     if (lock_table_names(thd, &vtmd_tl, 0, thd->variables.lock_wait_timeout, 0))
       return true;
@@ -487,10 +486,6 @@ VTMD_rename::try_rename(THD *thd, LEX_STRING &new_db, LEX_STRING &new_alias)
       about.db, vtmd_name.ptr(),
       new_db.str, vtmd_new_name.ptr(),
       NO_FK_CHECKS);
-    if (!rc && CString_fs(about.db, about.db_length) != new_db)
-    {
-      rc= move_archives(thd, new_db);
-    }
     if (!rc)
     {
       query_cache_invalidate3(thd, &vtmd_tl, 0);
