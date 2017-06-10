@@ -106,6 +106,7 @@ public:
 
   bool try_rename(THD *thd, LEX_STRING &new_db, LEX_STRING &new_alias);
   bool move_archives(THD *thd, TABLE_LIST &vtmd_tl, LEX_STRING &new_db);
+  bool move_table(THD *thd, String &table_name, LEX_STRING &new_db);
   bool revert_rename(THD *thd, LEX_STRING &new_db);
 };
 

@@ -404,7 +404,12 @@ VTMD_rename::move_archives(THD *thd, TABLE_LIST &vtmd_tl, LEX_STRING &new_db)
         vtmd->key_info[IDX_ARCHIVE_NAME].ext_key_part_map,
         HA_READ_PREFIX_LAST);
       if (!error)
+      {
+        if ((rc= move_table(thd, archive, new_db)))
+          break;
+
         error= vtmd->file->ha_index_next(vtmd->record[0]);
+      }
     }
     else
     {
@@ -426,6 +431,51 @@ err:
     vtmd->file->ha_end_keyread();
 
   close_log_table(thd, &open_tables_backup);
+  return rc;
+}
+
+bool
+VTMD_rename::move_table(THD *thd, String &table_name, LEX_STRING &new_db)
+{
+  handlerton *table_hton= NULL;
+  if (!ha_table_exists(thd, about.db, table_name.ptr(), &table_hton) || !table_hton)
+  {
+    push_warning_printf(
+        thd, Sql_condition::WARN_LEVEL_WARN,
+        ER_VERS_VTMD_ERROR,
+        "`%s.%s` archive doesn't exist",
+        about.db, table_name.ptr());
+    return false;
+  }
+
+  if (ha_table_exists(thd, new_db.str, table_name.ptr()))
+  {
+    my_printf_error(ER_VERS_VTMD_ERROR, "`%s.%s` archive already exists!", MYF(0),
+                        new_db.str, table_name.ptr());
+    return true;
+  }
+
+  TABLE_LIST tl;
+  tl.init_one_table(
+    about.db, about.db_length,
+    table_name.ptr(), table_name.length(),
+    table_name.ptr(),
+    TL_WRITE_ONLY);
+  tl.mdl_request.set_type(MDL_EXCLUSIVE);
+
+  mysql_ha_rm_tables(thd, &tl);
+  if (lock_table_names(thd, &tl, 0, thd->variables.lock_wait_timeout, 0))
+    return true;
+  tdc_remove_table(thd, TDC_RT_REMOVE_ALL, about.db, table_name.ptr(), false);
+
+  bool rc= mysql_rename_table(
+    table_hton,
+    about.db, table_name.ptr(),
+    new_db.str, table_name.ptr(),
+    NO_FK_CHECKS);
+  if (!rc)
+    query_cache_invalidate3(thd, &tl, 0);
+
   return rc;
 }
 
