@@ -4,32 +4,41 @@
 #include "table.h"
 #include "unireg.h"
 #include <mysqld_error.h>
-#include "rpl_utility.h" // auto_afree_ptr
+#include "my_sys.h"
 
-class key_buf_t : public auto_afree_ptr<char>
+class key_buf_t
 {
+  uchar* buf;
+
+  key_buf_t(const key_buf_t&); // disabled
+  key_buf_t& operator= (const key_buf_t&); // disabled
+
 public:
-  key_buf_t() : auto_afree_ptr<char>(NULL)
+  key_buf_t() : buf(NULL)
   {}
+
+  ~key_buf_t()
+  {
+    if (buf)
+      my_free(buf);
+  }
 
   bool allocate(size_t alloc_size)
   {
-    if (get() == NULL)
+    DBUG_ASSERT(!buf);
+    buf= static_cast<uchar *>(my_malloc(alloc_size, MYF(0)));
+    if (!buf)
     {
-      assign(static_cast<char*>(my_alloca(alloc_size)));
-      if (get() == NULL)
-      {
-        my_message(ER_VERS_VTMD_ERROR, "failed to allocate key buffer", MYF(0));
-        return true;
-      }
+      my_message(ER_VERS_VTMD_ERROR, "failed to allocate key buffer", MYF(0));
+      return true;
     }
     return false;
   }
 
   operator uchar* ()
   {
-    DBUG_ASSERT(get());
-    return reinterpret_cast<uchar *>(get());
+    DBUG_ASSERT(buf);
+    return reinterpret_cast<uchar *>(buf);
   }
 };
 
@@ -105,7 +114,7 @@ public:
   {}
 
   bool try_rename(THD *thd, LEX_STRING &new_db, LEX_STRING &new_alias);
-  bool move_archives(THD *thd, TABLE_LIST &vtmd_tl, LEX_STRING &new_db);
+  bool move_archives(THD *thd, LEX_STRING &new_db);
   bool move_table(THD *thd, String &table_name, LEX_STRING &new_db);
   bool revert_rename(THD *thd, LEX_STRING &new_db);
 };

@@ -40,37 +40,62 @@ struct Compare_strncmp
   {
     return strncmp(a.str, b.str, a.length);
   }
+  static CHARSET_INFO* charset()
+  {
+    return system_charset_info;
+  }
 };
 
-template <CHARSET_INFO* &charset= system_charset_info>
+template <CHARSET_INFO* &CS= system_charset_info>
 struct Compare_my_strcasecmp
 {
   int operator()(const LEX_STRING& a, const LEX_STRING& b) const
   {
     DBUG_ASSERT(a.str[a.length] == 0 && b.str[b.length] == 0);
-    return my_strcasecmp(charset, a.str, b.str);
+    return my_strcasecmp(CS, a.str, b.str);
+  }
+  static CHARSET_INFO* charset()
+  {
+    return CS;
   }
 };
 
 typedef Compare_my_strcasecmp<files_charset_info> Compare_fs;
 
-template <class Compare= Compare_strncmp>
-struct CString_any : public LEX_STRING
+struct LEX_STRING_u : public LEX_STRING
+{
+  LEX_STRING_u()
+  {
+    str= NULL;
+    LEX_STRING::length= 0;
+  }
+  LEX_STRING_u(const char *_str, uint32 _len, CHARSET_INFO *)
+  {
+    str= const_cast<char *>(_str);
+    LEX_STRING::length= _len;
+  }
+  uint32 length() const
+  {
+    return LEX_STRING::length;
+  }
+};
+
+template <class Compare= Compare_strncmp, class Storage= LEX_STRING_u>
+struct CString_any : public Storage
 {
 public:
-  CString_any(char *_str, size_t _len)
+  CString_any() {}
+  CString_any(char *_str, size_t _len) :
+    Storage(_str, _len, Compare::charset())
   {
-    str= _str;
-    length= _len;
   }
-  CString_any(LEX_STRING& src)
+  CString_any(LEX_STRING& src) :
+    Storage(src.str, src.length, Compare::charset())
   {
-    str= src.str;
-    length= src.length;
   }
   bool operator== (const CString_any& b) const
   {
-    return length == b.length && 0 == Compare()(*this, b);
+    return Storage::length() == b.length() && 0 == Compare()(*this, b);
   }
   bool operator!= (const CString_any& b) const
   {
@@ -80,6 +105,8 @@ public:
 
 typedef CString_any<> CString;
 typedef CString_any<Compare_fs> CString_fs;
+
+typedef CString_any<Compare_fs, String> String_fs;
 
 
 class Local_da : public Diagnostics_area
@@ -362,11 +389,17 @@ VTMD_exists::check_exists(THD *thd)
 }
 
 bool
-VTMD_rename::move_archives(THD *thd, TABLE_LIST &vtmd_tl, LEX_STRING &new_db)
+VTMD_rename::move_archives(THD *thd, LEX_STRING &new_db)
 {
+  TABLE_LIST vtmd_tl;
+  vtmd_tl.init_one_table(
+    about.db, about.db_length,
+    vtmd_name.ptr(), vtmd_name.length(),
+    vtmd_name.ptr(),
+    TL_READ);
   int error;
   bool rc= false;
-  String archive;
+  String_fs archive;
   bool end_keyread= false;
   bool index_end= false;
   Open_tables_backup open_tables_backup;
@@ -514,6 +547,13 @@ VTMD_rename::try_rename(THD *thd, LEX_STRING &new_db, LEX_STRING &new_alias)
 
   if (exists)
   {
+    if (CString_fs(about.db, about.db_length) != new_db)
+    {
+      // Move archives before VTMD so if the operation is interrupted, it could be continued.
+      if (move_archives(thd, new_db))
+        return true;
+    }
+
     TABLE_LIST vtmd_tl;
     vtmd_tl.init_one_table(
       about.db, about.db_length,
@@ -521,12 +561,7 @@ VTMD_rename::try_rename(THD *thd, LEX_STRING &new_db, LEX_STRING &new_alias)
       vtmd_name.ptr(),
       TL_WRITE_ONLY);
     vtmd_tl.mdl_request.set_type(MDL_EXCLUSIVE);
-    if (CString_fs(about.db, about.db_length) != new_db)
-    {
-      // Move archives before VTMD so if the operation is interrupted, it could be continued.
-      if (move_archives(thd, vtmd_tl, new_db))
-        return true;
-    }
+
     mysql_ha_rm_tables(thd, &vtmd_tl);
     if (lock_table_names(thd, &vtmd_tl, 0, thd->variables.lock_wait_timeout, 0))
       return true;
