@@ -143,7 +143,7 @@ VTMD_table::update(THD *thd, const char* archive_name)
       goto quit;
     }
 
-    vtmd->field[FLD_NAME]->store(about.table_name, about.table_name_length, system_charset_info);
+    vtmd->field[FLD_NAME]->store(TABLE_NAME_WITH_LEN(about), system_charset_info);
     vtmd->field[FLD_NAME]->set_notnull();
     if (archive_name)
     {
@@ -414,11 +414,13 @@ VTMD_rename::try_rename(THD *thd, LString new_db, LString new_alias)
 
   if (exists)
   {
+    bool same_db= true;
     if (LString_fs(DB_WITH_LEN(about)) != new_db)
     {
       // Move archives before VTMD so if the operation is interrupted, it could be continued.
       if (move_archives(thd, new_db))
         return true;
+      same_db= false;
     }
 
     TABLE_LIST vtmd_tl;
@@ -440,9 +442,12 @@ VTMD_rename::try_rename(THD *thd, LString new_db, LString new_alias)
     if (!rc)
     {
       query_cache_invalidate3(thd, &vtmd_tl, 0);
-      local_da.finish();
-      VTMD_table new_vtmd(new_table);
-      rc= new_vtmd.update(thd);
+      if (same_db || new_alias != LString(TABLE_NAME_WITH_LEN(about)))
+      {
+        local_da.finish();
+        VTMD_table new_vtmd(new_table);
+        rc= new_vtmd.update(thd);
+      }
     }
     return rc;
   }

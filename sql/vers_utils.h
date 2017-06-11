@@ -122,6 +122,7 @@ typedef XString<Compare_t, String> SString_t;
 
 #define XSTRING_WITH_LEN(X) (X).ptr(), (X).length()
 #define DB_WITH_LEN(X) (X).db, (X).db_length
+#define TABLE_NAME_WITH_LEN(X) (X).table_name, (X).table_name_length
 
 
 class Local_da : public Diagnostics_area
