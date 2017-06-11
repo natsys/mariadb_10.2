@@ -6,158 +6,25 @@
 #include "table_cache.h" // tdc_remove_table()
 #include "key.h"
 
-LEX_STRING VERS_VTMD_TEMPLATE= {C_STRING_WITH_LEN("vtmd_template")};
-
-class MDL_auto_lock
-{
-  THD *thd;
-  TABLE_LIST &table;
-  bool error;
-
-public:
-  MDL_auto_lock(THD *_thd, TABLE_LIST &_table) :
-    thd(_thd), table(_table)
-  {
-    DBUG_ASSERT(thd);
-    table.mdl_request.init(MDL_key::TABLE, table.db, table.table_name, MDL_EXCLUSIVE, MDL_EXPLICIT);
-    error= thd->mdl_context.acquire_lock(&table.mdl_request, thd->variables.lock_wait_timeout);
-  }
-  ~MDL_auto_lock()
-  {
-    if (!error)
-    {
-      DBUG_ASSERT(table.mdl_request.ticket);
-      thd->mdl_context.release_lock(table.mdl_request.ticket);
-      table.mdl_request.ticket= NULL;
-    }
-  }
-  bool acquire_error() const { return error; }
-};
-
-struct Compare_strncmp
-{
-  int operator()(const LEX_STRING& a, const LEX_STRING& b) const
-  {
-    return strncmp(a.str, b.str, a.length);
-  }
-  static CHARSET_INFO* charset()
-  {
-    return system_charset_info;
-  }
-};
-
-template <CHARSET_INFO* &CS= system_charset_info>
-struct Compare_my_strcasecmp
-{
-  int operator()(const LEX_STRING& a, const LEX_STRING& b) const
-  {
-    DBUG_ASSERT(a.str[a.length] == 0 && b.str[b.length] == 0);
-    return my_strcasecmp(CS, a.str, b.str);
-  }
-  static CHARSET_INFO* charset()
-  {
-    return CS;
-  }
-};
-
-typedef Compare_my_strcasecmp<files_charset_info> Compare_fs;
-
-struct LEX_STRING_u : public LEX_STRING
-{
-  LEX_STRING_u()
-  {
-    str= NULL;
-    LEX_STRING::length= 0;
-  }
-  LEX_STRING_u(const char *_str, uint32 _len, CHARSET_INFO *)
-  {
-    str= const_cast<char *>(_str);
-    LEX_STRING::length= _len;
-  }
-  uint32 length() const
-  {
-    return LEX_STRING::length;
-  }
-};
-
-template <class Compare= Compare_strncmp, class Storage= LEX_STRING_u>
-struct CString_any : public Storage
-{
-public:
-  CString_any() {}
-  CString_any(char *_str, size_t _len) :
-    Storage(_str, _len, Compare::charset())
-  {
-  }
-  CString_any(LEX_STRING& src) :
-    Storage(src.str, src.length, Compare::charset())
-  {
-  }
-  bool operator== (const CString_any& b) const
-  {
-    return Storage::length() == b.length() && 0 == Compare()(*this, b);
-  }
-  bool operator!= (const CString_any& b) const
-  {
-    return !(*this == b);
-  }
-};
-
-typedef CString_any<> CString;
-typedef CString_any<Compare_fs> CString_fs;
-
-typedef CString_any<Compare_fs, String> String_fs;
-
-
-class Local_da : public Diagnostics_area
-{
-  THD *thd;
-  uint sql_error;
-  Diagnostics_area *saved_da;
-
-public:
-  Local_da(THD *_thd, uint _sql_error= 0) :
-    Diagnostics_area(_thd->query_id, false, true),
-    thd(_thd),
-    sql_error(_sql_error),
-    saved_da(_thd->get_stmt_da())
-  {
-    thd->set_stmt_da(this);
-  }
-  ~Local_da()
-  {
-    if (saved_da)
-      finish();
-  }
-  void finish()
-  {
-    DBUG_ASSERT(saved_da && thd);
-    thd->set_stmt_da(saved_da);
-    if (is_error())
-      my_error(sql_error ? sql_error : sql_errno(), MYF(0), message());
-    if (warn_count() > error_count())
-      saved_da->copy_non_errors_from_wi(thd, get_warning_info());
-    saved_da= NULL;
-  }
-};
+LString VERS_VTMD_TEMPLATE(C_STRING_WITH_LEN("vtmd_template"));
 
 bool
-VTMD_table::create(THD *thd, String &vtmd_name)
+VTMD_table::create(THD *thd)
 {
   Table_specification_st create_info;
   TABLE_LIST src_table, table;
   create_info.init(DDL_options_st::OPT_LIKE);
   create_info.options|= HA_VTMD;
-  create_info.alias= vtmd_name.ptr();
+  create_info.alias= vtmd_name;
   table.init_one_table(
-    about.db, about.db_length,
-    vtmd_name.ptr(), vtmd_name.length(),
-    vtmd_name.ptr(),
+    DB_WITH_LEN(about),
+    XSTRING_WITH_LEN(vtmd_name),
+    vtmd_name,
     TL_READ);
   src_table.init_one_table(
     LEX_STRING_WITH_LEN(MYSQL_SCHEMA_NAME),
-    LEX_STRING_WITH_LEN(VERS_VTMD_TEMPLATE),
-    VERS_VTMD_TEMPLATE.str,
+    XSTRING_WITH_LEN(VERS_VTMD_TEMPLATE),
+    VERS_VTMD_TEMPLATE,
     TL_READ);
 
   Query_tables_backup backup(thd);
@@ -230,9 +97,9 @@ VTMD_table::update(THD *thd, const char* archive_name)
     while (true) // max 2 iterations
     {
       vtmd_tl.init_one_table(
-        about.db, about.db_length,
-        vtmd_name.ptr(), vtmd_name.length(),
-        vtmd_name.ptr(),
+        DB_WITH_LEN(about),
+        XSTRING_WITH_LEN(vtmd_name),
+        vtmd_name,
         TL_WRITE_CONCURRENT_INSERT);
 
       vtmd= open_log_table(thd, &vtmd_tl, &open_tables_backup);
@@ -242,7 +109,7 @@ VTMD_table::update(THD *thd, const char* archive_name)
       if (!created && local_da.is_error() && local_da.sql_errno() == ER_NO_SUCH_TABLE)
       {
         local_da.reset_diagnostics_area();
-        if (create(thd, vtmd_name))
+        if (create(thd))
           goto quit;
         created= true;
         continue;
@@ -377,7 +244,7 @@ VTMD_exists::check_exists(THD *thd)
   if (about.vers_vtmd_name(vtmd_name))
     return true;
 
-  exists= ha_table_exists(thd, about.db, vtmd_name.ptr(), &hton);
+  exists= ha_table_exists(thd, about.db, vtmd_name, &hton);
 
   if (exists && !hton)
   {
@@ -389,17 +256,17 @@ VTMD_exists::check_exists(THD *thd)
 }
 
 bool
-VTMD_rename::move_archives(THD *thd, LEX_STRING &new_db)
+VTMD_rename::move_archives(THD *thd, LString &new_db)
 {
   TABLE_LIST vtmd_tl;
   vtmd_tl.init_one_table(
-    about.db, about.db_length,
-    vtmd_name.ptr(), vtmd_name.length(),
-    vtmd_name.ptr(),
+    DB_WITH_LEN(about),
+    XSTRING_WITH_LEN(vtmd_name),
+    vtmd_name,
     TL_READ);
   int error;
   bool rc= false;
-  String_fs archive;
+  SString_fs archive;
   bool end_keyread= false;
   bool index_end= false;
   Open_tables_backup open_tables_backup;
@@ -468,10 +335,10 @@ err:
 }
 
 bool
-VTMD_rename::move_table(THD *thd, String &table_name, LEX_STRING &new_db)
+VTMD_rename::move_table(THD *thd, SString_fs &table_name, LString &new_db)
 {
   handlerton *table_hton= NULL;
-  if (!ha_table_exists(thd, about.db, table_name.ptr(), &table_hton) || !table_hton)
+  if (!ha_table_exists(thd, about.db, table_name, &table_hton) || !table_hton)
   {
     push_warning_printf(
         thd, Sql_condition::WARN_LEVEL_WARN,
@@ -481,30 +348,30 @@ VTMD_rename::move_table(THD *thd, String &table_name, LEX_STRING &new_db)
     return false;
   }
 
-  if (ha_table_exists(thd, new_db.str, table_name.ptr()))
+  if (ha_table_exists(thd, new_db, table_name))
   {
     my_printf_error(ER_VERS_VTMD_ERROR, "`%s.%s` archive already exists!", MYF(0),
-                        new_db.str, table_name.ptr());
+                        new_db.ptr(), table_name.ptr());
     return true;
   }
 
   TABLE_LIST tl;
   tl.init_one_table(
-    about.db, about.db_length,
-    table_name.ptr(), table_name.length(),
-    table_name.ptr(),
+    DB_WITH_LEN(about),
+    XSTRING_WITH_LEN(table_name),
+    table_name,
     TL_WRITE_ONLY);
   tl.mdl_request.set_type(MDL_EXCLUSIVE);
 
   mysql_ha_rm_tables(thd, &tl);
   if (lock_table_names(thd, &tl, 0, thd->variables.lock_wait_timeout, 0))
     return true;
-  tdc_remove_table(thd, TDC_RT_REMOVE_ALL, about.db, table_name.ptr(), false);
+  tdc_remove_table(thd, TDC_RT_REMOVE_ALL, about.db, table_name, false);
 
   bool rc= mysql_rename_table(
     table_hton,
-    about.db, table_name.ptr(),
-    new_db.str, table_name.ptr(),
+    about.db, table_name,
+    new_db, table_name,
     NO_FK_CHECKS);
   if (!rc)
     query_cache_invalidate3(thd, &tl, 0);
@@ -513,7 +380,7 @@ VTMD_rename::move_table(THD *thd, String &table_name, LEX_STRING &new_db)
 }
 
 bool
-VTMD_rename::try_rename(THD *thd, LEX_STRING &new_db, LEX_STRING &new_alias)
+VTMD_rename::try_rename(THD *thd, LString new_db, LString new_alias)
 {
   Local_da local_da(thd, ER_VERS_VTMD_ERROR);
   TABLE_LIST new_table;
@@ -522,32 +389,32 @@ VTMD_rename::try_rename(THD *thd, LEX_STRING &new_db, LEX_STRING &new_alias)
     return true;
 
   new_table.init_one_table(
-    LEX_STRING_WITH_LEN(new_db),
-    LEX_STRING_WITH_LEN(new_alias),
-    new_alias.str, TL_READ);
+    XSTRING_WITH_LEN(new_db),
+    XSTRING_WITH_LEN(new_alias),
+    new_alias, TL_READ);
 
   if (new_table.vers_vtmd_name(vtmd_new_name))
     return true;
 
-  if (ha_table_exists(thd, new_db.str, vtmd_new_name.ptr()))
+  if (ha_table_exists(thd, new_db, vtmd_new_name))
   {
     if (exists)
     {
       my_printf_error(ER_VERS_VTMD_ERROR, "`%s.%s` table already exists!", MYF(0),
-                          new_db.str, vtmd_new_name.ptr());
+                          new_db.ptr(), vtmd_new_name.ptr());
       return true;
     }
     push_warning_printf(
         thd, Sql_condition::WARN_LEVEL_WARN,
         ER_VERS_VTMD_ERROR,
         "`%s.%s` table already exists!",
-        new_db.str, vtmd_new_name.ptr());
+        new_db.ptr(), vtmd_new_name.ptr());
     return false;
   }
 
   if (exists)
   {
-    if (CString_fs(about.db, about.db_length) != new_db)
+    if (LString_fs(DB_WITH_LEN(about)) != new_db)
     {
       // Move archives before VTMD so if the operation is interrupted, it could be continued.
       if (move_archives(thd, new_db))
@@ -556,20 +423,19 @@ VTMD_rename::try_rename(THD *thd, LEX_STRING &new_db, LEX_STRING &new_alias)
 
     TABLE_LIST vtmd_tl;
     vtmd_tl.init_one_table(
-      about.db, about.db_length,
-      vtmd_name.ptr(), vtmd_name.length(),
-      vtmd_name.ptr(),
+      DB_WITH_LEN(about),
+      XSTRING_WITH_LEN(vtmd_name),
+      vtmd_name,
       TL_WRITE_ONLY);
     vtmd_tl.mdl_request.set_type(MDL_EXCLUSIVE);
 
     mysql_ha_rm_tables(thd, &vtmd_tl);
     if (lock_table_names(thd, &vtmd_tl, 0, thd->variables.lock_wait_timeout, 0))
       return true;
-    tdc_remove_table(thd, TDC_RT_REMOVE_ALL, about.db, vtmd_name.ptr(), false);
-    bool rc= mysql_rename_table(
-      hton,
-      about.db, vtmd_name.ptr(),
-      new_db.str, vtmd_new_name.ptr(),
+    tdc_remove_table(thd, TDC_RT_REMOVE_ALL, about.db, vtmd_name, false);
+    bool rc= mysql_rename_table(hton,
+      about.db, vtmd_name,
+      new_db, vtmd_new_name,
       NO_FK_CHECKS);
     if (!rc)
     {
@@ -584,27 +450,27 @@ VTMD_rename::try_rename(THD *thd, LEX_STRING &new_db, LEX_STRING &new_alias)
 }
 
 bool
-VTMD_rename::revert_rename(THD *thd, LEX_STRING &new_db)
+VTMD_rename::revert_rename(THD *thd, LString new_db)
 {
   DBUG_ASSERT(hton);
   Local_da local_da(thd, ER_VERS_VTMD_ERROR);
 
   TABLE_LIST vtmd_tl;
   vtmd_tl.init_one_table(
-    about.db, about.db_length,
-    vtmd_new_name.ptr(), vtmd_new_name.length(),
-    vtmd_new_name.ptr(),
+    DB_WITH_LEN(about),
+    XSTRING_WITH_LEN(vtmd_new_name),
+    vtmd_new_name,
     TL_WRITE_ONLY);
   vtmd_tl.mdl_request.set_type(MDL_EXCLUSIVE);
   mysql_ha_rm_tables(thd, &vtmd_tl);
   if (lock_table_names(thd, &vtmd_tl, 0, thd->variables.lock_wait_timeout, 0))
     return true;
-  tdc_remove_table(thd, TDC_RT_REMOVE_ALL, new_db.str, vtmd_new_name.ptr(), false);
+  tdc_remove_table(thd, TDC_RT_REMOVE_ALL, new_db, vtmd_new_name, false);
 
   bool rc= mysql_rename_table(
     hton,
-    new_db.str, vtmd_new_name.ptr(),
-    new_db.str, vtmd_name.ptr(),
+    new_db, vtmd_new_name,
+    new_db, vtmd_name,
     NO_FK_CHECKS);
 
   if (!rc)

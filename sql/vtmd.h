@@ -6,6 +6,8 @@
 #include <mysqld_error.h>
 #include "my_sys.h"
 
+#include "vers_utils.h"
+
 class key_buf_t
 {
   uchar* buf;
@@ -49,7 +51,7 @@ class VTMD_table
 protected:
   TABLE *vtmd;
   const TABLE_LIST &about;
-  String vtmd_name;
+  SString_t vtmd_name;
 
 private:
   VTMD_table(const VTMD_table&); // prohibit copying references
@@ -74,7 +76,7 @@ public:
     about(_about)
   {}
 
-  bool create(THD *thd, String &vtmd_name);
+  bool create(THD *thd);
   bool find_record(ulonglong sys_trx_end, bool &found);
   bool update(THD *thd, const char* archive_name= NULL);
 
@@ -106,17 +108,19 @@ public:
 
 class VTMD_rename : public VTMD_exists
 {
-  String vtmd_new_name;
+  SString_t vtmd_new_name;
 
 public:
   VTMD_rename(TABLE_LIST &_about) :
     VTMD_exists(_about)
   {}
 
-  bool try_rename(THD *thd, LEX_STRING &new_db, LEX_STRING &new_alias);
-  bool move_archives(THD *thd, LEX_STRING &new_db);
-  bool move_table(THD *thd, String &table_name, LEX_STRING &new_db);
-  bool revert_rename(THD *thd, LEX_STRING &new_db);
+  bool try_rename(THD *thd, LString new_db, LString new_alias);
+  bool revert_rename(THD *thd, LString new_db);
+
+private:
+  bool move_archives(THD *thd, LString &new_db);
+  bool move_table(THD *thd, SString_fs &table_name, LString &new_db);
 };
 
 class VTMD_drop : public VTMD_exists
