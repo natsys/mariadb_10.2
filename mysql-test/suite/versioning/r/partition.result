@@ -230,6 +230,8 @@ partition by system_time limit 1 (
 partition p0 versioning,
 partition p1 versioning,
 partition pn as of now);
+alter table t1 drop partition non_existent;
+ERROR HY000: Error in list of partitions to DROP
 insert into t1 values (1), (2);
 select * from t1 partition (pn);
 x
