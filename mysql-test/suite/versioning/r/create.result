@@ -103,7 +103,7 @@ Sys_start2 SYS_TRX_TYPE generated always as row start,
 Sys_end SYS_TRX_TYPE generated always as row end,
 period for system_time (Sys_start, Sys_end)
 ) with system versioning;
-ERROR HY000: Wrong parameters for `t1`: multiple 'GENERATED ALWAYS AS ROW START'
+ERROR HY000: Wrong parameters for `t1`: multiple 'GENERATED AS ROW START' (`Sys_start2`, `Sys_start`)
 create or replace table t1 (
 x4 int unsigned,
 Sys_start SYS_TRX_TYPE generated always as row start,
@@ -118,7 +118,7 @@ Sys_end SYS_TRX_TYPE generated always as row end,
 Sys_end2 SYS_TRX_TYPE generated always as row end,
 period for system_time (Sys_start, Sys_end)
 ) with system versioning;
-ERROR HY000: Wrong parameters for `t1`: multiple 'GENERATED ALWAYS AS ROW END'
+ERROR HY000: Wrong parameters for `t1`: multiple 'GENERATED AS ROW END' (`Sys_end2`, `Sys_end`)
 create or replace table t1 (
 x6 int unsigned,
 period for system_time (Sys_start, Sys_end)
@@ -131,7 +131,7 @@ Sys_end SYS_TRX_TYPE generated always as row end,
 Sys_end2 SYS_TRX_TYPE generated always as row end,
 period for system_time (Sys_start, Sys_end)
 );
-ERROR HY000: Wrong parameters for `t1`: multiple 'GENERATED ALWAYS AS ROW END'
+ERROR HY000: Wrong parameters for `t1`: multiple 'GENERATED AS ROW END' (`Sys_end2`, `Sys_end`)
 create or replace table t1 (
 x8 int unsigned,
 Sys_start SYS_TRX_TYPE generated always as row start,

@@ -7550,5 +7550,11 @@ WARN_VERS_ALIAS_TOO_LONG
 ER_VERS_VTMD_ERROR
         eng "VTMD error: %s"
 
+ER_VERS_WRONG_PARAMS_X
+        eng "Wrong parameters %s"
+
+ER_VERS_WRONG_PARAMS_MULTIPLE
+        eng "for %`s: multiple '%s' (%`s, %`s)"
+
 ER_WRONG_TABLESPACE_NAME 42000
   eng "Incorrect tablespace name `%-.192s`"

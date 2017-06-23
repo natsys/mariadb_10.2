@@ -67,6 +67,7 @@
 #include "lex_token.h"
 #include "sql_lex.h"
 #include "sql_sequence.h"
+#include "vers_utils.h"
 
 /* this is to get the bison compilation windows warnings out */
 #ifdef _MSC_VER
@@ -6293,12 +6294,12 @@ field_def:
             {
             case 1:
               p= &info.generated_as_row.start;
-              err= "multiple 'GENERATED ALWAYS AS ROW START'";
+              err= "GENERATED AS ROW START";
               lex->last_field->flags|= VERS_SYS_START_FLAG;
               break;
             case 0:
               p= &info.generated_as_row.end;
-              err= "multiple 'GENERATED ALWAYS AS ROW END'";
+              err= "GENERATED AS ROW END";
               lex->last_field->flags|= VERS_SYS_END_FLAG;
               break;
             default:
@@ -6309,7 +6310,9 @@ field_def:
             DBUG_ASSERT(p);
             if (*p)
             {
-              my_yyabort_error((ER_VERS_WRONG_PARAMS, MYF(0), table_name, err));
+              Local_da da(thd, ER_VERS_WRONG_PARAMS_X);
+              my_error(ER_VERS_WRONG_PARAMS_MULTIPLE, MYF(0), table_name, err, field_name, p->ptr());
+              MYSQL_YYABORT;
             }
             *p= field_name;
             if (lex->last_field->implicit_not_null)
