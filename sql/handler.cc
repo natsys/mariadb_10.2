@@ -6935,14 +6935,14 @@ bool Vers_parse_info::check_with_conditions(const char *table_name) const
   if (!generated_as_row.start)
   {
     my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name,
-             "'GENERATED AS ROW START' column missing");
+             "'GENERATED ALWAYS AS ROW START' column missing");
     return true;
   }
 
   if (!generated_as_row.end)
   {
     my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name,
-             "'GENERATED AS ROW END' column missing");
+             "'GENERATED ALWAYS AS ROW END' column missing");
     return true;
   }
 
@@ -6956,14 +6956,16 @@ bool Vers_parse_info::check_with_conditions(const char *table_name) const
   if (generated_as_row.start != period_for_system_time.start)
   {
     my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name,
-             "'PERIOD FOR SYSTEM_TIME' and 'GENERATED AS ROW START' mismatch");
+             "'PERIOD FOR SYSTEM_TIME' and 'GENERATED ALWAYS AS ROW START' "
+             "mismatch");
     return true;
   }
 
   if (generated_as_row.end != period_for_system_time.end)
   {
-    my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name,
-             "'PERIOD FOR SYSTEM_TIME' and 'GENERATED AS ROW END' mismatch");
+    my_error(
+        ER_VERS_WRONG_PARAMS, MYF(0), table_name,
+        "'PERIOD FOR SYSTEM_TIME' and 'GENERATED ALWAYS AS ROW END' mismatch");
     return true;
   }
 

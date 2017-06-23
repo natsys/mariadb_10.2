@@ -101,7 +101,7 @@ Sys_start SYS_TRX_TYPE generated always as row start,
 Sys_end2 SYS_TRX_TYPE generated always as row end,
 period for system_time (Sys_start, Sys_end)
 ) with system versioning;
-ERROR HY000: Wrong parameters for `t1`: 'PERIOD FOR SYSTEM_TIME' and 'GENERATED AS ROW END' mismatch
+ERROR HY000: Wrong parameters for `t1`: 'PERIOD FOR SYSTEM_TIME' and 'GENERATED ALWAYS AS ROW END' mismatch
 create or replace table t1 (
 x5 int unsigned,
 Sys_start SYS_TRX_TYPE generated always as row start,
@@ -114,7 +114,7 @@ create or replace table t1 (
 x6 int unsigned,
 period for system_time (Sys_start, Sys_end)
 ) with system versioning;
-ERROR HY000: Wrong parameters for `t1`: 'GENERATED AS ROW START' column missing
+ERROR HY000: Wrong parameters for `t1`: 'GENERATED ALWAYS AS ROW START' column missing
 create or replace table t1 (
 x7 int unsigned,
 Sys_start SYS_TRX_TYPE generated always as row start,
@@ -129,7 +129,7 @@ Sys_start SYS_TRX_TYPE generated always as row start,
 Sys_end SYS_TRX_TYPE generated always as row end,
 period for system_time (sys_insert, sys_remove)
 ) with system versioning;
-ERROR HY000: Wrong parameters for `t1`: 'PERIOD FOR SYSTEM_TIME' and 'GENERATED AS ROW START' mismatch
+ERROR HY000: Wrong parameters for `t1`: 'PERIOD FOR SYSTEM_TIME' and 'GENERATED ALWAYS AS ROW START' mismatch
 create or replace table t1 (
 x9 int unsigned,
 Sys_start SYS_TRX_TYPE generated always as row start,
