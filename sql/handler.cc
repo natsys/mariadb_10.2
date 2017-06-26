@@ -6630,6 +6630,7 @@ static bool vers_create_sys_field(THD *thd, const char *field_name,
     return true;
 
   alter_info->create_list.push_back(f);
+  alter_info->flags|= Alter_info::ALTER_ADD_COLUMN;
   return false;
 }
 
@@ -6811,6 +6812,23 @@ static bool add_field_to_drop_list(THD *thd, Alter_info *alter_info,
   return !ad || alter_info->drop_list.push_back(ad, thd->mem_root);
 }
 
+static bool make_hidden(THD *thd, Alter_info *alter_info, bool integer_fields,
+                        const char *name, TABLE_SHARE *s, bool sys_start)
+{
+  Field *f= sys_start ? s->vers_start_field() : s->vers_end_field();
+  if (f->flags & HIDDEN_FLAG)
+  {
+    my_printf_error(ER_VERS_WRONG_PARAMS, "'%s' field aready HIDDEN", MYF(0),
+                    name);
+    return true;
+  }
+  if (vers_create_sys_field(thd, name, alter_info,
+                            sys_start ? VERS_SYS_START_FLAG : VERS_SYS_END_FLAG,
+                            integer_fields))
+    return true;
+  return false;
+}
+
 bool Vers_parse_info::check_and_fix_alter(THD *thd, Alter_info *alter_info,
                                           HA_CREATE_INFO *create_info,
                                           TABLE_SHARE *share)
@@ -6872,14 +6890,15 @@ bool Vers_parse_info::check_and_fix_alter(THD *thd, Alter_info *alter_info,
     if (alter_info->drop_list.elements)
     {
       List_iterator<Alter_drop> it(alter_info->drop_list);
-      while (Alter_drop* d= it++)
+      while (Alter_drop *d= it++)
       {
-        if (is_trx_start(d->name) || is_trx_end(d->name))
-        {
-          my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name,
-                   "Can not drop system versioning field");
+        const char *name= d->name;
+        if (is_trx_start(name) &&
+            make_hidden(thd, alter_info, integer_fields, name, share, true))
           return true;
-        }
+        if (is_trx_end(name) &&
+            make_hidden(thd, alter_info, integer_fields, name, share, false))
+          return true;
       }
     }
 
