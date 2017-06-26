@@ -6696,21 +6696,21 @@ bool Vers_parse_info::check_and_fix_implicit(
   // then created table will be versioned.
   if (thd->variables.vers_force || vers_tables > 0)
   {
-    declared_with_system_versioning= true;
+    with_system_versioning= true;
     create_info->options|= HA_VERSIONED_TABLE;
   }
 
   if (!need_check())
     return false;
 
-  if (declared_without_system_versioning)
+  if (without_system_versioning)
   {
     my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name,
              "'WITHOUT SYSTEM VERSIONING' is not allowed");
     return true;
   }
 
-  if (!declared_with_system_versioning && !has_versioned_fields)
+  if (!with_system_versioning && !versioned_fields)
   {
     my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name,
              "'WITH SYSTEM VERSIONING' missing");
@@ -6756,7 +6756,7 @@ bool Vers_parse_info::check_and_fix_implicit(
     }
 
     if ((f->versioning == Column_definition::VERSIONING_NOT_SET &&
-         !declared_with_system_versioning) ||
+         !with_system_versioning) ||
         f->versioning == Column_definition::WITHOUT_VERSIONING)
     {
       f->flags|= VERS_OPTIMIZED_UPDATE_FLAG;
@@ -6769,7 +6769,7 @@ bool Vers_parse_info::check_and_fix_implicit(
   {
     if (!generated_as_row.start && !generated_as_row.end)
     {
-      declared_with_system_versioning= false;
+      with_system_versioning= false;
       create_info->options&= ~HA_VERSIONED_TABLE;
       return false;
     }
@@ -6837,7 +6837,7 @@ bool Vers_parse_info::check_and_fix_alter(THD *thd, Alter_info *alter_info,
   if (!need_check() && !share->versioned)
     return false;
 
-  if (declared_without_system_versioning)
+  if (without_system_versioning)
   {
     if (!share->versioned)
     {
@@ -6854,7 +6854,7 @@ bool Vers_parse_info::check_and_fix_alter(THD *thd, Alter_info *alter_info,
     return false;
   }
 
-  if ((has_versioned_fields || has_unversioned_fields) && !share->versioned)
+  if ((versioned_fields || unversioned_fields) && !share->versioned)
   {
     my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name,
              "Can not change fields versioning mode in a non-versioned table");
@@ -6928,7 +6928,7 @@ bool Vers_parse_info::check_and_fix_alter(THD *thd, Alter_info *alter_info,
   }
 
   return fix_implicit(thd, alter_info, integer_fields) ||
-         (declared_with_system_versioning &&
+         (with_system_versioning &&
           (check_with_conditions(table_name) ||
            check_generated_type(table_name, alter_info, integer_fields)));
 }

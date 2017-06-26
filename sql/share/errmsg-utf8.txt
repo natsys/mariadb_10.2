@@ -7553,8 +7553,17 @@ ER_VERS_VTMD_ERROR
 ER_VERS_WRONG_PARAMS_X
         eng "Wrong parameters %s"
 
-ER_VERS_WRONG_PARAMS_MULTIPLE
+ER_MULTIPLE_CLAUSE
+        eng "for %`s: multiple '%s'"
+
+ER_MULTIPLE_CLAUSE_FOR
+        eng "for %`s: multiple '%s' for %`s"
+
+ER_MULTIPLE_CLAUSE_2
         eng "for %`s: multiple '%s' (%`s, %`s)"
+
+ER_MULTIPLE_IDENTIFIER
+        eng "for %`s: multiple %`s for '%s'"
 
 ER_NOT_ALLOWED
         eng "for %`s: not allowed '%s'"
