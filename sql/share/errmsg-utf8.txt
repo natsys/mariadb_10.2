@@ -7556,5 +7556,26 @@ ER_VERS_WRONG_PARAMS_X
 ER_VERS_WRONG_PARAMS_MULTIPLE
         eng "for %`s: multiple '%s' (%`s, %`s)"
 
+ER_NOT_ALLOWED
+        eng "for %`s: not allowed '%s'"
+
+ER_VERS_DIFFERENT_TABLES
+        eng "for %`s: system fields selected from different tables"
+
+ER_VERS_NO_COLS_DEFINED
+        eng "for %`s: no columns defined '%s'"
+
+ER_VERS_NOT_VERSIONED
+        eng "for %`s: table is not versioned"
+
+ER_VERS_CANT_DROP
+        eng "for %`s: can not drop system versioning field"
+
+ER_MISSING
+        eng "for %`s: missing '%s'"
+
+ER_MISMATCH
+        eng "for %`s: mismatch '%s' and '%s'"
+
 ER_WRONG_TABLESPACE_NAME 42000
   eng "Incorrect tablespace name `%-.192s`"
