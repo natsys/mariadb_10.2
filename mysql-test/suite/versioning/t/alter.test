@@ -74,9 +74,9 @@ alter table t drop column sys_trx_start;
 alter table t drop column sys_trx_end;
 select * from t for system_time all;
 
---error ER_VERS_WRONG_PARAMS
+--error ER_CANT_DROP_FIELD_OR_KEY
 alter table t drop column sys_trx_start;
---error ER_VERS_WRONG_PARAMS
+--error ER_CANT_DROP_FIELD_OR_KEY
 alter table t drop column sys_trx_end;
 
 create or replace table t (

@@ -143,9 +143,9 @@ alter table t drop column sys_trx_end;
 select * from t for system_time all;
 a
 alter table t drop column sys_trx_start;
-ERROR HY000: 'sys_trx_start' field aready HIDDEN
+ERROR 42000: Can't DROP COLUMN `sys_trx_start`; check that it exists
 alter table t drop column sys_trx_end;
-ERROR HY000: 'sys_trx_end' field aready HIDDEN
+ERROR 42000: Can't DROP COLUMN `sys_trx_end`; check that it exists
 create or replace table t (
 a int,
 sys_trx_start timestamp(6) generated always as row start,
