@@ -6818,14 +6818,16 @@ static bool make_hidden(THD *thd, Alter_info *alter_info, bool integer_fields,
   Field *f= sys_start ? s->vers_start_field() : s->vers_end_field();
   if (f->flags & HIDDEN_FLAG)
   {
-    my_printf_error(ER_VERS_WRONG_PARAMS, "'%s' field aready HIDDEN", MYF(0),
-                    name);
+    my_printf_error(
+        ER_VERS_WRONG_PARAMS, "'%s' field aready HIDDEN", MYF(0), name);
     return true;
   }
   if (vers_create_sys_field(thd, name, alter_info,
                             sys_start ? VERS_SYS_START_FLAG : VERS_SYS_END_FLAG,
                             integer_fields))
+  {
     return true;
+  }
   return false;
 }
 
@@ -6895,10 +6897,14 @@ bool Vers_parse_info::check_and_fix_alter(THD *thd, Alter_info *alter_info,
         const char *name= d->name;
         if (is_trx_start(name) &&
             make_hidden(thd, alter_info, integer_fields, name, share, true))
+        {
           return true;
+        }
         if (is_trx_end(name) &&
             make_hidden(thd, alter_info, integer_fields, name, share, false))
+        {
           return true;
+        }
       }
     }
 
