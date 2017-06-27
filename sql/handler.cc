@@ -6898,8 +6898,8 @@ bool Vers_parse_info::check_and_fix_alter(THD *thd, Alter_info *alter_info,
         }
 
         if (vers_create_sys_field(thd, name, alter_info,
-                                  is_trx_start(name) ? VERS_SYS_START_FLAG
-                                                     : VERS_SYS_END_FLAG,
+                                  f->flags &
+                                      (VERS_SYS_START_FLAG | VERS_SYS_END_FLAG),
                                   integer_fields))
         {
           return true;
