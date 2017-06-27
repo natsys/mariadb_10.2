@@ -1966,15 +1966,11 @@ bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
 
   if (part_type == VERSIONING_PARTITION)
   {
-    if (num_parts < 2)
-    {
-      my_error(ER_VERS_WRONG_PARAMS, MYF(0), "BY SYSTEM_TIME", "unexpected number of partitions (expected > 1)");
-      goto end;
-    }
     DBUG_ASSERT(vers_info);
-    if (!vers_info->now_part)
+    if (num_parts < 2 || !vers_info->now_part)
     {
-      my_error(ER_VERS_WRONG_PARAMS, MYF(0), "BY SYSTEM_TIME", "no `AS OF NOW` partition defined");
+      DBUG_ASSERT(info && info->alias);
+      my_error_as(ER_VERS_WRONG_PARAMS_X, ER_PART_WRONG_PARTS, MYF(0), info->alias);
       goto end;
     }
     DBUG_ASSERT(vers_info->initialized(false));
@@ -2123,7 +2119,7 @@ bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
   }
   if (now_parts > 1)
   {
-    my_error(ER_VERS_WRONG_PARAMS, MYF(0), "BY SYSTEM_TIME", "multiple `AS OF NOW` partitions");
+    my_error_as(ER_VERS_WRONG_PARAMS_X, ER_PART_WRONG_PARTS, MYF(0), info->alias);
     goto end;
   }
   result= FALSE;

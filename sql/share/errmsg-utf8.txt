@@ -7589,5 +7589,11 @@ ER_MISMATCH
 ER_PART_WRONG_VALUE
         eng "for partitioned %`s: wrong value for '%s'"
 
+ER_PART_WRONG_PARTS
+        eng "for partitioned %`s: must have one 'AS OF NOW' and at least one 'VERSIONING' partitions"
+
+ER_VERS_HISTORY_LOCK
+        eng "Versioned SELECT write-locking of history rows"
+
 ER_WRONG_TABLESPACE_NAME 42000
   eng "Incorrect tablespace name `%-.192s`"
