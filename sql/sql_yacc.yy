@@ -5553,10 +5553,13 @@ opt_versioning_interval:
            partition_info *part_info= Lex->part_info;
            DBUG_ASSERT(part_info->part_type == VERSIONING_PARTITION);
            INTERVAL interval;
-           if (get_interval_value($2, $3, &interval))
-             my_yyabort_error((ER_VERS_WRONG_PARAMS, MYF(0), "BY SYSTEM_TIME", "wrong INTERVAL value"));
-           if (part_info->vers_set_interval(interval))
+           if (get_interval_value($2, $3, &interval) ||
+              part_info->vers_set_interval(interval))
+           {
+             my_error_as(ER_VERS_WRONG_PARAMS_X, ER_PART_WRONG_VALUE, MYF(0),
+                Lex->create_last_non_select_table->table_name, "INTERVAL");
              MYSQL_YYABORT;
+           }
          }
        ;
 
@@ -5567,7 +5570,11 @@ opt_versioning_limit:
            partition_info *part_info= Lex->part_info;
            DBUG_ASSERT(part_info->part_type == VERSIONING_PARTITION);
            if (part_info->vers_set_limit($2))
+           {
+             my_error_as(ER_VERS_WRONG_PARAMS_X, ER_PART_WRONG_VALUE, MYF(0),
+                Lex->create_last_non_select_table->table_name, "LIMIT");
              MYSQL_YYABORT;
+           }
          }
        ;
 

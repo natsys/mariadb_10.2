@@ -7586,5 +7586,8 @@ ER_MISSING
 ER_MISMATCH
         eng "for %`s: mismatch '%s' and '%s'"
 
+ER_PART_WRONG_VALUE
+        eng "for partitioned %`s: wrong value for '%s'"
+
 ER_WRONG_TABLESPACE_NAME 42000
   eng "Incorrect tablespace name `%-.192s`"

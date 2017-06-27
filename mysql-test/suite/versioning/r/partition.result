@@ -226,6 +226,13 @@ select @ts2 = @ts3;
 1
 create or replace table t1 (x int)
 with system versioning
+partition by system_time limit 0 (
+partition p0 versioning,
+partition p1 versioning,
+partition pn as of now);
+ERROR HY000: Wrong parameters for partitioned `t1`: wrong value for 'LIMIT'
+create or replace table t1 (x int)
+with system versioning
 partition by system_time limit 1 (
 partition p0 versioning,
 partition p1 versioning,
@@ -266,6 +273,13 @@ select * from t1 partition (p1) for system_time all;
 x
 2
 3
+create or replace table t1 (x int)
+with system versioning
+partition by system_time interval 0 second (
+partition p0 versioning,
+partition p1 versioning,
+partition pn as of now);
+ERROR HY000: Wrong parameters for partitioned `t1`: wrong value for 'INTERVAL'
 create or replace table t1 (x int)
 with system versioning
 partition by system_time interval 1 second (
