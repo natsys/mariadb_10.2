@@ -5369,7 +5369,7 @@ that are reorganised.
         if (num_parts_dropped >= tab_part_info->num_parts - 1)
         {
           DBUG_ASSERT(table && table->s && table->s->table_name.str);
-          my_error_as(ER_VERS_WRONG_PARAMS_X, ER_PART_WRONG_PARTS, MYF(0), table->s->table_name.str);
+          my_error(ER_VERS_WRONG_PARTS, MYF(0), table->s->table_name.str);
           goto err;
         }
       }
@@ -5396,7 +5396,7 @@ that are reorganised.
           if (part_elem->type == partition_element::AS_OF_NOW)
           {
             DBUG_ASSERT(table && table->s && table->s->table_name.str);
-            my_error_as(ER_VERS_WRONG_PARAMS_X, ER_PART_WRONG_PARTS, MYF(0), table->s->table_name.str);
+            my_error(ER_VERS_WRONG_PARTS, MYF(0), table->s->table_name.str);
             goto err;
           }
           /*

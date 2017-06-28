@@ -1970,7 +1970,7 @@ bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
     if (num_parts < 2 || !vers_info->now_part)
     {
       DBUG_ASSERT(info && info->alias);
-      my_error_as(ER_VERS_WRONG_PARAMS_X, ER_PART_WRONG_PARTS, MYF(0), info->alias);
+      my_error(ER_VERS_WRONG_PARTS, MYF(0), info->alias);
       goto end;
     }
     DBUG_ASSERT(vers_info->initialized(false));
@@ -2119,7 +2119,7 @@ bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
   }
   if (now_parts > 1)
   {
-    my_error_as(ER_VERS_WRONG_PARAMS_X, ER_PART_WRONG_PARTS, MYF(0), info->alias);
+    my_error(ER_VERS_WRONG_PARTS, MYF(0), info->alias);
     goto end;
   }
   result= FALSE;

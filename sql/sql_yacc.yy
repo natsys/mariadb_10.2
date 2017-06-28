@@ -5208,8 +5208,11 @@ opt_part_values:
             }
             else
             {
+              DBUG_ASSERT(Lex->create_last_non_select_table);
+              DBUG_ASSERT(Lex->create_last_non_select_table->table_name);
               // FIXME: other ALTER commands?
-              my_yyabort_error((ER_VERS_WRONG_PARAMS, MYF(0), "BY SYSTEM_TIME", "AS OF NOW partition can not be added"));
+              my_yyabort_error((ER_VERS_WRONG_PARTS, MYF(0),
+                Lex->create_last_non_select_table->table_name));
             }
             elem->type= partition_element::AS_OF_NOW;
             DBUG_ASSERT(part_info->vers_info);
@@ -5237,7 +5240,11 @@ opt_part_values:
             }
             DBUG_ASSERT(part_info->vers_info);
             if (part_info->vers_info->now_part)
-              my_yyabort_error((ER_VERS_WRONG_PARAMS, MYF(0), "BY SYSTEM_TIME", "AS OF NOW partition is not last"));
+            {
+              DBUG_ASSERT(Lex->create_last_non_select_table);
+              DBUG_ASSERT(Lex->create_last_non_select_table->table_name);
+              my_yyabort_error((ER_VERS_WRONG_PARTS, MYF(0), Lex->create_last_non_select_table->table_name));
+            }
             elem->type= partition_element::VERSIONING;
             if (part_info->init_column_part(thd))
             {
@@ -13343,9 +13350,9 @@ show_param:
             lex->create_info.storage_media= HA_SM_DEFAULT;
 
             if (lex->vers_conditions.type != FOR_SYSTEM_TIME_UNSPECIFIED &&
-                lex->vers_conditions.type != FOR_SYSTEM_TIME_AS_OF) {
-              my_yyabort_error((ER_VERS_WRONG_PARAMS, MYF(0), "FOR SYSTEM_TIME",
-                                "only AS OF allowed here"));
+                lex->vers_conditions.type != FOR_SYSTEM_TIME_AS_OF)
+            {
+              my_yyabort_error((ER_VERS_RANGE_PROHIBITED, MYF(0)));
             }
             if ($4)
               Lex->last_table()->vers_conditions= Lex->vers_conditions;
