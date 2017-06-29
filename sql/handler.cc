@@ -6970,14 +6970,7 @@ bool Vers_parse_info::fix_create_like(THD *thd, Alter_info *alter_info,
 
 bool Vers_parse_info::check_with_conditions(const char *table_name) const
 {
-  if (!generated_as_row.start)
-  {
-    my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name,
-             "'GENERATED AS ROW START' column missing");
-    return true;
-  }
-
-  if (!generated_as_row.end)
+  if (!generated_as_row.start || !generated_as_row.end)
   {
     my_error_as(ER_VERS_WRONG_PARAMS, ER_MISSING, MYF(0), table_name,
       generated_as_row.start ? "GENERATED AS ROW END" : "GENERATED AS ROW START");

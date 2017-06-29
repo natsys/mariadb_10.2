@@ -7574,9 +7574,6 @@ ER_VERS_NO_COLS_DEFINED
 ER_VERS_NOT_VERSIONED
         eng "for %`s: table is not versioned"
 
-ER_VERS_CANT_DROP
-        eng "for %`s: can not drop system versioning field"
-
 ER_MISSING
         eng "for %`s: missing '%s'"
 
