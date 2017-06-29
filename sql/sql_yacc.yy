@@ -5563,7 +5563,7 @@ opt_versioning_interval:
            if (get_interval_value($2, $3, &interval) ||
               part_info->vers_set_interval(interval))
            {
-             my_error_as(ER_VERS_WRONG_PARAMS_X, ER_PART_WRONG_VALUE, MYF(0),
+             my_error_as(ER_VERS_WRONG_PARAMS, ER_PART_WRONG_VALUE, MYF(0),
                 Lex->create_last_non_select_table->table_name, "INTERVAL");
              MYSQL_YYABORT;
            }
@@ -5578,7 +5578,7 @@ opt_versioning_limit:
            DBUG_ASSERT(part_info->part_type == VERSIONING_PARTITION);
            if (part_info->vers_set_limit($2))
            {
-             my_error_as(ER_VERS_WRONG_PARAMS_X, ER_PART_WRONG_VALUE, MYF(0),
+             my_error_as(ER_VERS_WRONG_PARAMS, ER_PART_WRONG_VALUE, MYF(0),
                 Lex->create_last_non_select_table->table_name, "LIMIT");
              MYSQL_YYABORT;
            }
@@ -5969,7 +5969,7 @@ table_versioning:
             Vers_parse_info &info= Lex->vers_get_info();
             if (info.with_system_versioning || info.without_system_versioning)
             {
-              my_error_as(ER_VERS_WRONG_PARAMS_X, ER_MULTIPLE_CLAUSE, MYF(0),
+              my_error_as(ER_VERS_WRONG_PARAMS, ER_MULTIPLE_CLAUSE, MYF(0),
                 Lex->create_last_non_select_table->table_name,
                 "WITH/WITHOUT SYSTEM VERSIONING");
               MYSQL_YYABORT;
@@ -6181,7 +6181,7 @@ period_for_system_time:
             Vers_parse_info &info= Lex->vers_get_info();
             if (!my_strcasecmp(system_charset_info, $4.str, $6.str))
             {
-              my_error_as(ER_VERS_WRONG_PARAMS_X, ER_MULTIPLE_IDENTIFIER, MYF(0),
+              my_error_as(ER_VERS_WRONG_PARAMS, ER_MULTIPLE_IDENTIFIER, MYF(0),
                 Lex->create_last_non_select_table->table_name, $4.str,
                 "PERIOD FOR SYSTEM_TIME");
               MYSQL_YYABORT;
@@ -6322,7 +6322,7 @@ field_def:
             DBUG_ASSERT(p);
             if (*p)
             {
-              my_error_as(ER_VERS_WRONG_PARAMS_X, ER_MULTIPLE_CLAUSE_2, MYF(0),
+              my_error_as(ER_VERS_WRONG_PARAMS, ER_MULTIPLE_CLAUSE_2, MYF(0),
                 table_name, clause, field_name, p->ptr());
               MYSQL_YYABORT;
             }
@@ -6824,7 +6824,7 @@ serial_attribute:
           {
             if (Lex->last_field->versioning != Column_definition::VERSIONING_NOT_SET)
             {
-              my_error_as(ER_VERS_WRONG_PARAMS_X, ER_MULTIPLE_CLAUSE_FOR, MYF(0),
+              my_error_as(ER_VERS_WRONG_PARAMS, ER_MULTIPLE_CLAUSE_FOR, MYF(0),
                    Lex->create_last_non_select_table->table_name,
                    "WITH/WITHOUT SYSTEM VERSIONING", Lex->last_field->field_name);
               MYSQL_YYABORT;

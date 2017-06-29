@@ -7500,7 +7500,7 @@ ER_VERS_FIELD_WRONG_TYPE
         eng "%`s must be of type %`s for versioned table %`s"
 
 ER_VERS_WRONG_PARAMS
-        eng "Wrong parameters for %`s: %s"
+        eng "Wrong parameters %s"
 
 ER_VERS_ENGINE_UNSUPPORTED
         eng "Engine does not support System Versioning for %`s"
@@ -7549,9 +7549,6 @@ WARN_VERS_ALIAS_TOO_LONG
 
 ER_VERS_VTMD_ERROR
         eng "VTMD error: %s"
-
-ER_VERS_WRONG_PARAMS_X
-        eng "Wrong parameters %s"
 
 ER_MULTIPLE_CLAUSE
         eng "for %`s: multiple '%s'"

@@ -6705,15 +6705,15 @@ bool Vers_parse_info::check_and_fix_implicit(
 
   if (without_system_versioning)
   {
-    my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name,
-             "'WITHOUT SYSTEM VERSIONING' is not allowed");
+    my_error_as(ER_VERS_WRONG_PARAMS, ER_NOT_ALLOWED, MYF(0), table_name,
+             "WITHOUT SYSTEM VERSIONING");
     return true;
   }
 
   if (!with_system_versioning && !versioned_fields)
   {
-    my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name,
-             "'WITH SYSTEM VERSIONING' missing");
+    my_error_as(ER_VERS_WRONG_PARAMS, ER_MISSING, MYF(0), table_name,
+             "WITH SYSTEM VERSIONING");
     return true;
   }
 
@@ -6729,8 +6729,7 @@ bool Vers_parse_info::check_and_fix_implicit(
         if (orig_table && orig_table != f->field->orig_table)
         {
           err_different_tables:
-          my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name,
-                  "system fields selected from different tables");
+          my_error_as(ER_VERS_WRONG_PARAMS, ER_VERS_DIFFERENT_TABLES, MYF(0), table_name);
           return true;
         }
         orig_table= f->field->orig_table;
@@ -6775,8 +6774,8 @@ bool Vers_parse_info::check_and_fix_implicit(
     }
     if (!generated_as_row.start || !generated_as_row.end)
     {
-      my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name,
-        "both ROW START and ROW END system fields required in SELECT resultset");
+      my_error_as(ER_VERS_WRONG_PARAMS, ER_MISSING, MYF(0), table_name,
+        generated_as_row.start ? "GENERATED AS ROW END" : "GENERATED AS ROW START");
       return true;
     }
   }
@@ -6807,8 +6806,8 @@ bool Vers_parse_info::check_and_fix_implicit(
     vers_cols == 0 &&
     (plain_cols == 0 || !table_with_system_versioning))
   {
-    my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name,
-             "no columns defined with system versioning!");
+    my_error_as(ER_VERS_WRONG_PARAMS, ER_VERS_NO_COLS_DEFINED, MYF(0),
+                table_name, "WITH SYSTEM VERSIONING");
     return true;
   }
 
@@ -6841,8 +6840,7 @@ bool Vers_parse_info::check_and_fix_alter(THD *thd, Alter_info *alter_info,
   {
     if (!share->versioned)
     {
-      my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name,
-               "table is not versioned");
+      my_error_as(ER_VERS_WRONG_PARAMS, ER_VERS_NOT_VERSIONED, MYF(0), table_name);
       return true;
     }
 
@@ -6856,8 +6854,7 @@ bool Vers_parse_info::check_and_fix_alter(THD *thd, Alter_info *alter_info,
 
   if ((versioned_fields || unversioned_fields) && !share->versioned)
   {
-    my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name,
-             "Can not change fields versioning mode in a non-versioned table");
+    my_error_as(ER_VERS_WRONG_PARAMS, ER_VERS_NOT_VERSIONED, MYF(0), table_name);
     return true;
   }
 
@@ -6958,8 +6955,8 @@ bool Vers_parse_info::fix_create_like(THD *thd, Alter_info *alter_info,
 
   if (!f_start || !f_end)
   {
-    my_error(ER_VERS_WRONG_PARAMS, MYF(0), table->table_name,
-              "Missed one of system versioning fields from source");
+    my_error_as(ER_VERS_WRONG_PARAMS, ER_MISSING, MYF(0), table->table_name,
+      f_start ? "GENERATED AS ROW END" : "GENERATED AS ROW START");
     return true;
   }
 
@@ -6982,29 +6979,29 @@ bool Vers_parse_info::check_with_conditions(const char *table_name) const
 
   if (!generated_as_row.end)
   {
-    my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name,
-             "'GENERATED AS ROW END' column missing");
+    my_error_as(ER_VERS_WRONG_PARAMS, ER_MISSING, MYF(0), table_name,
+      generated_as_row.start ? "GENERATED AS ROW END" : "GENERATED AS ROW START");
     return true;
   }
 
   if (!period_for_system_time.start || !period_for_system_time.end)
   {
-    my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name,
-             "'PERIOD FOR SYSTEM_TIME' missing");
+    my_error_as(ER_VERS_WRONG_PARAMS, ER_MISSING, MYF(0), table_name,
+             "PERIOD FOR SYSTEM_TIME");
     return true;
   }
 
   if (generated_as_row.start != period_for_system_time.start)
   {
-    my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name,
-             "'PERIOD FOR SYSTEM_TIME' and 'GENERATED AS ROW START' mismatch");
+    my_error_as(ER_VERS_WRONG_PARAMS, ER_MISMATCH, MYF(0), table_name,
+             "PERIOD FOR SYSTEM_TIME", "GENERATED AS ROW START");
     return true;
   }
 
   if (generated_as_row.end != period_for_system_time.end)
   {
-    my_error(ER_VERS_WRONG_PARAMS, MYF(0), table_name,
-             "'PERIOD FOR SYSTEM_TIME' and 'GENERATED AS ROW END' mismatch");
+    my_error_as(ER_VERS_WRONG_PARAMS, ER_MISMATCH, MYF(0), table_name,
+             "PERIOD FOR SYSTEM_TIME", "GENERATED AS ROW END");
     return true;
   }
 
