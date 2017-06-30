@@ -242,6 +242,13 @@ show create table tt1;
 drop table tt1;
 
 # CREATE TABLE ... SELECT
+## for non-versioned table
+### system fields are not inherited (hidden and not hidden)
+
+### hidden fields are inherited as hidden
+
+## for versioned table system fields are inherited as is
+
 create or replace table t1 (x int) with system versioning;
 create or replace table t2 (y int);
 create or replace table t3 select * from t1 for system_time all, t2;
