@@ -315,7 +315,7 @@ st SYS_TRX_TYPE generated always as row start,
 en SYS_TRX_TYPE generated always as row end,
 period for system_time (st, en)
 ) with system versioning;
-create or replace table t3 select * from t2;
+create or replace table t3 with system versioning select * from t2;
 show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
@@ -324,7 +324,7 @@ t3	CREATE TABLE `t3` (
   `en` SYS_TRX_TYPE GENERATED ALWAYS AS ROW END,
   PERIOD FOR SYSTEM_TIME (`st`, `en`)
 ) ENGINE=INNODB_OR_MYISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
-create or replace table t3 select x, y, t1.sys_trx_start, t2.en from t1, t2;
+create or replace table t3 with system versioning select x, y, t1.sys_trx_start, t2.en from t1, t2;
 ERROR HY000: Wrong parameters for `t3`: system fields selected from different tables
 insert into t2 values (1), (2);
 delete from t2 where y = 2;
@@ -339,7 +339,7 @@ y
 2
 create or replace table t1 (a int) with system versioning engine INNODB_OR_MYISAM;
 create or replace table t2 as select a, sys_trx_start, sys_trx_end from t1 for system_time all;
-create or replace table t2 engine INNODB_OR_MYISAM as select a, sys_trx_start, sys_trx_end from t1 for system_time all;
+create or replace table t2 with system versioning engine INNODB_OR_MYISAM as select a, sys_trx_start, sys_trx_end from t1 for system_time all;
 ERROR HY000: `sys_trx_start` must be of type `SYS_TRX_TYPE` for versioned table `t2`
 create or replace table t1 (a int, id int) with system versioning engine INNODB_OR_MYISAM;
 create or replace table t2 (b int, id int);

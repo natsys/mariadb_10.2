@@ -7596,16 +7596,29 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
           tl->vers_conditions.type == FOR_SYSTEM_TIME_UNSPECIFIED ?
             slex->vers_conditions.type : tl->vers_conditions.type;
 
-        if ((sys_field && (thd->lex->sql_command == SQLCOM_CREATE_VIEW ||
+        enum_sql_command sql_command= thd->lex->sql_command;
+        unsigned int create_options= thd->lex->create_info.options;
+
+        if (
+          // We hide system fields for CREATE VIEW, derived tables and in HIDE_FULL mode.
+          (sys_field &&
+            (sql_command == SQLCOM_CREATE_VIEW ||
             slex->nest_level > 0 ||
-            (vers_hide == VERS_HIDE_FULL && thd->lex->sql_command != SQLCOM_CREATE_TABLE))) ||
+            (vers_hide == VERS_HIDE_FULL && sql_command != SQLCOM_CREATE_TABLE))) ||
+          // We hide HIDDEN fields if they are not system or according to hiding setting,
+          // but only when not creating a table. When creating a table we hide only system
+          // fields for non-versioned created table, other fields will inherit HIDDEN property.
           ((fl & HIDDEN_FLAG) && (
-            !sys_field ||
-            vers_hide == VERS_HIDE_IMPLICIT ||
-            (vers_hide == VERS_HIDE_AUTO && (
-            vers_type == FOR_SYSTEM_TIME_UNSPECIFIED ||
-            vers_type == FOR_SYSTEM_TIME_AS_OF)))))
+            sys_field ? (
+              (sql_command == SQLCOM_CREATE_TABLE && !(create_options & HA_VERSIONED_TABLE)) ||
+              vers_hide == VERS_HIDE_IMPLICIT ||
+                (vers_hide == VERS_HIDE_AUTO && (
+                  vers_type == FOR_SYSTEM_TIME_UNSPECIFIED ||
+                  vers_type == FOR_SYSTEM_TIME_AS_OF)))
+            : sql_command != SQLCOM_CREATE_TABLE)))
+        {
           continue;
+        }
       }
       else if (item->type() == Item::REF_ITEM)
       {

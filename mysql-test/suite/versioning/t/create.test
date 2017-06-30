@@ -255,12 +255,12 @@ eval create or replace table t2 (
   en $sys_datatype generated always as row end,
   period for system_time (st, en)
 ) with system versioning;
-create or replace table t3 select * from t2;
+create or replace table t3 with system versioning select * from t2;
 --replace_result InnoDB INNODB_OR_MYISAM MyISAM INNODB_OR_MYISAM "bigint(20) unsigned" SYS_TRX_TYPE timestamp(6) SYS_TRX_TYPE
 show create table t3;
 
 --error ER_VERS_WRONG_PARAMS
-create or replace table t3 select x, y, t1.sys_trx_start, t2.en from t1, t2;
+create or replace table t3 with system versioning select x, y, t1.sys_trx_start, t2.en from t1, t2;
 
 insert into t2 values (1), (2);
 delete from t2 where y = 2;
@@ -276,7 +276,7 @@ eval create or replace table t1 (a int) with system versioning engine $non_defau
 create or replace table t2 as select a, sys_trx_start, sys_trx_end from t1 for system_time all;
 --replace_result innodb INNODB_OR_MYISAM myisam INNODB_OR_MYISAM "BIGINT(20) UNSIGNED" SYS_TRX_TYPE "TIMESTAMP(6)" SYS_TRX_TYPE
 --error ER_VERS_FIELD_WRONG_TYPE
-eval create or replace table t2 engine $default_engine as select a, sys_trx_start, sys_trx_end from t1 for system_time all;
+eval create or replace table t2 with system versioning engine $default_engine as select a, sys_trx_start, sys_trx_end from t1 for system_time all;
 
 --replace_result innodb INNODB_OR_MYISAM myisam INNODB_OR_MYISAM
 eval create or replace table t1 (a int, id int) with system versioning engine $non_default_engine;
