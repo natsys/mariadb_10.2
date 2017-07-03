@@ -285,15 +285,11 @@ delete from t0;
 ## Combinations of versioned + non-versioned
 create or replace table t1 (x int) with system versioning;
 create or replace table t2 (y int);
-## FIXME: with system versioning vvvv
-create or replace table t3 select * from t1 for system_time all, t2;
+create or replace table t3 with system versioning select * from t1 for system_time all, t2;
 --replace_result InnoDB INNODB_OR_MYISAM MyISAM INNODB_OR_MYISAM "bigint(20) unsigned" SYS_TRX_TYPE timestamp(6) SYS_TRX_TYPE
 show create table t3;
 
 create or replace table t2 with system versioning as select * from t0;
---replace_result InnoDB INNODB_OR_MYISAM MyISAM INNODB_OR_MYISAM "bigint(20) unsigned" SYS_TRX_TYPE timestamp(6) SYS_TRX_TYPE
-show create table t2;
-
 --error ER_VERS_WRONG_PARAMS
 create or replace table t3 with system versioning select x, y, t1.sys_trx_start, t2.en from t1, t2;
 

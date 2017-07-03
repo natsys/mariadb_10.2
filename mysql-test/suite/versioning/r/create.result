@@ -347,22 +347,17 @@ y	st	en
 delete from t0;
 create or replace table t1 (x int) with system versioning;
 create or replace table t2 (y int);
-create or replace table t3 select * from t1 for system_time all, t2;
+create or replace table t3 with system versioning select * from t1 for system_time all, t2;
 show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
   `x` int(11) DEFAULT NULL,
-  `y` int(11) DEFAULT NULL
-) ENGINE=INNODB_OR_MYISAM DEFAULT CHARSET=latin1
-create or replace table t2 with system versioning as select * from t0;
-show create table t2;
-Table	Create Table
-t2	CREATE TABLE `t2` (
+  `sys_trx_start` SYS_TRX_TYPE GENERATED ALWAYS AS ROW START,
+  `sys_trx_end` SYS_TRX_TYPE GENERATED ALWAYS AS ROW END,
   `y` int(11) DEFAULT NULL,
-  `st` SYS_TRX_TYPE GENERATED ALWAYS AS ROW START,
-  `en` SYS_TRX_TYPE GENERATED ALWAYS AS ROW END,
-  PERIOD FOR SYSTEM_TIME (`st`, `en`)
+  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
 ) ENGINE=INNODB_OR_MYISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+create or replace table t2 with system versioning as select * from t0;
 create or replace table t3 with system versioning select x, y, t1.sys_trx_start, t2.en from t1, t2;
 ERROR HY000: Wrong parameters for `t3`: system fields selected from different tables
 insert into t2 values (1), (2);
