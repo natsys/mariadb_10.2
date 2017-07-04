@@ -6703,6 +6703,13 @@ bool Vers_parse_info::check_and_fix_implicit(
   if (!need_check())
     return false;
 
+  if (!versioned_fields && unversioned_fields && !with_system_versioning)
+  {
+    // All is correct but this table is not versioned.
+    create_info->options&= ~HA_VERSIONED_TABLE;
+    return false;
+  }
+
   if (without_system_versioning)
   {
     my_error_as(ER_VERS_WRONG_PARAMS, ER_NOT_ALLOWED, MYF(0), table_name,
@@ -6710,7 +6717,9 @@ bool Vers_parse_info::check_and_fix_implicit(
     return true;
   }
 
-  if (!with_system_versioning && !versioned_fields)
+  if ((period_for_system_time.start.str || period_for_system_time.end.str ||
+       generated_as_row.start.str || generated_as_row.end.str) &&
+      !with_system_versioning)
   {
     my_error_as(ER_VERS_WRONG_PARAMS, ER_MISSING, MYF(0), table_name,
              "WITH SYSTEM VERSIONING");
