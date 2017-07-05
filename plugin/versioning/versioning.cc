@@ -14,10 +14,127 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA */
 
+#define MYSQL_SERVER 1
 #include <mysql_version.h>
 #include <mysqld.h>
 #include "sql_plugin.h"                         // st_plugin_int
 #include "sql_class.h"
+#include "item.h"
+#include "vtq.h"
+
+
+/* System Versioning: VTQ_TRX_ID(), VTQ_COMMIT_ID(), VTQ_BEGIN_TS(), VTQ_COMMIT_TS(), VTQ_ISO_LEVEL() */
+template <vtq_field_t VTQ_FIELD>
+class Create_func_vtq : public Create_native_func
+{
+public:
+  virtual Item *create_native(THD *thd, LEX_STRING name, List<Item> *item_list);
+
+  static Create_func_vtq<VTQ_FIELD> s_singleton;
+
+protected:
+  Create_func_vtq<VTQ_FIELD>() {}
+  virtual ~Create_func_vtq<VTQ_FIELD>() {}
+};
+
+template<vtq_field_t VTQ_FIELD>
+Create_func_vtq<VTQ_FIELD> Create_func_vtq<VTQ_FIELD>::s_singleton;
+
+template <vtq_field_t VTQ_FIELD>
+Item*
+Create_func_vtq<VTQ_FIELD>::create_native(THD *thd, LEX_STRING name,
+  List<Item> *item_list)
+{
+  Item *func= NULL;
+  int arg_count= 0;
+
+  if (item_list != NULL)
+    arg_count= item_list->elements;
+
+  switch (arg_count) {
+  case 1:
+  {
+    Item *param_1= item_list->pop();
+    switch (VTQ_FIELD)
+    {
+    case VTQ_BEGIN_TS:
+    case VTQ_COMMIT_TS:
+      func= new (thd->mem_root) Item_func_vtq_ts(thd, param_1, VTQ_FIELD);
+      break;
+    case VTQ_TRX_ID:
+    case VTQ_COMMIT_ID:
+    case VTQ_ISO_LEVEL:
+      func= new (thd->mem_root) Item_func_vtq_id(thd, param_1, VTQ_FIELD);
+      break;
+    default:
+      DBUG_ASSERT(0);
+    }
+    break;
+  }
+  case 2:
+  {
+    Item *param_1= item_list->pop();
+    Item *param_2= item_list->pop();
+    switch (VTQ_FIELD)
+    {
+    case VTQ_TRX_ID:
+    case VTQ_COMMIT_ID:
+      func= new (thd->mem_root) Item_func_vtq_id(thd, param_1, param_2, VTQ_FIELD);
+      break;
+    default:
+      goto error;
+    }
+    break;
+  }
+  error:
+  default:
+  {
+    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name.str);
+    break;
+  }
+  }
+
+  return func;
+};
+
+template <class Item_func_vtq_trx_seesX>
+class Create_func_vtq_trx_sees : public Create_native_func
+{
+public:
+  virtual Item *create_native(THD *thd, LEX_STRING name, List<Item> *item_list)
+  {
+    Item *func= NULL;
+    int arg_count= 0;
+
+    if (item_list != NULL)
+      arg_count= item_list->elements;
+
+    switch (arg_count) {
+    case 2:
+    {
+      Item *param_1= item_list->pop();
+      Item *param_2= item_list->pop();
+      func= new (thd->mem_root) Item_func_vtq_trx_seesX(thd, param_1, param_2);
+      break;
+    }
+    default:
+      my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name.str);
+      break;
+    }
+
+    return func;
+  }
+
+  static Create_func_vtq_trx_sees<Item_func_vtq_trx_seesX> s_singleton;
+
+protected:
+  Create_func_vtq_trx_sees<Item_func_vtq_trx_seesX>() {}
+  virtual ~Create_func_vtq_trx_sees<Item_func_vtq_trx_seesX>() {}
+};
+
+template<class X>
+Create_func_vtq_trx_sees<X> Create_func_vtq_trx_sees<X>::s_singleton;
+
 
 /*
   Disable __attribute__() on non-gcc compilers.
@@ -46,6 +163,20 @@ static int forced_versioning_deinit(void *p __attribute__ ((unused)))
   mysql_mutex_unlock(&LOCK_global_system_variables);
   DBUG_RETURN(0);
 }
+
+
+#define BUILDER(F) & F::s_singleton
+
+static Native_func_registry func_array[] =
+{
+  { { C_STRING_WITH_LEN("VTQ_BEGIN_TS") }, BUILDER(Create_func_vtq<VTQ_BEGIN_TS>)},
+  { { C_STRING_WITH_LEN("VTQ_COMMIT_ID") }, BUILDER(Create_func_vtq<VTQ_COMMIT_ID>)},
+  { { C_STRING_WITH_LEN("VTQ_COMMIT_TS") }, BUILDER(Create_func_vtq<VTQ_COMMIT_TS>)},
+  { { C_STRING_WITH_LEN("VTQ_ISO_LEVEL") }, BUILDER(Create_func_vtq<VTQ_ISO_LEVEL>)},
+  { { C_STRING_WITH_LEN("VTQ_TRX_ID") }, BUILDER(Create_func_vtq<VTQ_TRX_ID>)},
+  { { C_STRING_WITH_LEN("VTQ_TRX_SEES") }, BUILDER(Create_func_vtq_trx_sees<Item_func_vtq_trx_sees>)},
+  { { C_STRING_WITH_LEN("VTQ_TRX_SEES_EQ") }, BUILDER(Create_func_vtq_trx_sees<Item_func_vtq_trx_sees_eq>)}
+};
 
 
 struct st_mysql_daemon forced_versioning_plugin=
