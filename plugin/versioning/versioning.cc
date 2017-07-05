@@ -135,36 +135,6 @@ protected:
 template<class X>
 Create_func_vtq_trx_sees<X> Create_func_vtq_trx_sees<X>::s_singleton;
 
-
-/*
-  Disable __attribute__() on non-gcc compilers.
-*/
-#if !defined(__attribute__) && !defined(__GNUC__)
-#define __attribute__(A)
-#endif
-
-static int forced_versioning_init(void *p __attribute__ ((unused)))
-{
-
-  DBUG_ENTER("forced_versioning_init");
-  mysql_mutex_lock(&LOCK_global_system_variables);
-  global_system_variables.vers_force= true;
-  global_system_variables.vers_hide= VERS_HIDE_FULL;
-  mysql_mutex_unlock(&LOCK_global_system_variables);
-  DBUG_RETURN(0);
-}
-
-static int forced_versioning_deinit(void *p __attribute__ ((unused)))
-{
-  DBUG_ENTER("forced_versioning_deinit");
-  mysql_mutex_lock(&LOCK_global_system_variables);
-  global_system_variables.vers_force= false;
-  global_system_variables.vers_hide= VERS_HIDE_AUTO;
-  mysql_mutex_unlock(&LOCK_global_system_variables);
-  DBUG_RETURN(0);
-}
-
-
 #define BUILDER(F) & F::s_singleton
 
 static Native_func_registry func_array[] =
@@ -179,23 +149,49 @@ static Native_func_registry func_array[] =
 };
 
 
-struct st_mysql_daemon forced_versioning_plugin=
+/*
+  Disable __attribute__() on non-gcc compilers.
+*/
+#if !defined(__attribute__) && !defined(__GNUC__)
+#define __attribute__(A)
+#endif
+
+static int versioning_plugin_init(void *p __attribute__ ((unused)))
+{
+
+  DBUG_ENTER("versioning_plugin_init");
+  mysql_mutex_lock(&LOCK_global_system_variables);
+  int res= item_create_append(func_array);
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  DBUG_RETURN(res);
+}
+
+static int versioning_plugin_deinit(void *p __attribute__ ((unused)))
+{
+  DBUG_ENTER("versioning_plugin_deinit");
+//   mysql_mutex_lock(&LOCK_global_system_variables);
+//   mysql_mutex_unlock(&LOCK_global_system_variables);
+  DBUG_RETURN(0);
+}
+
+
+struct st_mysql_daemon versioning_plugin=
 { MYSQL_DAEMON_INTERFACE_VERSION  };
 
 /*
   Plugin library descriptor
 */
 
-maria_declare_plugin(forced_versioning)
+maria_declare_plugin(versioning)
 {
   MYSQL_DAEMON_PLUGIN,
-  &forced_versioning_plugin,
-  "forced_versioning",
-  "Natsys Lab",
-  "Enable System Vesioning for all newly created tables",
+  &versioning_plugin,
+  "versioning",
+  "MariaDB Corp",
+  "System Vesioning testing features",
   PLUGIN_LICENSE_GPL,
-  forced_versioning_init, /* Plugin Init */
-  forced_versioning_deinit, /* Plugin Deinit */
+  versioning_plugin_init, /* Plugin Init */
+  versioning_plugin_deinit, /* Plugin Deinit */
   0x0100 /* 1.0 */,
   NULL,                       /* status variables                */
   NULL,                       /* system variables                */
