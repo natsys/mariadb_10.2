@@ -24,6 +24,7 @@
 #include "vtq.h"
 #include "vers_utils.h"
 
+plugin_ref innodb_plugin= NULL;
 static handlerton* innodb_hton= NULL;
 
 /* System Versioning: VTQ_TRX_ID(), VTQ_COMMIT_ID(), VTQ_BEGIN_TS(), VTQ_COMMIT_TS(), VTQ_ISO_LEVEL() */
@@ -167,18 +168,24 @@ static int versioning_plugin_init(void *p __attribute__ ((unused)))
   // No need in locking since we so far single-threaded
   int res= item_create_append(func_array);
   if (res)
+  {
+    my_message(ER_PLUGIN_IS_NOT_LOADED, "Can't append function array" , MYF(0));
     DBUG_RETURN(res);
+  }
 
-  plugin_ref plugin= ha_resolve_by_name(NULL, &InnoDB.lex_string(), false);
-  if (!plugin)
+  innodb_plugin= ha_resolve_by_name(NULL, &InnoDB.lex_string(), false);
+  if (!innodb_plugin)
   {
     my_error(ER_PLUGIN_IS_NOT_LOADED, MYF(0), InnoDB.ptr());
     DBUG_RETURN(1);
   }
 
-  innodb_hton= plugin_hton(plugin);
+  innodb_hton= plugin_hton(innodb_plugin);
   if (!innodb_hton || (innodb_hton->flags & HTON_NOT_USER_SELECTABLE))
+  {
+    my_message(ER_PLUGIN_IS_NOT_LOADED, "Can't get handlerton" , MYF(0));
     DBUG_RETURN(1);
+  }
 
   DBUG_RETURN(0);
 }
@@ -186,11 +193,13 @@ static int versioning_plugin_init(void *p __attribute__ ((unused)))
 static int versioning_plugin_deinit(void *p __attribute__ ((unused)))
 {
   DBUG_ENTER("versioning_plugin_deinit");
+  if (innodb_plugin)
+    plugin_unlock(NULL, innodb_plugin);
   DBUG_RETURN(0);
 }
 
 struct st_mysql_daemon versioning_plugin=
-{ MYSQL_DAEMON_INTERFACE_VERSION  };
+{ MYSQL_REPLICATION_INTERFACE_VERSION  };
 
 /*
   Plugin library descriptor
@@ -198,7 +207,7 @@ struct st_mysql_daemon versioning_plugin=
 
 maria_declare_plugin(versioning)
 {
-  MYSQL_DAEMON_PLUGIN,
+  MYSQL_REPLICATION_PLUGIN, // initialized after MYSQL_STORAGE_ENGINE_PLUGIN
   &versioning_plugin,
   "versioning",
   "MariaDB Corp",
