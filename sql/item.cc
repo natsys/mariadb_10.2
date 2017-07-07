@@ -2760,14 +2760,12 @@ void Item_field::set_field(Field *field_par)
   if (field->table->s->tmp_table == SYSTEM_TMP_TABLE)
     any_privileges= 0;
 
-  // // field->force_null= false;
+  // field->force_null= false;
   // if (field->flags & VERS_OPTIMIZED_UPDATE_FLAG && context &&
   //     ((field->table->pos_in_table_list &&
   //       field->table->pos_in_table_list->vers_conditions) ||
   //      (context->select_lex && context->select_lex->vers_conditions)))
   // {
-  //   current_thd->change_item_tree(this, new (current_thd->mem_root)
-  //                                           Item_null(current_thd));
   //   // field->force_null= true;
   //   push_warning_printf(
   //       current_thd, Sql_condition::WARN_LEVEL_WARN,
@@ -3071,29 +3069,6 @@ table_map Item_field::used_tables() const
 table_map Item_field::all_used_tables() const
 {
   return (get_depended_from() ? OUTER_REF_TABLE_BIT : field->table->map);
-}
-
-bool Item_field::vers_maybe_replace_with_null(Item **parent_ptr)
-{
-  DBUG_ASSERT(field);
-  if (field->flags & VERS_OPTIMIZED_UPDATE_FLAG && context &&
-      ((field->table->pos_in_table_list &&
-        field->table->pos_in_table_list->vers_conditions) ||
-       (context->select_lex && context->select_lex->vers_conditions)))
-  {
-    Item_null *item_null= new (current_thd->mem_root) Item_null(current_thd);
-    if (!item_null)
-      return true;
-
-    current_thd->change_item_tree(parent_ptr, item_null);
-
-    push_warning_printf(
-        current_thd, Sql_condition::WARN_LEVEL_WARN,
-        ER_NON_VERSIONED_FIELD_IN_VERSIONED_QUERY,
-        ER_THD(current_thd, ER_NON_VERSIONED_FIELD_IN_VERSIONED_QUERY),
-        field_name);
-  }
-  return false;
 }
 
 void Item_field::fix_after_pullout(st_select_lex *new_parent, Item **ref)
@@ -5837,21 +5812,6 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
   }
 #endif
   fixed= 1;
-
-  // if (field->is_versioning_disabled() && context && context->select_lex &&
-  //     context->select_lex->vers_conditions.type != FOR_SYSTEM_TIME_UNSPECIFIED)
-  // {
-  //   Item_null *item_null= new (thd->mem_root) Item_null(thd);
-  //   if (!item_null)
-  //     goto error;
-  //   thd->change_item_tree(&this, item_null);
-  //   push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-  //                       ER_NON_VERSIONED_FIELD_IN_VERSIONED_QUERY,
-  //                       ER_THD(thd, ER_NON_VERSIONED_FIELD_IN_VERSIONED_QUERY),
-  //                       field_name);
-  //   return false;
-  // }
-
   if (field->vcol_info)
     fix_session_vcol_expr_for_read(thd, field, field->vcol_info);
   if (thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY &&
@@ -10795,6 +10755,28 @@ bool Item_field::exclusive_dependence_on_grouping_fields_processor(void *arg)
     }
   }
   return true;
+}
+
+Item *Item_field::vers_optimized_fields_transformer(THD *thd, uchar *)
+{
+  DBUG_ASSERT(field);
+
+  if (field->flags & VERS_OPTIMIZED_UPDATE_FLAG && context &&
+      ((field->table->pos_in_table_list &&
+        field->table->pos_in_table_list->vers_conditions) ||
+       (context->select_lex && context->select_lex->vers_conditions)))
+  {
+    push_warning_printf(
+        current_thd, Sql_condition::WARN_LEVEL_WARN,
+        ER_NON_VERSIONED_FIELD_IN_VERSIONED_QUERY,
+        ER_THD(current_thd, ER_NON_VERSIONED_FIELD_IN_VERSIONED_QUERY),
+        field_name);
+    Item *null_item= new (thd->mem_root) Item_null(thd);
+    if (null_item)
+      return null_item;
+  }
+
+  return this;
 }
 
 void Item::register_in(THD *thd)
