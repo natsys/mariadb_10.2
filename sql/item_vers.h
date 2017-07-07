@@ -33,10 +33,10 @@ protected:
 public:
   VTQ_common(THD *thd, handlerton* _hton, Item* a, Item* b) :
     Item_func_X(thd, a, b),
-    hton(_hton) { check_hton(); }
+    hton(_hton) {}
   VTQ_common(THD *thd, handlerton* _hton, Item* a) :
     Item_func_X(thd, a),
-    hton(_hton) { check_hton(); }
+    hton(_hton) {}
 };
 
 class Item_func_vtq_ts :

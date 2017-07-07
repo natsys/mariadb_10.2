@@ -7018,7 +7018,6 @@ get_native_fct_hash_key(const uchar *buff, size_t *length,
   return (uchar*) func->name.str;
 }
 
-
 /*
   Load the hash table for native functions.
   Note: this code is not thread safe, and is intended to be used at server

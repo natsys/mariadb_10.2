@@ -34,6 +34,7 @@ Item_func_vtq_ts::Item_func_vtq_ts(
   decimals= 6;
   null_value= true;
   DBUG_ASSERT(arg_count == 1 && args[0]);
+  check_hton();
 }
 
 template <class Item_func_X>
@@ -41,7 +42,7 @@ void
 VTQ_common<Item_func_X>::check_hton()
 {
   DBUG_ASSERT(hton);
-  if (!(hton->flags & HTON_NATIVE_SYS_VERSIONING))
+  if (!(hton->flags & HTON_NATIVE_SYS_VERSIONING) && hton->db_type != DB_TYPE_HEAP)
   {
     my_error(ER_VERS_ENGINE_UNSUPPORTED, MYF(0), Item::name ? Item::name : this->func_name());
     hton= NULL;
@@ -86,6 +87,7 @@ Item_func_vtq_id::Item_func_vtq_id(
   unsigned_flag= 1;
   null_value= true;
   DBUG_ASSERT(arg_count == 1 && args[0]);
+  check_hton();
 }
 
 Item_func_vtq_id::Item_func_vtq_id(
@@ -103,6 +105,7 @@ Item_func_vtq_id::Item_func_vtq_id(
   unsigned_flag= 1;
   null_value= true;
   DBUG_ASSERT(arg_count == 2 && args[0] && args[1]);
+  check_hton();
 }
 
 longlong
