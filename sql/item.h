@@ -1839,6 +1839,8 @@ public:
   {
     marker &= ~EXTRACTION_MASK;
   }
+
+  virtual bool vers_maybe_replace_with_null(Item **parent_ptr) { return false; }
 };
 
 
@@ -2772,6 +2774,9 @@ public:
     DBUG_ASSERT(field_type() == MYSQL_TYPE_GEOMETRY);
     return field->get_geometry_type();
   }
+
+  virtual bool vers_maybe_replace_with_null(Item **parent_ptr);
+
   friend class Item_default_value;
   friend class Item_insert_value;
   friend class st_select_lex_unit;
