@@ -7913,12 +7913,6 @@ int setup_conds(THD *thd, TABLE_LIST *tables, List<TABLE_LIST> &leaves,
       goto err_no_arena;
   }
 
-  if (*conds)
-  {
-    *conds= (*conds)->transform(thd, &Item::vers_optimized_fields_transformer,
-                                NULL);
-  }
-
   /*
     Apply fix_fields() to all ON clauses at all levels of nesting,
     including the ones inside view definitions.

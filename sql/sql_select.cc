@@ -1380,6 +1380,43 @@ JOIN::prepare(TABLE_LIST *tables_init,
   if (!procedure && result && result->prepare(fields_list, unit_arg))
     goto err;					/* purecov: inspected */
 
+  {
+    List_iterator<Item> it(fields_list);
+    while (Item *item= it++)
+    {
+      it.replace(
+          item->transform(thd, &Item::vers_optimized_fields_transformer, NULL));
+    }
+
+    if (conds)
+    {
+      conds=
+          conds->transform(thd, &Item::vers_optimized_fields_transformer, NULL);
+    }
+
+    for (ORDER *ord= order; ord; ord= ord->next)
+    {
+      ord->item_ptr=
+          (*ord->item)
+              ->transform(thd, &Item::vers_optimized_fields_transformer, NULL);
+      ord->item= &ord->item_ptr;
+    }
+
+    for (ORDER *ord= group_list; ord; ord= ord->next)
+    {
+      ord->item_ptr=
+          (*ord->item)
+              ->transform(thd, &Item::vers_optimized_fields_transformer, NULL);
+      ord->item= &ord->item_ptr;
+    }
+
+    if (having)
+    {
+      having= having->transform(thd, &Item::vers_optimized_fields_transformer,
+                                NULL);
+    }
+  }
+
   unit= unit_arg;
   if (prepare_stage2())
     goto err;
