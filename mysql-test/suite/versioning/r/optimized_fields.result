@@ -1,4 +1,4 @@
-create table t(
+create table t (
 a int,
 b int without system versioning
 ) with system versioning;
@@ -102,6 +102,24 @@ Warnings:
 Warning	4075	Attempt to read unversioned field `b` in historical query
 select count(*), b from t for system_time as of timestamp now(6) group by b having b=NULL;
 count(*)	b
+Warnings:
+Warning	4075	Attempt to read unversioned field `b` in historical query
+Warning	4075	Attempt to read unversioned field `b` in historical query
+create or replace table t (
+a int,
+b int not null without system versioning
+) with system versioning;
+insert into t values (1, 2), (3, 4);
+select * from t for system_time as of timestamp now(6);
+a	b
+1	NULL
+3	NULL
+Warnings:
+Warning	4075	Attempt to read unversioned field `b` in historical query
+select * from t for system_time as of timestamp now(6) where b is NULL;
+a	b
+1	NULL
+3	NULL
 Warnings:
 Warning	4075	Attempt to read unversioned field `b` in historical query
 Warning	4075	Attempt to read unversioned field `b` in historical query

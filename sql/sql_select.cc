@@ -1380,32 +1380,35 @@ JOIN::prepare(TABLE_LIST *tables_init,
   if (!procedure && result && result->prepare(fields_list, unit_arg))
     goto err;					/* purecov: inspected */
 
-  if (conds)
+  if (!thd->stmt_arena->is_stmt_prepare())
   {
-    conds=
-        conds->transform(thd, &Item::vers_optimized_fields_transformer, NULL);
-  }
+    if (conds)
+    {
+      conds=
+          conds->transform(thd, &Item::vers_optimized_fields_transformer, NULL);
+    }
 
-  for (ORDER *ord= order; ord; ord= ord->next)
-  {
-    ord->item_ptr=
-        (*ord->item)
-            ->transform(thd, &Item::vers_optimized_fields_transformer, NULL);
-    ord->item= &ord->item_ptr;
-  }
+    for (ORDER *ord= order; ord; ord= ord->next)
+    {
+      ord->item_ptr=
+          (*ord->item)
+              ->transform(thd, &Item::vers_optimized_fields_transformer, NULL);
+      ord->item= &ord->item_ptr;
+    }
 
-  for (ORDER *ord= group_list; ord; ord= ord->next)
-  {
-    ord->item_ptr=
-        (*ord->item)
-            ->transform(thd, &Item::vers_optimized_fields_transformer, NULL);
-    ord->item= &ord->item_ptr;
-  }
+    for (ORDER *ord= group_list; ord; ord= ord->next)
+    {
+      ord->item_ptr=
+          (*ord->item)
+              ->transform(thd, &Item::vers_optimized_fields_transformer, NULL);
+      ord->item= &ord->item_ptr;
+    }
 
-  if (having)
-  {
-    having=
-        having->transform(thd, &Item::vers_optimized_fields_transformer, NULL);
+    if (having)
+    {
+      having= having->transform(thd, &Item::vers_optimized_fields_transformer,
+                                NULL);
+    }
   }
 
   unit= unit_arg;
