@@ -1380,41 +1380,32 @@ JOIN::prepare(TABLE_LIST *tables_init,
   if (!procedure && result && result->prepare(fields_list, unit_arg))
     goto err;					/* purecov: inspected */
 
+  if (conds)
   {
-    List_iterator<Item> it(fields_list);
-    while (Item *item= it++)
-    {
-      it.replace(
-          item->transform(thd, &Item::vers_optimized_fields_transformer, NULL));
-    }
+    conds=
+        conds->transform(thd, &Item::vers_optimized_fields_transformer, NULL);
+  }
 
-    if (conds)
-    {
-      conds=
-          conds->transform(thd, &Item::vers_optimized_fields_transformer, NULL);
-    }
+  for (ORDER *ord= order; ord; ord= ord->next)
+  {
+    ord->item_ptr=
+        (*ord->item)
+            ->transform(thd, &Item::vers_optimized_fields_transformer, NULL);
+    ord->item= &ord->item_ptr;
+  }
 
-    for (ORDER *ord= order; ord; ord= ord->next)
-    {
-      ord->item_ptr=
-          (*ord->item)
-              ->transform(thd, &Item::vers_optimized_fields_transformer, NULL);
-      ord->item= &ord->item_ptr;
-    }
+  for (ORDER *ord= group_list; ord; ord= ord->next)
+  {
+    ord->item_ptr=
+        (*ord->item)
+            ->transform(thd, &Item::vers_optimized_fields_transformer, NULL);
+    ord->item= &ord->item_ptr;
+  }
 
-    for (ORDER *ord= group_list; ord; ord= ord->next)
-    {
-      ord->item_ptr=
-          (*ord->item)
-              ->transform(thd, &Item::vers_optimized_fields_transformer, NULL);
-      ord->item= &ord->item_ptr;
-    }
-
-    if (having)
-    {
-      having= having->transform(thd, &Item::vers_optimized_fields_transformer,
-                                NULL);
-    }
+  if (having)
+  {
+    having=
+        having->transform(thd, &Item::vers_optimized_fields_transformer, NULL);
   }
 
   unit= unit_arg;
@@ -3804,7 +3795,7 @@ void JOIN::exec_inner()
       DBUG_VOID_RETURN;
     }
   }
-  
+
   /*
     Evaluate all constant expressions with subqueries in the
     ORDER/GROUP clauses to make sure that all subqueries return a
@@ -3864,6 +3855,16 @@ void JOIN::exec_inner()
   result->send_result_set_metadata(
                  procedure ? procedure_fields_list : *fields,
                  Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF);
+
+  {
+    List_iterator<Item> it(*columns_list);
+    while (Item *item= it++)
+    {
+      it.replace(
+          item->transform(thd, &Item::vers_optimized_fields_transformer, NULL));
+    }
+  }
+
   error= do_select(this, procedure);
   /* Accumulate the counts from all join iterations of all join parts. */
   thd->inc_examined_row_count(join_examined_rows);
