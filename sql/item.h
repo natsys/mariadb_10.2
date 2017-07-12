@@ -1587,6 +1587,7 @@ public:
   */
   virtual bool check_valid_arguments_processor(void *arg) { return 0; }
   virtual bool update_vcol_processor(void *arg) { return 0; }
+  virtual bool vers_optimized_fields_processor(void *arg) { return false; }
   /*============== End of Item processor list ======================*/
 
   virtual Item *get_copy(THD *thd, MEM_ROOT *mem_root)=0;
@@ -2752,6 +2753,7 @@ public:
   uint32 max_display_length() const { return field->max_display_length(); }
   Item_field *field_for_view_update() { return this; }
   int fix_outer_field(THD *thd, Field **field, Item **reference);
+  virtual bool vers_optimized_fields_processor(void *);
   virtual Item *vers_optimized_fields_transformer(THD *thd, uchar *);
   virtual Item *update_value_transformer(THD *thd, uchar *select_arg);
   Item *derived_field_transformer_for_having(THD *thd, uchar *arg);

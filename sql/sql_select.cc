@@ -1382,32 +1382,35 @@ JOIN::prepare(TABLE_LIST *tables_init,
 
   if (!thd->stmt_arena->is_stmt_prepare())
   {
-    if (conds)
+    Item_processor processor= &Item::vers_optimized_fields_processor;
+    Item_transformer transformer= &Item::vers_optimized_fields_transformer;
+
+    if (conds && conds->walk(processor, true, NULL))
     {
-      conds=
-          conds->transform(thd, &Item::vers_optimized_fields_transformer, NULL);
+      conds= conds->transform(thd, transformer, NULL);
     }
 
     for (ORDER *ord= order; ord; ord= ord->next)
     {
-      ord->item_ptr=
-          (*ord->item)
-              ->transform(thd, &Item::vers_optimized_fields_transformer, NULL);
-      ord->item= &ord->item_ptr;
+      if ((*ord->item)->walk(processor, true, NULL))
+      {
+        ord->item_ptr= (*ord->item)->transform(thd, transformer, NULL);
+        ord->item= &ord->item_ptr;
+      }
     }
 
     for (ORDER *ord= group_list; ord; ord= ord->next)
     {
-      ord->item_ptr=
-          (*ord->item)
-              ->transform(thd, &Item::vers_optimized_fields_transformer, NULL);
-      ord->item= &ord->item_ptr;
+      if ((*ord->item)->walk(processor, true, NULL))
+      {
+        ord->item_ptr= (*ord->item)->transform(thd, transformer, NULL);
+        ord->item= &ord->item_ptr;
+      }
     }
 
-    if (having)
+    if (having && having->walk(processor, true, NULL))
     {
-      having= having->transform(thd, &Item::vers_optimized_fields_transformer,
-                                NULL);
+      having= having->transform(thd, transformer, NULL);
     }
   }
 
@@ -3863,8 +3866,11 @@ void JOIN::exec_inner()
     List_iterator<Item> it(*columns_list);
     while (Item *item= it++)
     {
-      it.replace(
-          item->transform(thd, &Item::vers_optimized_fields_transformer, NULL));
+      Item_processor processor= &Item::vers_optimized_fields_processor;
+      Item_transformer transformer= &Item::vers_optimized_fields_transformer;
+
+      if (item->walk(processor, true, NULL))
+        it.replace(item->transform(thd, transformer, NULL));
     }
   }
 
