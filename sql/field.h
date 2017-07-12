@@ -2130,6 +2130,18 @@ public:
 };
 
 
+class Field_vers_system :public Field_longlong {
+public:
+  Field_vers_system(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
+	      uchar null_bit_arg,
+	      enum utype unireg_check_arg, const char *field_name_arg,
+	      bool zero_arg, bool unsigned_arg)
+    :Field_longlong(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
+	       unireg_check_arg, field_name_arg, zero_arg,unsigned_arg)
+    {}
+};
+
+
 class Field_float :public Field_real {
 public:
   Field_float(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
@@ -3778,7 +3790,8 @@ Field *make_field(TABLE_SHARE *share, MEM_ROOT *mem_root,
                   CHARSET_INFO *cs,
                   Field::geometry_type geom_type, uint srid,
                   Field::utype unireg_check,
-                  TYPELIB *interval, const char *field_name);
+                  TYPELIB *interval, const char *field_name,
+                  uint32 flags= 0);
 
 /*
   Create field class for CREATE TABLE

@@ -10373,7 +10373,8 @@ Field *make_field(TABLE_SHARE *share,
 		  Field::geometry_type geom_type, uint srid,
 		  Field::utype unireg_check,
 		  TYPELIB *interval,
-		  const char *field_name)
+		  const char *field_name,
+		  uint32 flags)
 {
   uchar *UNINIT_VAR(bit_ptr);
   uchar UNINIT_VAR(bit_offset);
@@ -10527,11 +10528,22 @@ Field *make_field(TABLE_SHARE *share,
                  f_is_zerofill(pack_flag) != 0,
                  f_is_dec(pack_flag) == 0);
   case MYSQL_TYPE_LONGLONG:
-    return new (mem_root)
-      Field_longlong(ptr,field_length,null_pos,null_bit,
-                     unireg_check, field_name,
-                     f_is_zerofill(pack_flag) != 0,
-                     f_is_dec(pack_flag) == 0);
+    if (flags & (VERS_SYS_START_FLAG|VERS_SYS_END_FLAG))
+    {
+      return new (mem_root)
+        Field_vers_system(ptr, field_length, null_pos, null_bit,
+                      unireg_check, field_name,
+                      f_is_zerofill(pack_flag) != 0,
+                      f_is_dec(pack_flag) == 0);
+    }
+    else
+    {
+      return new (mem_root)
+        Field_longlong(ptr,field_length,null_pos,null_bit,
+                      unireg_check, field_name,
+                      f_is_zerofill(pack_flag) != 0,
+                      f_is_dec(pack_flag) == 0);
+    }
   case MYSQL_TYPE_TIMESTAMP:
   {
     uint dec= field_length > MAX_DATETIME_WIDTH ?
