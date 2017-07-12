@@ -10743,10 +10743,10 @@ bool Item_field::exclusive_dependence_on_grouping_fields_processor(void *arg)
   return true;
 }
 
-bool Item_field::vers_optimized_fields_processor(void *)
+Item *Item_field::vers_optimized_fields_transformer(THD *thd, uchar *)
 {
   if (!field)
-    return false;
+    return this;
 
   if (field->flags & VERS_OPTIMIZED_UPDATE_FLAG && context &&
       ((field->table->pos_in_table_list &&
@@ -10758,22 +10758,7 @@ bool Item_field::vers_optimized_fields_processor(void *)
         ER_NON_VERSIONED_FIELD_IN_VERSIONED_QUERY,
         ER_THD(current_thd, ER_NON_VERSIONED_FIELD_IN_VERSIONED_QUERY),
         field_name);
-    return true;
-  }
 
-  return false;
-}
-
-Item *Item_field::vers_optimized_fields_transformer(THD *thd, uchar *)
-{
-  if (!field)
-    return this;
-
-  if (field->flags & VERS_OPTIMIZED_UPDATE_FLAG && context &&
-      ((field->table->pos_in_table_list &&
-        field->table->pos_in_table_list->vers_conditions) ||
-       (context->select_lex && context->select_lex->vers_conditions)))
-  {
     Item *null_item= new (thd->mem_root) Item_null(thd);
     if (null_item)
       return null_item;

@@ -1382,35 +1382,41 @@ JOIN::prepare(TABLE_LIST *tables_init,
 
   if (!thd->stmt_arena->is_stmt_prepare())
   {
-    Item_processor processor= &Item::vers_optimized_fields_processor;
-    Item_transformer transformer= &Item::vers_optimized_fields_transformer;
-
-    if (conds && conds->walk(processor, true, NULL))
+    bool have_versioned_tables= false;
+    for (TABLE_LIST *table= tables_list; table; table= table->next_local)
     {
-      conds= conds->transform(thd, transformer, NULL);
+      if (table->table && table->table->versioned())
+      {
+        have_versioned_tables= true;
+        break;
+      }
     }
 
-    for (ORDER *ord= order; ord; ord= ord->next)
+    if (have_versioned_tables)
     {
-      if ((*ord->item)->walk(processor, true, NULL))
+      Item_transformer transformer= &Item::vers_optimized_fields_transformer;
+
+      if (conds)
+      {
+        conds= conds->transform(thd, transformer, NULL);
+      }
+
+      for (ORDER *ord= order; ord; ord= ord->next)
       {
         ord->item_ptr= (*ord->item)->transform(thd, transformer, NULL);
         ord->item= &ord->item_ptr;
       }
-    }
 
-    for (ORDER *ord= group_list; ord; ord= ord->next)
-    {
-      if ((*ord->item)->walk(processor, true, NULL))
+      for (ORDER *ord= group_list; ord; ord= ord->next)
       {
         ord->item_ptr= (*ord->item)->transform(thd, transformer, NULL);
         ord->item= &ord->item_ptr;
       }
-    }
 
-    if (having && having->walk(processor, true, NULL))
-    {
-      having= having->transform(thd, transformer, NULL);
+      if (having)
+      {
+        having= having->transform(thd, transformer, NULL);
+      }
     }
   }
 
@@ -3866,11 +3872,8 @@ void JOIN::exec_inner()
     List_iterator<Item> it(*columns_list);
     while (Item *item= it++)
     {
-      Item_processor processor= &Item::vers_optimized_fields_processor;
       Item_transformer transformer= &Item::vers_optimized_fields_transformer;
-
-      if (item->walk(processor, true, NULL))
-        it.replace(item->transform(thd, transformer, NULL));
+      it.replace(item->transform(thd, transformer, NULL));
     }
   }
 
