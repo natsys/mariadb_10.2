@@ -1999,6 +1999,34 @@ bool Field_num::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
 }
 
 
+bool Field_vers_system::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+{
+  ASSERT_COLUMN_MARKED_FOR_READ;
+  DBUG_ASSERT(ltime);
+  if (!table || !table->s)
+    return true;
+  DBUG_ASSERT(table->versioned_by_engine());
+  handlerton *hton= table->s->db_type();
+  DBUG_ASSERT(hton);
+  longlong trx_id= val_int();
+  if (!trx_id)
+    return true;
+  if (cached == trx_id)
+  {
+    *ltime= cache;
+    return false;
+  }
+  bool found= hton->vers_query_trx_id(get_thd(), &cache, trx_id, VTQ_COMMIT_TS);
+  if (found)
+  {
+    *ltime= cache;
+    cached= trx_id;
+    return false;
+  }
+  return true;
+}
+
+
 Field_str::Field_str(uchar *ptr_arg,uint32 len_arg, uchar *null_ptr_arg,
                      uchar null_bit_arg, utype unireg_check_arg,
                      const char *field_name_arg, CHARSET_INFO *charset_arg)

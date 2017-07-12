@@ -2131,14 +2131,18 @@ public:
 
 
 class Field_vers_system :public Field_longlong {
+  MYSQL_TIME cache;
+  longlong cached;
 public:
   Field_vers_system(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
 	      uchar null_bit_arg,
 	      enum utype unireg_check_arg, const char *field_name_arg,
 	      bool zero_arg, bool unsigned_arg)
     :Field_longlong(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
-	       unireg_check_arg, field_name_arg, zero_arg,unsigned_arg)
+	       unireg_check_arg, field_name_arg, zero_arg,unsigned_arg),
+    cached(0)
     {}
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
 };
 
 
