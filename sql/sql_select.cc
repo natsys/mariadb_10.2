@@ -3807,7 +3807,7 @@ void JOIN::exec_inner()
       DBUG_VOID_RETURN;
     }
   }
-
+  
   /*
     Evaluate all constant expressions with subqueries in the
     ORDER/GROUP clauses to make sure that all subqueries return a
