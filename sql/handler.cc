@@ -6870,13 +6870,10 @@ bool Vers_parse_info::check_and_fix_alter(THD *thd, Alter_info *alter_info,
         if (f->versioning == Column_definition::WITHOUT_VERSIONING)
           f->flags|= VERS_OPTIMIZED_UPDATE_FLAG;
 
-        if (const char *change= f->change)
+        if (f->change && (!strcmp(f->change, start) || !strcmp(f->change, end)))
         {
-          if (!strcmp(change, start) || !strcmp(change, end))
-          {
-            my_error(ER_VERS_ALTER_SYSTEM_FIELD, MYF(0), f->change);
-            return true;
-          }
+          my_error(ER_VERS_ALTER_SYSTEM_FIELD, MYF(0), f->change);
+          return true;
         }
       }
     }
