@@ -2142,6 +2142,7 @@ public:
 	       unireg_check_arg, field_name_arg, zero_arg,unsigned_arg),
     cached(0)
     {}
+  uint size_of() const { return sizeof(*this); }
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
 };
 
