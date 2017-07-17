@@ -57,13 +57,12 @@ struct Vers_part_info : public Sql_alloc
   {
     if (now_part)
     {
-      DBUG_ASSERT(
-        now_part->id != UINT32_MAX &&
-        now_part->type == partition_element::AS_OF_NOW &&
-        (fully ? (bool) hist_part : true) &&
-        (!hist_part || (
+      DBUG_ASSERT(now_part->id != UINT32_MAX);
+      DBUG_ASSERT(now_part->type == partition_element::AS_OF_NOW);
+      DBUG_ASSERT(!fully || (bool) hist_part);
+      DBUG_ASSERT(!hist_part || (
           hist_part->id != UINT32_MAX &&
-          hist_part->type == partition_element::VERSIONING)));
+          hist_part->type == partition_element::VERSIONING));
       return true;
     }
     return false;
