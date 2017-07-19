@@ -1,0 +1,2 @@
+[myisam]
+default-storage-engine=myisam

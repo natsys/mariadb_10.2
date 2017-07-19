@@ -12815,7 +12815,7 @@ static bool record_compare(TABLE *table)
   /* Compare fields */
   for (Field **ptr=table->field ; *ptr ; ptr++)
   {
-    if (table->versioned_by_engine() && *ptr == table->vers_start_field())
+    if (table->versioned_by_sql() && (*ptr)->vers_sys_field())
     {
       continue;
     }
@@ -13013,19 +13013,15 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
   prepare_record(table, m_width, FALSE);
   error= unpack_current_row(rgi);
 
-
-  if (table->versioned())
+  m_unversioned_to_versioned= false;
+  if (table->versioned_by_sql())
   {
     Field *sys_trx_end= table->vers_end_field();
     DBUG_ASSERT(table->read_set);
-    bitmap_set_bit(table->read_set, sys_trx_end->field_index);
     // master table is unversioned
     if (sys_trx_end->val_int() == 0)
     {
-      DBUG_ASSERT(table->write_set);
-      bitmap_set_bit(table->write_set, sys_trx_end->field_index);
-      sys_trx_end->set_max();
-      table->vers_start_field()->set_notnull();
+      m_unversioned_to_versioned= true;
     }
   }
 
@@ -13411,7 +13407,7 @@ int Delete_rows_log_event::do_exec_row(rpl_group_info *rgi)
     if (!error)
     {
       m_table->mark_columns_per_binlog_row_image();
-      if (m_table->versioned_by_sql())
+      if (m_table->versioned_by_sql() && m_unversioned_to_versioned)
       {
         Field *end= m_table->vers_end_field();
         bitmap_set_bit(m_table->write_set, end->field_index);
@@ -13680,7 +13676,7 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
   memcpy(m_table->write_set->bitmap, m_cols_ai.bitmap, (m_table->write_set->n_bits + 7) / 8);
 
   m_table->mark_columns_per_binlog_row_image();
-  if (m_table->versioned_by_sql())
+  if (m_table->versioned_by_sql() && m_unversioned_to_versioned)
   {
     bitmap_set_bit(m_table->write_set,
                    m_table->vers_start_field()->field_index);
@@ -13690,7 +13686,7 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
   error= m_table->file->ha_update_row(m_table->record[1], m_table->record[0]);
   if (error == HA_ERR_RECORD_IS_THE_SAME)
     error= 0;
-  if (m_table->versioned_by_sql())
+  if (m_table->versioned_by_sql() && m_unversioned_to_versioned)
   {
     store_record(m_table, record[2]);
     error= vers_insert_history_row(m_table);
