@@ -53,10 +53,10 @@ begin
 
   if engine = 'innodb' then
     select x as ASOF2_x, y from t1 for system_time as of transaction @x0;
-    select x as FROMTO2_x, y from t1 for system_time from transaction 0 to transaction @x1;
-    select x as BETWAND2_x, y from t1 for system_time between transaction 0 and transaction @x1;
-    select x as FROMTO2_ext_x, y from t1 for system_time transaction from 0 to @x1;
-    select x as BETWAND2_ext_x, y from t1 for system_time transaction between 0 and @x1;
+    select x as FROMTO2_x, y from t1 for system_time from transaction @x0 to transaction @x1;
+    select x as BETWAND2_x, y from t1 for system_time between transaction @x0 and transaction @x1;
+    select x as FROMTO2_ext_x, y from t1 for system_time transaction from @x0 to @x1;
+    select x as BETWAND2_ext_x, y from t1 for system_time transaction between @x0 and @x1;
   else
     select x as ASOF2_x, y from t1 for system_time as of timestamp @t0;
     select x as FROMTO2_x, y from t1 for system_time from timestamp '0-0-0 0:0:0' to timestamp @t1;
