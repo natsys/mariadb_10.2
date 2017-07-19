@@ -1999,14 +1999,13 @@ bool Field_num::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
 }
 
 
-bool Field_vers_system::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+bool Field_vers_system::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate, ulonglong trx_id)
 {
   ASSERT_COLUMN_MARKED_FOR_READ;
   DBUG_ASSERT(ltime);
   if (!table || !table->s)
     return true;
   DBUG_ASSERT(table->versioned_by_engine());
-  longlong trx_id= val_int();
   if (!trx_id)
     return true;
   if (trx_id == ULONGLONG_MAX)

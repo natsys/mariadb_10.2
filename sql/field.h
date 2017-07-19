@@ -1402,7 +1402,7 @@ public:
       FIELD_FLAGS_COLUMN_FORMAT;
   }
 
-  bool vers_sys_field()
+  bool vers_sys_field() const
   {
     return flags & (VERS_SYS_START_FLAG | VERS_SYS_END_FLAG);
   }
@@ -2132,7 +2132,7 @@ public:
 
 class Field_vers_system :public Field_longlong {
   MYSQL_TIME cache;
-  longlong cached;
+  ulonglong cached;
 public:
   Field_vers_system(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
 	      uchar null_bit_arg,
@@ -2145,7 +2145,11 @@ public:
   enum_field_types real_type() const { return MYSQL_TYPE_LONGLONG; }
   enum_field_types type() const { return MYSQL_TYPE_DATETIME;}
   uint size_of() const { return sizeof(*this); }
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate, ulonglong trx_id);
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  {
+    return get_date(ltime, fuzzydate, (ulonglong) val_int());
+  }
 };
 
 
