@@ -2005,7 +2005,8 @@ bool Field_vers_system::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate, ulonglo
   DBUG_ASSERT(ltime);
   if (!table || !table->s)
     return true;
-  DBUG_ASSERT(table->versioned_by_engine());
+  DBUG_ASSERT(table->versioned_by_engine() ||
+    (table->versioned() && table->s->table_category == TABLE_CATEGORY_TEMPORARY));
   if (!trx_id)
     return true;
   if (trx_id == ULONGLONG_MAX)

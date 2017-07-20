@@ -3802,7 +3802,7 @@ Field *make_field(TABLE_SHARE *share, MEM_ROOT *mem_root,
                   Field::geometry_type geom_type, uint srid,
                   Field::utype unireg_check,
                   TYPELIB *interval, const char *field_name,
-                  uint32 flags= 0);
+                  uint32 flags);
 
 /*
   Create field class for CREATE TABLE
@@ -3989,7 +3989,7 @@ public:
                         (uint32)length, null_pos, null_bit,
                         pack_flag, sql_type, charset,
                         geom_type, srid, unireg_check, interval,
-                        field_name_arg);
+                        field_name_arg, flags);
   }
   Field *make_field(TABLE_SHARE *share, MEM_ROOT *mem_root,
                     const char *field_name_arg)
