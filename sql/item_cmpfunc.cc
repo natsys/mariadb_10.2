@@ -5261,7 +5261,10 @@ bool Item_bool_func2::fix_fields(THD* thd, Item** ref)
     my_error(ER_VERS_NO_TRX_ID, MYF(0), trx_id_val);
     return true;
   }
+  Query_arena_stmt on_stmt_arena(thd);
   Item *datetime= new (thd->mem_root) Item_datetime_literal(thd, &ltime, 6);
+  if (!datetime)
+    return true;
   DBUG_ASSERT(arg_idx > -1);
   args[arg_idx]= datetime;
   return false;
