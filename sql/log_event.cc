@@ -12514,6 +12514,7 @@ Rows_log_event::write_row(rpl_group_info *rgi,
   // Set vers fields when replicating from not system-versioned table.
   if (m_type == WRITE_ROWS_EVENT_V1 && table->versioned_by_sql())
   {
+    bitmap_set_bit(table->read_set, table->vers_start_field()->field_index);
     // Check whether a row came from unversioned table and fix vers fields.
     if (table->vers_start_field()->get_timestamp() == 0)
     {
@@ -13020,8 +13021,10 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
     DBUG_ASSERT(table->read_set);
     bitmap_set_bit(table->read_set, sys_trx_end->field_index);
     // check whether master table is unversioned
-    if (sys_trx_end->val_int() == 0)
+    if (sys_trx_end->get_timestamp() == 0)
     {
+      bitmap_set_bit(table->write_set, sys_trx_end->field_index);
+      table->vers_end_field()->set_max();
       m_unversioned_to_versioned= true;
     }
   }
