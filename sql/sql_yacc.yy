@@ -8855,7 +8855,22 @@ opt_system_time_clause:
         | SYSTEM_TIME_SYM system_time_expr
           {
             DBUG_ASSERT(Select);
-            Select->vers_conditions= Lex->vers_conditions;
+            int used= 0;
+            if (Lex->vers_conditions)
+            {
+              for (TABLE_LIST *table= Select->table_list.first; table; table= table->next_local)
+              {
+                if (!table->vers_conditions)
+                {
+                  table->vers_conditions= Lex->vers_conditions;
+                  used++;
+                }
+              }
+              if (!used)
+              {
+                my_yyabort_error((ER_VERS_UNUSED_CLAUSE, MYF(0), "SYSTEM_TIME"));
+              }
+            }
           }
         ;
 
