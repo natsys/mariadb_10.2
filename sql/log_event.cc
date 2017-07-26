@@ -13015,13 +13015,13 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
   error= unpack_current_row(rgi);
 
   m_unversioned_to_versioned= false;
-  if (table->versioned_by_sql())
+  if (table->versioned())
   {
     Field *sys_trx_end= table->vers_end_field();
     DBUG_ASSERT(table->read_set);
     bitmap_set_bit(table->read_set, sys_trx_end->field_index);
     // check whether master table is unversioned
-    if (sys_trx_end->get_timestamp() == 0)
+    if (sys_trx_end->val_int() == 0)
     {
       table->vers_start_field()->set_notnull();
       bitmap_set_bit(table->write_set, sys_trx_end->field_index);
