@@ -764,48 +764,15 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
   }
 
   SELECT_LEX *outer_slex= slex->next_select_in_list();
-  if (outer_slex)
+  // propagate derived conditions to outer SELECT_LEX
+  if (outer_slex && slex->vers_export_outer)
   {
-    if (slex->vers_export_outer)
+    for (table= outer_slex->table_list.first; table; table= table->next_local)
     {
-      // Propagate derived conditions to outer SELECT_LEX:
-#if 0
-      if (!outer_slex->vers_conditions)
+      if (!table->vers_conditions)
       {
-        outer_slex->vers_conditions= slex->vers_derived_conds;
-        outer_slex->vers_from_inner= true;
-        outer_slex->vers_conditions.used= true;
-      }
-#endif
-    }
-    if (slex->vers_import_outer)
-    {
-      DBUG_ASSERT(slex->master_unit());
-      TABLE_LIST* derived= slex->master_unit()->derived;
-      DBUG_ASSERT(derived);
-      if (derived->vers_conditions)
-      {
-#if 0
-        slex->vers_conditions= derived->vers_conditions;
-#endif
-        derived->vers_conditions.used= true;
-        //force_slex_conds= derived->is_view();
-      }
-      else
-      {
-#if 0
-        // Propagate query conditions from nearest outer SELECT_LEX:
-        while (outer_slex && (!outer_slex->vers_conditions || outer_slex->vers_from_inner))
-          outer_slex= outer_slex->next_select_in_list();
-#endif
-        if (outer_slex)
-        {
-#if 0
-          slex->vers_conditions= outer_slex->vers_conditions;
-          outer_slex->vers_conditions.used= true;
-#endif
-          //force_slex_conds= derived->is_view();
-        }
+        table->vers_conditions= slex->vers_export_outer;
+        table->vers_conditions.from_inner= true;
       }
     }
   }
@@ -816,6 +783,24 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
     {
       vers_select_conds_t &vers_conditions= table->vers_conditions;
 
+      // propagate system_time from nearest outer SELECT_LEX
+      if (!vers_conditions && outer_slex && slex->vers_import_outer)
+      {
+        TABLE_LIST* derived= slex->master_unit()->derived;
+        while (outer_slex && (!derived->vers_conditions || derived->vers_conditions.from_inner))
+        {
+          derived= outer_slex->master_unit()->derived;
+          outer_slex= outer_slex->next_select_in_list();
+        }
+        if (outer_slex)
+        {
+          DBUG_ASSERT(derived);
+          DBUG_ASSERT(derived->vers_conditions);
+          vers_conditions= derived->vers_conditions;
+        }
+      }
+
+      // propagate system_time from sysvar
       if (!vers_conditions)
       {
         if (vers_conditions.init_from_sysvar(thd))

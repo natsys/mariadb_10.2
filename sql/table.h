@@ -1856,14 +1856,13 @@ struct vers_select_conds_t
   vers_range_unit_t unit;
   bool import_outer:1;
   bool from_inner:1;
-  bool used:1;
   Item *start, *end;
 
   void empty()
   {
     type= FOR_SYSTEM_TIME_UNSPECIFIED;
     unit= UNIT_TIMESTAMP;
-    import_outer= from_inner= used= false;
+    import_outer= from_inner= false;
     start= end= NULL;
   }
 
@@ -1877,7 +1876,7 @@ struct vers_select_conds_t
     unit= u;
     start= s;
     end= e;
-    import_outer= from_inner= used= false;
+    import_outer= from_inner= false;
   }
 
   bool init_from_sysvar(THD *thd);

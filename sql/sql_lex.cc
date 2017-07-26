@@ -2283,7 +2283,6 @@ void st_select_lex::init_select()
   join= 0;
   lock_type= TL_READ_DEFAULT;
   vers_import_outer= false;
-  vers_from_inner= false;
   vers_export_outer.empty();
 }
 

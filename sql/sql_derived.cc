@@ -833,7 +833,7 @@ expli_table_err:
           sl->vers_export_outer= impli_table->vers_conditions;
         }
         else
-          sl->vers_import_outer= true;
+          sl->vers_import_outer= true; // FIXME: is needed?
       }
     } // if (sl->table_list.elements > 0)
 #pragma GCC diagnostic pop
