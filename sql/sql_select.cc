@@ -714,14 +714,7 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
   }
 
   if (versioned_tables == 0)
-  {
-    if (slex->vers_conditions)
-    {
-      my_error(ER_VERS_UNUSED_CLAUSE, MYF(0), "SYSTEM_TIME");
-      DBUG_RETURN(-1);
-    }
     DBUG_RETURN(0);
-  }
 
   /* For prepared statements we create items on statement arena,
      because they must outlive execution phase for multiple executions. */
@@ -771,40 +764,47 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
   }
 
   SELECT_LEX *outer_slex= slex->next_select_in_list();
-  bool force_slex_conds= false;
   if (outer_slex)
   {
-    if (slex->vers_derived_conds)
+    if (slex->vers_export_outer)
     {
       // Propagate derived conditions to outer SELECT_LEX:
+#if 0
       if (!outer_slex->vers_conditions)
       {
         outer_slex->vers_conditions= slex->vers_derived_conds;
-        outer_slex->vers_conditions.from_inner= true;
+        outer_slex->vers_from_inner= true;
         outer_slex->vers_conditions.used= true;
       }
+#endif
     }
-    if (slex->vers_conditions.import_outer)
+    if (slex->vers_import_outer)
     {
       DBUG_ASSERT(slex->master_unit());
       TABLE_LIST* derived= slex->master_unit()->derived;
       DBUG_ASSERT(derived);
       if (derived->vers_conditions)
       {
+#if 0
         slex->vers_conditions= derived->vers_conditions;
+#endif
         derived->vers_conditions.used= true;
-        force_slex_conds= derived->is_view();
+        //force_slex_conds= derived->is_view();
       }
       else
       {
+#if 0
         // Propagate query conditions from nearest outer SELECT_LEX:
-        while (outer_slex && (!outer_slex->vers_conditions || outer_slex->vers_conditions.from_inner))
+        while (outer_slex && (!outer_slex->vers_conditions || outer_slex->vers_from_inner))
           outer_slex= outer_slex->next_select_in_list();
+#endif
         if (outer_slex)
         {
+#if 0
           slex->vers_conditions= outer_slex->vers_conditions;
           outer_slex->vers_conditions.used= true;
-          force_slex_conds= derived->is_view();
+#endif
+          //force_slex_conds= derived->is_view();
         }
       }
     }
@@ -814,9 +814,7 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
   {
     if (table->table && table->table->versioned())
     {
-      vers_select_conds_t &vers_conditions= force_slex_conds || !table->vers_conditions?
-          (slex->vers_conditions.used= true, slex->vers_conditions) :
-          table->vers_conditions;
+      vers_select_conds_t &vers_conditions= table->vers_conditions;
 
       if (!vers_conditions)
       {
@@ -993,12 +991,6 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
       }
     } // if (... table->table->versioned())
   } // for (table= tables; ...)
-
-  if (!slex->vers_conditions.used && slex->vers_conditions)
-  {
-    my_error(ER_VERS_UNUSED_CLAUSE, MYF(0), "SYSTEM_TIME");
-    DBUG_RETURN(-1);
-  }
 
   DBUG_RETURN(0);
 #undef newx
