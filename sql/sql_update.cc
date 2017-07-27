@@ -1036,6 +1036,9 @@ int mysql_update(THD *thd,
       else
         errcode= query_error_code(thd, killed_status == NOT_KILLED);
 
+      ScopedStatementReplication scoped_stmt_rpl(
+          table->versioned_by_engine() ? thd : NULL);
+
       if (thd->binlog_query(THD::ROW_QUERY_TYPE,
                             thd->query(), thd->query_length(),
                             transactional_table, FALSE, FALSE, errcode))

@@ -12816,7 +12816,7 @@ static bool record_compare(TABLE *table)
   /* Compare fields */
   for (Field **ptr=table->field ; *ptr ; ptr++)
   {
-    if (table->versioned_by_sql() && (*ptr)->vers_sys_field())
+    if (table->versioned() && (*ptr)->vers_sys_field())
     {
       continue;
     }
@@ -13412,7 +13412,7 @@ int Delete_rows_log_event::do_exec_row(rpl_group_info *rgi)
     if (!error)
     {
       m_table->mark_columns_per_binlog_row_image();
-      if (m_unversioned_to_versioned)
+      if (m_unversioned_to_versioned && m_table->versioned_by_sql())
       {
         Field *end= m_table->vers_end_field();
         bitmap_set_bit(m_table->write_set, end->field_index);
@@ -13681,7 +13681,7 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
   memcpy(m_table->write_set->bitmap, m_cols_ai.bitmap, (m_table->write_set->n_bits + 7) / 8);
 
   m_table->mark_columns_per_binlog_row_image();
-  if (m_unversioned_to_versioned)
+  if (m_unversioned_to_versioned && m_table->versioned_by_sql())
   {
     bitmap_set_bit(m_table->write_set,
                    m_table->vers_start_field()->field_index);
@@ -13691,7 +13691,7 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
   error= m_table->file->ha_update_row(m_table->record[1], m_table->record[0]);
   if (error == HA_ERR_RECORD_IS_THE_SAME)
     error= 0;
-  if (m_unversioned_to_versioned)
+  if (m_unversioned_to_versioned && m_table->versioned_by_sql())
   {
     store_record(m_table, record[2]);
     error= vers_insert_history_row(m_table);
