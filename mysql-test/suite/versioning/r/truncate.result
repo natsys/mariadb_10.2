@@ -1,6 +1,6 @@
 create table t (a int);
 truncate t for system_time all;
-ERROR HY000: Unused clause: 'SYSTEM_TIME'
+ERROR HY000: System Versioning required: t
 create procedure truncate_history_of_t()
 begin
 prepare stmt from 'truncate t for system_time timestamp between \'1-1-1\' and now(6)';

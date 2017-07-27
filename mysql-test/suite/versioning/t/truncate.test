@@ -1,7 +1,7 @@
 -- source include/have_innodb.inc
 
 create table t (a int);
---error ER_VERS_UNUSED_CLAUSE
+--error ER_VERSIONING_REQUIRED
 truncate t for system_time all;
 
 delimiter ~~;
