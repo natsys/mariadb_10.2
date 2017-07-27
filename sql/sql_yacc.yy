@@ -4742,8 +4742,8 @@ size_number:
 create_body:
           '(' create_field_list ')'
           { Lex->create_info.option_list= NULL; }
-          opt_create_table_options opt_create_partitioning opt_create_select {}
-        | opt_create_table_options opt_create_partitioning opt_create_select {}
+          opt_create_table_options opt_create_partitioning opt_create_select opt_versioning_option {}
+        | opt_create_table_options opt_create_partitioning opt_create_select opt_versioning_option {}
         /*
           the following rule is redundant, but there's a shift/reduce
           conflict that prevents the rule above from parsing a syntax like
@@ -5951,6 +5951,10 @@ create_table_option:
 	    Lex->create_info.used_fields|= HA_CREATE_USED_SEQUENCE;
             Lex->create_info.sequence= $3;
 	  }
+        ;
+
+opt_versioning_option:
+          /* empty */
         | WITH_SYSTEM_SYM table_versioning
           {
             Lex->vers_get_info().with_system_versioning= true;
