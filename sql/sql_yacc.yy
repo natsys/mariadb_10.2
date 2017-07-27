@@ -4742,8 +4742,8 @@ size_number:
 create_body:
           '(' create_field_list ')'
           { Lex->create_info.option_list= NULL; }
-          opt_create_table_options opt_create_partitioning opt_create_select opt_versioning_option {}
-        | opt_create_table_options opt_create_partitioning opt_create_select opt_versioning_option {}
+          opt_create_table_options_versioning opt_create_partitioning opt_create_select {}
+        | opt_create_table_options_versioning opt_create_partitioning opt_create_select {}
         /*
           the following rule is redundant, but there's a shift/reduce
           conflict that prevents the rule above from parsing a syntax like
@@ -4774,7 +4774,7 @@ create_like:
 
 opt_create_select:
           /* empty */ {}
-        | opt_duplicate opt_as create_select_query_expression
+        | opt_duplicate opt_as create_select_query_expression opt_versioning_option
         ;
 
 create_select_query_expression:
@@ -5696,6 +5696,11 @@ opt_create_table_options:
         | create_table_options
         ;
 
+opt_create_table_options_versioning:
+          /* empty */
+        | create_table_options_versioning
+        ;
+
 create_table_options_space_separated:
           create_table_option
         | create_table_option create_table_options_space_separated
@@ -5705,6 +5710,12 @@ create_table_options:
           create_table_option
         | create_table_option     create_table_options
         | create_table_option ',' create_table_options
+        ;
+
+create_table_options_versioning:
+          create_table_option_versioning
+        | create_table_option_versioning     create_table_options_versioning
+        | create_table_option_versioning ',' create_table_options_versioning
         ;
 
 create_table_option:
@@ -5953,9 +5964,18 @@ create_table_option:
 	  }
         ;
 
+create_table_option_versioning:
+          create_table_option
+        | versioning_option
+        ;
+
 opt_versioning_option:
           /* empty */
-        | WITH_SYSTEM_SYM table_versioning
+        | versioning_option
+        ;
+
+versioning_option:
+        WITH_SYSTEM_SYM table_versioning
           {
             Lex->vers_get_info().with_system_versioning= true;
             Lex->create_info.options|= HA_VERSIONED_TABLE;
