@@ -72,5 +72,19 @@ sync_slave_with_master;
 select * from t1;
 select * from t1 for system_time all;
 
+# multi-update
 connection master;
-drop table t1;
+create or replace table t1 (x int) with system versioning;
+create or replace table t2 (x int) with system versioning;
+insert into t1 values (1);
+insert into t2 values (2);
+update t1, t2 set t1.x=11, t2.x=22;
+sync_slave_with_master;
+select * from t1;
+select * from t2;
+select * from t1 for system_time all;
+select * from t2 for system_time all;
+
+
+connection master;
+drop table t1, t2;

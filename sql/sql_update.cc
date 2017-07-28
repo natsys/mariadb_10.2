@@ -2677,9 +2677,21 @@ bool multi_update::send_eof()
         thd->clear_error();
       else
         errcode= query_error_code(thd, killed_status == NOT_KILLED);
-      if (thd->binlog_query(THD::ROW_QUERY_TYPE,
-                            thd->query(), thd->query_length(),
-                            transactional_tables, FALSE, FALSE, errcode))
+
+      bool force_stmt= false;
+      for (TABLE *table= all_tables->table; table; table= table->next)
+      {
+        if (table->versioned_by_engine())
+        {
+          force_stmt= true;
+          break;
+        }
+      }
+      ScopedStatementReplication scoped_stmt_rpl(force_stmt ? thd : NULL);
+
+      if (thd->binlog_query(THD::ROW_QUERY_TYPE, thd->query(),
+                            thd->query_length(), transactional_tables, FALSE,
+                            FALSE, errcode))
       {
 	local_error= 1;				// Rollback update
       }
