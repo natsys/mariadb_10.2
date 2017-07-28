@@ -4588,7 +4588,7 @@ protected:
   uchar    *m_extra_row_data;   /* Pointer to extra row data if any */
                                 /* If non null, first byte is length */
 
-  bool m_unversioned_to_versioned;
+  bool m_vers_from_plain;
 
 
   /* helper functions */
