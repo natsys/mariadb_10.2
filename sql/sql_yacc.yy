@@ -5974,28 +5974,14 @@ opt_versioning_option:
         ;
 
 versioning_option:
-        WITH_SYSTEM_SYM table_versioning
+        WITH_SYSTEM_SYM VERSIONING_SYM
           {
             Lex->vers_get_info().with_system_versioning= true;
             Lex->create_info.options|= HA_VERSIONED_TABLE;
           }
-	| WITHOUT SYSTEM table_versioning
+	| WITHOUT SYSTEM VERSIONING_SYM
           {
             Lex->vers_get_info().without_system_versioning= true;
-          }
-        ;
-
-table_versioning:
-          VERSIONING_SYM
-          {
-            Vers_parse_info &info= Lex->vers_get_info();
-            if (info.with_system_versioning || info.without_system_versioning)
-            {
-              my_error_as(ER_VERS_WRONG_PARAMS, ER_MULTIPLE_CLAUSE, MYF(0),
-                Lex->create_last_non_select_table->table_name,
-                "WITH/WITHOUT SYSTEM VERSIONING");
-              MYSQL_YYABORT;
-            }
           }
         ;
 
@@ -6201,13 +6187,6 @@ period_for_system_time:
           PERIOD_SYM FOR_SYSTEM_TIME_SYM '(' ident ',' ident ')'
           {
             Vers_parse_info &info= Lex->vers_get_info();
-            if (!my_strcasecmp(system_charset_info, $4.str, $6.str))
-            {
-              my_error_as(ER_VERS_WRONG_PARAMS, ER_MULTIPLE_IDENTIFIER, MYF(0),
-                Lex->create_last_non_select_table->table_name, $4.str,
-                "PERIOD FOR SYSTEM_TIME");
-              MYSQL_YYABORT;
-            }
             info.set_period_for_system_time($4, $6);
           }
         ;
@@ -6342,12 +6321,6 @@ field_def:
               break;
             }
             DBUG_ASSERT(p);
-            if (*p)
-            {
-              my_error_as(ER_VERS_WRONG_PARAMS, ER_MULTIPLE_CLAUSE_2, MYF(0),
-                table_name, clause, field_name, p->ptr());
-              MYSQL_YYABORT;
-            }
             *p= field_name;
             if (lex->last_field->implicit_not_null)
             {
@@ -6844,13 +6817,6 @@ serial_attribute:
           }
         | with_or_without_system VERSIONING_SYM
           {
-            if (Lex->last_field->versioning != Column_definition::VERSIONING_NOT_SET)
-            {
-              my_error_as(ER_VERS_WRONG_PARAMS, ER_MULTIPLE_CLAUSE_FOR, MYF(0),
-                   Lex->create_last_non_select_table->table_name,
-                   "WITH/WITHOUT SYSTEM VERSIONING", Lex->last_field->field_name);
-              MYSQL_YYABORT;
-            }
             Lex->last_field->versioning= $1;
             Lex->create_info.options|= HA_VERSIONED_TABLE;
           }
