@@ -2509,7 +2509,7 @@ create:
                                                      sequence_definition()))
                MYSQL_YYABORT;
          }
-         opt_sequence opt_create_table_options
+         opt_sequence opt_create_sequence_options
          {
             LEX *lex= thd->lex;
 
@@ -4741,8 +4741,8 @@ size_number:
 create_body:
           '(' create_field_list ')'
           { Lex->create_info.option_list= NULL; }
-          opt_create_table_options_versioning opt_create_partitioning opt_create_select {}
-        | opt_create_table_options_versioning opt_create_partitioning opt_create_select {}
+          opt_create_table_options opt_create_partitioning opt_create_select {}
+        | opt_create_table_options opt_create_partitioning opt_create_select {}
         /*
           the following rule is redundant, but there's a shift/reduce
           conflict that prevents the rule above from parsing a syntax like
@@ -5690,19 +5690,19 @@ create_or_replace:
           }
          ;
 
-opt_create_table_options:
+opt_create_sequence_options:
           /* empty */
         | create_table_options
         ;
 
-opt_create_table_options_versioning:
+opt_create_table_options:
           /* empty */
         | create_table_options_versioning
         ;
 
-create_table_options_space_separated:
-          create_table_option
-        | create_table_option create_table_options_space_separated
+alter_table_options:
+          create_table_option_versioning
+        | create_table_option_versioning alter_table_options
         ;
 
 create_table_options:
@@ -7951,7 +7951,7 @@ alter_list_item:
               MYSQL_YYABORT;
             Lex->alter_info.flags|= Alter_info::ALTER_OPTIONS;
           }
-        | create_table_options_space_separated
+        | alter_table_options
           {
             LEX *lex=Lex;
             lex->alter_info.flags|= Alter_info::ALTER_OPTIONS;
