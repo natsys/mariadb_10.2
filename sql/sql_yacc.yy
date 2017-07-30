@@ -1623,7 +1623,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         opt_constraint constraint opt_ident
         sp_decl_ident
         sp_block_label
-        period_for_system_time_column_id
 
 %type <lex_string_with_metadata>
         TEXT_STRING
@@ -6199,7 +6198,7 @@ constraint_def:
 
 period_for_system_time:
           // If FOR_SYM is followed by SYSTEM_TIME_SYM then they are merged to: FOR_SYSTEM_TIME_SYM .
-          PERIOD_SYM FOR_SYSTEM_TIME_SYM '(' period_for_system_time_column_id ',' period_for_system_time_column_id ')'
+          PERIOD_SYM FOR_SYSTEM_TIME_SYM '(' ident ',' ident ')'
           {
             Vers_parse_info &info= Lex->vers_get_info();
             if (!my_strcasecmp(system_charset_info, $4.str, $6.str))
@@ -16280,13 +16279,6 @@ opt_column_list:
 column_list:
           column_list ',' column_list_id
         | column_list_id
-        ;
-
-period_for_system_time_column_id:
-          ident
-          {
-            $$= $1;
-          }
         ;
 
 column_list_id:
