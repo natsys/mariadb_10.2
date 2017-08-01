@@ -6662,7 +6662,6 @@ static bool vers_change_sys_field(THD *thd, const char *field_name,
   return false;
 }
 
-
 bool Vers_parse_info::fix_implicit(THD *thd, Alter_info *alter_info,
                                    bool integer_fields)
 {
