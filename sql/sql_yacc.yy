@@ -863,10 +863,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
-  Currently there are 103 shift/reduce conflicts.
+  Currently there are 116 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 103
+%expect 116
 
 /*
    Comments for TOKENS.
@@ -1971,7 +1971,7 @@ END_OF_INPUT
 
 %type <lex_str_list> opt_with_column_list
 
-%type <vers_range_unit> trans_or_timestamp
+%type <vers_range_unit> opt_trans_or_timestamp
 %type <BOOL> opt_for_system_time_clause
 %type <vers_column_versioning> with_or_without_system
 %%
@@ -8827,8 +8827,12 @@ select_options:
           }
         ;
 
-trans_or_timestamp:
-          TRANSACTION_SYM
+opt_trans_or_timestamp:
+          /* empty */
+          {
+            $$ = UNIT_AUTO;
+          }
+        | TRANSACTION_SYM
           {
             $$ = UNIT_TRX_ID;
           }
@@ -8875,7 +8879,7 @@ opt_for_system_time_clause:
         ;
 
 system_time_expr:
-          AS OF_SYM trans_or_timestamp simple_expr
+          AS OF_SYM opt_trans_or_timestamp simple_expr
           {
             Lex->vers_conditions.init(FOR_SYSTEM_TIME_AS_OF, $3, $4);
           }
@@ -8888,42 +8892,20 @@ system_time_expr:
           }
         | ALL
           {
-            Lex->vers_conditions.init(FOR_SYSTEM_TIME_ALL, UNIT_TIMESTAMP);
+            Lex->vers_conditions.init(FOR_SYSTEM_TIME_ALL);
           }
-        | FROM trans_or_timestamp simple_expr
-          TO_SYM trans_or_timestamp simple_expr
+        | FROM opt_trans_or_timestamp simple_expr
+          TO_SYM opt_trans_or_timestamp simple_expr
           {
-            if ($2 != $5)
-            {
-              Lex->parse_error(ER_VERS_RANGE_UNITS_MISMATCH);
-              MYSQL_YYABORT;
-            }
-            Lex->vers_conditions.init(FOR_SYSTEM_TIME_FROM_TO, $2, $3, $6);
+            Lex->vers_conditions.init(FOR_SYSTEM_TIME_FROM_TO, $2, $3, $5, $6);
           }
-        | trans_or_timestamp
-          FROM simple_expr
-          TO_SYM simple_expr
+        | BETWEEN_SYM opt_trans_or_timestamp simple_expr
+          AND_SYM opt_trans_or_timestamp simple_expr
           {
-            Lex->vers_conditions.init(FOR_SYSTEM_TIME_FROM_TO, $1, $3, $5);
-          }
-        | BETWEEN_SYM trans_or_timestamp simple_expr
-          AND_SYM trans_or_timestamp simple_expr
-          {
-            if ($2 != $5)
-            {
-              Lex->parse_error(ER_VERS_RANGE_UNITS_MISMATCH);
-              MYSQL_YYABORT;
-            }
-            Lex->vers_conditions.init(FOR_SYSTEM_TIME_BETWEEN, $2, $3, $6);
-          }
-        | trans_or_timestamp
-          BETWEEN_SYM simple_expr
-          AND_SYM simple_expr
-          {
-            Lex->vers_conditions.init(FOR_SYSTEM_TIME_BETWEEN, $1, $3, $5);
+            Lex->vers_conditions.init(FOR_SYSTEM_TIME_BETWEEN, $2, $3, $5, $6);
           }
         | BEFORE_SYM
-          trans_or_timestamp
+          opt_trans_or_timestamp
           simple_expr
           {
             Lex->vers_conditions.init(FOR_SYSTEM_TIME_BEFORE, $2, $3);
