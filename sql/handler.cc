@@ -6814,6 +6814,7 @@ static bool add_field_to_drop_list(THD *thd, Alter_info *alter_info,
 {
   DBUG_ASSERT(field);
   DBUG_ASSERT(field->field_name);
+  alter_info->flags|= Alter_info::ALTER_DROP_COLUMN;
   Alter_drop *ad= new (thd->mem_root)
       Alter_drop(Alter_drop::COLUMN, field->field_name, false);
   return !ad || alter_info->drop_list.push_back(ad, thd->mem_root);
@@ -6838,11 +6839,23 @@ bool Vers_parse_info::check_and_fix_alter(THD *thd, Alter_info *alter_info,
       return true;
     }
 
+    if (!(share->vers_start_field()->flags & HIDDEN_FLAG))
+    {
+      my_error(ER_VERS_SYS_FIELD_NOT_HIDDEN, MYF(0),
+               share->vers_start_field()->field_name);
+      return true;
+    }
+    if (!(share->vers_end_field()->flags & HIDDEN_FLAG))
+    {
+      my_error(ER_VERS_SYS_FIELD_NOT_HIDDEN, MYF(0),
+               share->vers_end_field()->field_name);
+      return true;
+    }
+
     if (add_field_to_drop_list(thd, alter_info, share->vers_start_field()) ||
         add_field_to_drop_list(thd, alter_info, share->vers_end_field()))
       return true;
 
-    alter_info->flags|= Alter_info::ALTER_DROP_COLUMN;
     return false;
   }
 

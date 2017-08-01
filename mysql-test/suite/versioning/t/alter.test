@@ -41,6 +41,7 @@ alter table t
   with system versioning;
 show create table t;
 
+alter table t drop column trx_start, drop column trx_end;
 alter table t without system versioning;
 show create table t;
 
@@ -150,6 +151,7 @@ alter table t
   add period for system_time(trx_start, trx_end),
   with system versioning;
 show create table t;
+alter table t drop column trx_start, drop column trx_end;
 alter table t without system versioning;
 
 alter table t with system versioning, algorithm=copy;
