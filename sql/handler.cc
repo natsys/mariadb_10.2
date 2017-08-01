@@ -6955,37 +6955,14 @@ bool Vers_parse_info::check_and_fix_alter(THD *thd, Alter_info *alter_info,
           return true;
         }
 
+        it.remove();
+
         if (done_start && done_end)
           break;
       }
-
-      if (done_start)
-      {
-        List_iterator<Alter_drop> it(alter_info->drop_list);
-        while (Alter_drop *d= it++)
-        {
-          if (is_trx_start(d->name))
-          {
-            it.remove();
-            break;
-          }
-        }
-      }
-      if (done_end)
-      {
-        List_iterator<Alter_drop> it(alter_info->drop_list);
-        while (Alter_drop *d= it++)
-        {
-          if (is_trx_end(d->name))
-          {
-            it.remove();
-            break;
-          }
-        }
-      }
-
-      return false;
     }
+
+    return false;
   }
 
   return fix_implicit(thd, alter_info, integer_fields) ||
