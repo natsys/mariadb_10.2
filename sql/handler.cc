@@ -6603,15 +6603,12 @@ bool Vers_parse_info::is_trx_end(const Create_field &f) const
   return f.flags & VERS_SYS_END_FLAG;
 }
 
-
-static bool vers_create_sys_field(THD *thd, const char *field_name,
-                                 Alter_info *alter_info,
-                                 int flags,
-                                 bool integer_fields)
+static Create_field *vers_init_sys_field(THD *thd, const char *field_name,
+                                         int flags, bool integer_fields)
 {
   Create_field *f= new (thd->mem_root) Create_field();
   if (!f)
-    return true;
+    return NULL;
 
   memset(f, 0, sizeof(*f));
   f->field_name= field_name;
@@ -6630,12 +6627,41 @@ static bool vers_create_sys_field(THD *thd, const char *field_name,
   }
 
   if (f->check(thd))
+    return NULL;
+
+  return f;
+}
+
+static bool vers_create_sys_field(THD *thd, const char *field_name,
+                                  Alter_info *alter_info, int flags,
+                                  bool integer_fields)
+{
+  Create_field *f= vers_init_sys_field(thd, field_name, flags, integer_fields);
+  if (!f)
     return true;
 
-  alter_info->create_list.push_back(f);
   alter_info->flags|= Alter_info::ALTER_ADD_COLUMN;
+  alter_info->create_list.push_back(f);
+
   return false;
 }
+
+static bool vers_change_sys_field(THD *thd, const char *field_name,
+                                  Alter_info *alter_info, int flags,
+                                  bool integer_fields, const char *change)
+{
+  Create_field *f= vers_init_sys_field(thd, field_name, flags, integer_fields);
+  if (!f)
+    return true;
+
+  f->change= change;
+
+  alter_info->flags|= Alter_info::ALTER_CHANGE_COLUMN;
+  alter_info->create_list.push_back(f);
+
+  return false;
+}
+
 
 bool Vers_parse_info::fix_implicit(THD *thd, Alter_info *alter_info,
                                    bool integer_fields)
@@ -6921,10 +6947,10 @@ bool Vers_parse_info::check_and_fix_alter(THD *thd, Alter_info *alter_info,
           return true;
         }
 
-        if (vers_create_sys_field(thd, name, alter_info,
+        if (vers_change_sys_field(thd, name, alter_info,
                                   f->flags &
                                       (VERS_SYS_START_FLAG | VERS_SYS_END_FLAG),
-                                  integer_fields))
+                                  integer_fields, name))
         {
           return true;
         }
@@ -6932,9 +6958,34 @@ bool Vers_parse_info::check_and_fix_alter(THD *thd, Alter_info *alter_info,
         if (done_start && done_end)
           break;
       }
-    }
 
-    return false;
+      if (done_start)
+      {
+        List_iterator<Alter_drop> it(alter_info->drop_list);
+        while (Alter_drop *d= it++)
+        {
+          if (is_trx_start(d->name))
+          {
+            it.remove();
+            break;
+          }
+        }
+      }
+      if (done_end)
+      {
+        List_iterator<Alter_drop> it(alter_info->drop_list);
+        while (Alter_drop *d= it++)
+        {
+          if (is_trx_end(d->name))
+          {
+            it.remove();
+            break;
+          }
+        }
+      }
+
+      return false;
+    }
   }
 
   return fix_implicit(thd, alter_info, integer_fields) ||
