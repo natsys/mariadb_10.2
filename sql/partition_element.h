@@ -216,7 +216,7 @@ public:
   {
     DBUG_ASSERT(type != CONVENTIONAL);
     DBUG_ASSERT(list_val_list.elements == 1);
-    part_elem_value *ev= static_cast<part_elem_value*>(list_val_list.first_node()->info);
+    part_elem_value *ev= list_val_list.head();
     DBUG_ASSERT(ev && ev->col_val_array);
     return ev->col_val_array[idx];
   }
