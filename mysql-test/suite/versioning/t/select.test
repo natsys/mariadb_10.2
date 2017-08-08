@@ -50,7 +50,7 @@ select x as ALL_x, y from t1 for system_time all;
 if ($default_engine == 'innodb')
 {
   select x as ASOF2_x, y from t1 for system_time as of @x0;
-  select x as FROMTO2_x, y from t1 for system_time from 0 to @x1;
+  select x as FROMTO2_x, y from t1 for system_time from @x0 to @x1;
   select x as BETWAND2_x, y from t1 for system_time between transaction @x0 and transaction @x1;
 }
 if ($default_engine != 'innodb')
