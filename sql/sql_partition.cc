@@ -1689,7 +1689,7 @@ bool fix_partition_func(THD *thd, TABLE *table,
     if (part_info->column_list)
     {
       if (part_info->part_type == VERSIONING_PARTITION &&
-        part_info->vers_setup_1(thd))
+        part_info->vers_setup_expression(thd))
         goto end;
       List_iterator<char> it(part_info->part_field_list);
       if (unlikely(handle_list_of_fields(thd, it, table, part_info, FALSE)))
@@ -5724,7 +5724,7 @@ the generated partition syntax in a correct manner.
 
       if (alter_info->flags & Alter_info::ALTER_ADD_PARTITION &&
         tab_part_info->part_type == VERSIONING_PARTITION &&
-        tab_part_info->vers_setup_1(thd, alt_part_info->partitions.elements))
+        tab_part_info->vers_setup_expression(thd, alt_part_info->partitions.elements))
         goto err;
 
       if (tab_part_info->check_partition_info(thd, (handlerton**)NULL,

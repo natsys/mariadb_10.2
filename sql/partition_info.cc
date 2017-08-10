@@ -913,7 +913,35 @@ partition_info::vers_part_rotate(THD * thd)
   return vers_info->hist_part;
 }
 
-bool partition_info::vers_setup_1(THD * thd, uint32 added)
+void partition_info::vers_set_expression(THD *thd, partition_element *el, MYSQL_TIME& t)
+{
+  curr_part_elem= el;
+  init_column_part(thd);
+  el->list_val_list.empty();
+  el->list_val_list.push_back(curr_list_val, thd->mem_root);
+  for (uint i= 0; i < num_columns; ++i)
+  {
+    part_column_list_val *col_val= add_column_value(thd);
+    if (el->type == partition_element::AS_OF_NOW)
+    {
+      col_val->max_value= true;
+      col_val->item_expression= NULL;
+      col_val->column_value= NULL;
+      col_val->part_info= this;
+      col_val->fixed= 1;
+      continue;
+    }
+    Item *item_expression= new (thd->mem_root) Item_datetime_literal(thd, &t);
+    /* We initialize col_val with bogus max value to make fix_partition_func() and check_range_constants() happy.
+        Later in vers_setup_2() it is initialized with real stat value if there will be any. */
+    /* FIXME: TIME_RESULT in col_val is expensive. It should be INT_RESULT
+      (got to be fixed when InnoDB is supported). */
+    init_col_val(col_val, item_expression);
+    DBUG_ASSERT(item_expression == el->get_col_val(i).item_expression);
+  } // for (num_columns)
+}
+
+bool partition_info::vers_setup_expression(THD * thd, uint32 alter_add)
 {
   DBUG_ASSERT(part_type == VERSIONING_PARTITION);
 
@@ -923,16 +951,17 @@ bool partition_info::vers_setup_1(THD * thd, uint32 added)
     return true;
   }
 
-  if (added)
+  if (alter_add)
   {
-    DBUG_ASSERT(partitions.elements > added + 1);
+    DBUG_ASSERT(partitions.elements > alter_add + 1);
     Vers_min_max_stats** old_array= table->s->stat_trx;
     table->s->stat_trx= static_cast<Vers_min_max_stats**>(
       alloc_root(&table->s->mem_root, sizeof(void *) * partitions.elements * num_columns));
-    memcpy(table->s->stat_trx, old_array, sizeof(void *) * (partitions.elements - added) * num_columns);
+    memcpy(table->s->stat_trx, old_array, sizeof(void *) * (partitions.elements - alter_add) * num_columns);
   }
   else
   {
+    /* Prepare part_field_list */
     Field *sys_trx_end= table->vers_end_field();
     part_field_list.empty();
     part_field_list.push_back(const_cast<char *>(sys_trx_end->field_name), thd->mem_root);
@@ -951,13 +980,15 @@ bool partition_info::vers_setup_1(THD * thd, uint32 added)
   {
     DBUG_ASSERT(el->type != partition_element::CONVENTIONAL);
     ++ts;
-    if (added)
+    if (alter_add)
     {
+      /* Non-empty historical partitions are left as is. */
       if (el->type == partition_element::VERSIONING && !el->empty)
       {
         ++id;
         continue;
       }
+      /* Newly added element is inserted before AS_OF_NOW. */
       if (el->id == UINT32_MAX || el->type == partition_element::AS_OF_NOW)
       {
         DBUG_ASSERT(table && table->s);
@@ -967,8 +998,9 @@ bool partition_info::vers_setup_1(THD * thd, uint32 added)
         el->id= id++;
         if (el->type == partition_element::AS_OF_NOW)
           break;
-        goto create_col_val;
+        goto set_expression;
       }
+      /* Existing element expression is recalculated. */
       thd->variables.time_zone->gmt_sec_to_TIME(&t, ts);
       for (uint i= 0; i < num_columns; ++i)
       {
@@ -980,32 +1012,9 @@ bool partition_info::vers_setup_1(THD * thd, uint32 added)
       continue;
     }
 
-  create_col_val:
-    curr_part_elem= el;
-    init_column_part(thd);
-    el->list_val_list.empty();
-    el->list_val_list.push_back(curr_list_val, thd->mem_root);
+  set_expression:
     thd->variables.time_zone->gmt_sec_to_TIME(&t, ts);
-    for (uint i= 0; i < num_columns; ++i)
-    {
-      part_column_list_val *col_val= add_column_value(thd);
-      if (el->type == partition_element::AS_OF_NOW)
-      {
-        col_val->max_value= true;
-        col_val->item_expression= NULL;
-        col_val->column_value= NULL;
-        col_val->part_info= this;
-        col_val->fixed= 1;
-        continue;
-      }
-      Item *item_expression= new (thd->mem_root) Item_datetime_literal(thd, &t);
-      /* We initialize col_val with bogus max value to make fix_partition_func() and check_range_constants() happy.
-         Later in vers_setup_2() it is initialized with real stat value if there will be any. */
-      /* FIXME: TIME_RESULT in col_val is expensive. It should be INT_RESULT
-        (got to be fixed when InnoDB is supported). */
-      init_col_val(col_val, item_expression);
-      DBUG_ASSERT(item_expression == el->get_col_val(i).item_expression);
-    }
+    vers_set_expression(thd, el, t);
   }
   return false;
 }

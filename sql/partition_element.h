@@ -214,10 +214,10 @@ public:
 
   part_column_list_val& get_col_val(uint idx)
   {
-    DBUG_ASSERT(type != CONVENTIONAL);
-    DBUG_ASSERT(list_val_list.elements == 1);
+    DBUG_ASSERT(type == CONVENTIONAL || list_val_list.elements == 1);
     part_elem_value *ev= list_val_list.head();
-    DBUG_ASSERT(ev && ev->col_val_array);
+    DBUG_ASSERT(ev);
+    DBUG_ASSERT(ev->col_val_array);
     return ev->col_val_array[idx];
   }
 };
