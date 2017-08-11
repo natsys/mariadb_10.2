@@ -1150,8 +1150,8 @@ void partition_info::vers_update_col_vals(THD *thd, partition_element *el0, part
 }
 
 
-// setup at open stage (TABLE_SHARE is initialized)
-bool partition_info::vers_setup_2(THD * thd, bool is_create_table_ind)
+// setup at open() phase (TABLE_SHARE is initialized)
+bool partition_info::vers_setup_stats(THD * thd, bool is_create_table_ind)
 {
   DBUG_ASSERT(part_type == VERSIONING_PARTITION);
   DBUG_ASSERT(vers_info && vers_info->initialized(false));
@@ -1174,6 +1174,7 @@ bool partition_info::vers_setup_2(THD * thd, bool is_create_table_ind)
 
     bool dont_stat= true;
     bool col_val_updated= false;
+    // initialize stat_trx
     if (!table->s->stat_trx)
     {
       DBUG_ASSERT(partitions.elements > 1);
