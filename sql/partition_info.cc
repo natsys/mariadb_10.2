@@ -933,7 +933,7 @@ void partition_info::vers_set_expression(THD *thd, partition_element *el, MYSQL_
     }
     Item *item_expression= new (thd->mem_root) Item_datetime_literal(thd, &t);
     /* We initialize col_val with bogus max value to make fix_partition_func() and check_range_constants() happy.
-        Later in vers_setup_2() it is initialized with real stat value if there will be any. */
+        Later in vers_setup_stats() it is initialized with real stat value if there will be any. */
     /* FIXME: TIME_RESULT in col_val is expensive. It should be INT_RESULT
       (got to be fixed when InnoDB is supported). */
     init_col_val(col_val, item_expression);
@@ -947,7 +947,7 @@ bool partition_info::vers_setup_expression(THD * thd, uint32 alter_add)
 
   if (!table->versioned())
   {
-    my_error(ER_VERSIONING_REQUIRED, MYF(0), "`BY SYSTEM_TIME` partitioning");
+    my_error(ER_VERSIONING_REQUIRED, MYF(0), table->s->table_name);
     return true;
   }
 
