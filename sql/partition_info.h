@@ -58,11 +58,11 @@ struct Vers_part_info : public Sql_alloc
     if (now_part)
     {
       DBUG_ASSERT(now_part->id != UINT32_MAX);
-      DBUG_ASSERT(now_part->type == partition_element::AS_OF_NOW);
+      DBUG_ASSERT(now_part->type() == partition_element::AS_OF_NOW);
       DBUG_ASSERT(!fully || (bool) hist_part);
       DBUG_ASSERT(!hist_part || (
           hist_part->id != UINT32_MAX &&
-          hist_part->type == partition_element::VERSIONING));
+          hist_part->type() == partition_element::VERSIONING));
       return true;
     }
     return false;
@@ -443,8 +443,8 @@ public:
     partition_element *el;
     while ((el= it++))
     {
-      DBUG_ASSERT(el->type != partition_element::CONVENTIONAL);
-      if (el->type == partition_element::VERSIONING &&
+      DBUG_ASSERT(el->type() != partition_element::CONVENTIONAL);
+      if (el->type() == partition_element::VERSIONING &&
         el->id == table->s->hist_part_id)
       {
         vers_info->hist_part= el;
@@ -516,7 +516,7 @@ public:
   {
     DBUG_ASSERT(vers_info && vers_info->initialized());
     DBUG_ASSERT(table && table->s);
-    DBUG_ASSERT(el && el->type == partition_element::VERSIONING);
+    DBUG_ASSERT(el && el->type() == partition_element::VERSIONING);
     bool updated;
     mysql_rwlock_wrlock(&table->s->LOCK_stat_serial);
     el->empty= false;

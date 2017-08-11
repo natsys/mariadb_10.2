@@ -922,7 +922,7 @@ void partition_info::vers_set_expression(THD *thd, partition_element *el, MYSQL_
   for (uint i= 0; i < num_columns; ++i)
   {
     part_column_list_val *col_val= add_column_value(thd);
-    if (el->type == partition_element::AS_OF_NOW)
+    if (el->type() == partition_element::AS_OF_NOW)
     {
       col_val->max_value= true;
       col_val->item_expression= NULL;
@@ -978,25 +978,25 @@ bool partition_info::vers_setup_expression(THD * thd, uint32 alter_add)
   uint32 id= 0;
   while ((el= it++))
   {
-    DBUG_ASSERT(el->type != partition_element::CONVENTIONAL);
+    DBUG_ASSERT(el->type() != partition_element::CONVENTIONAL);
     ++ts;
     if (alter_add)
     {
       /* Non-empty historical partitions are left as is. */
-      if (el->type == partition_element::VERSIONING && !el->empty)
+      if (el->type() == partition_element::VERSIONING && !el->empty)
       {
         ++id;
         continue;
       }
       /* Newly added element is inserted before AS_OF_NOW. */
-      if (el->id == UINT32_MAX || el->type == partition_element::AS_OF_NOW)
+      if (el->id == UINT32_MAX || el->type() == partition_element::AS_OF_NOW)
       {
         DBUG_ASSERT(table && table->s);
         Vers_min_max_stats *stat_trx_end= new (&table->s->mem_root)
           Vers_min_max_stats(table->s->vers_end_field()->field_name, table->s);
         table->s->stat_trx[id * num_columns + STAT_TRX_END]= stat_trx_end;
         el->id= id++;
-        if (el->type == partition_element::AS_OF_NOW)
+        if (el->type() == partition_element::AS_OF_NOW)
           break;
         goto set_expression;
       }
@@ -1028,7 +1028,7 @@ bool partition_info::vers_scan_min_max(THD *thd, partition_element *part)
   uint32 part_id= part->id * sub_factor;
   uint32 part_id_end= part_id + sub_factor;
   DBUG_ASSERT(part->empty);
-  DBUG_ASSERT(part->type == partition_element::VERSIONING);
+  DBUG_ASSERT(part->type() == partition_element::VERSIONING);
   DBUG_ASSERT(table->s->stat_trx);
   for (; part_id < part_id_end; ++part_id)
   {
@@ -1188,7 +1188,7 @@ bool partition_info::vers_setup_stats(THD * thd, bool is_create_table_ind)
     partition_element *el= NULL, *prev;
     while ((prev= el, el= it++))
     {
-      if (el->type == partition_element::VERSIONING && dont_stat)
+      if (el->type() == partition_element::VERSIONING && dont_stat)
       {
         if (el->id == table->s->hist_part_id)
         {
@@ -1206,7 +1206,7 @@ bool partition_info::vers_setup_stats(THD * thd, bool is_create_table_ind)
 
       if (!is_create_table_ind)
       {
-        if (el->type == partition_element::AS_OF_NOW)
+        if (el->type() == partition_element::AS_OF_NOW)
         {
           uchar buf[8];
           Field_timestampf fld(buf, NULL, 0, Field::NONE, table->vers_end_field()->field_name, NULL, 6);
@@ -1227,10 +1227,10 @@ bool partition_info::vers_setup_stats(THD * thd, bool is_create_table_ind)
         }
       }
 
-      if (el->type == partition_element::AS_OF_NOW)
+      if (el->type() == partition_element::AS_OF_NOW)
         break;
 
-      DBUG_ASSERT(el->type == partition_element::VERSIONING);
+      DBUG_ASSERT(el->type() == partition_element::VERSIONING);
 
       if (vers_info->hist_part)
       {
@@ -2075,13 +2075,13 @@ bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
       }
       if (part_type == VERSIONING_PARTITION)
       {
-        if (part_elem->type == partition_element::VERSIONING)
+        if (part_elem->type() == partition_element::VERSIONING)
         {
           hist_parts++;
         }
         else
         {
-          DBUG_ASSERT(part_elem->type == partition_element::AS_OF_NOW);
+          DBUG_ASSERT(part_elem->type() == partition_element::AS_OF_NOW);
           now_parts++;
         }
       }
