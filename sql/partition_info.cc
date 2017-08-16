@@ -44,13 +44,12 @@ partition_info *partition_info::get_clone(THD *thd)
 
   List_iterator<partition_element> part_it(partitions);
   partition_element *part;
-  partition_info *clone= new (mem_root) partition_info();
+  partition_info *clone= new (mem_root) partition_info(*this);
   if (!clone)
   {
     mem_alloc_error(sizeof(partition_info));
     DBUG_RETURN(NULL);
   }
-  memcpy(clone, this, sizeof(partition_info));
   memset(&(clone->read_partitions), 0, sizeof(clone->read_partitions));
   memset(&(clone->lock_partitions), 0, sizeof(clone->lock_partitions));
   clone->bitmaps_are_initialized= FALSE;
@@ -963,7 +962,6 @@ bool partition_info::vers_setup_expression(THD * thd, uint32 alter_add)
   {
     /* Prepare part_field_list */
     Field *sys_trx_end= table->vers_end_field();
-    part_field_list.empty();
     part_field_list.push_back(const_cast<char *>(sys_trx_end->field_name), thd->mem_root);
     DBUG_ASSERT(part_field_list.elements == num_columns);
     // needed in handle_list_of_fields()
