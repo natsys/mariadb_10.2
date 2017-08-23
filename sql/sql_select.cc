@@ -1099,6 +1099,32 @@ JOIN::prepare(TABLE_LIST *tables_init,
     remove_redundant_subquery_clauses(select_lex);
   }
 
+  {
+    if (thd->variables.vers_ddl_survival)
+    {
+      for (TABLE_LIST *tl= tables_list; tl; tl= tl->next_local)
+      {
+        TABLE *table = tl->table;
+        if (!table->versioned_by_engine())
+          continue;
+
+        if (!tl->vers_conditions != FOR_SYSTEM_TIME_AS_OF)
+          continue;
+
+        DBUG_ASSERT(tl->vers_conditions.unit_start == UNIT_TIMESTAMP);
+
+        MYSQL_TIME timestamp;
+        if (tl->vers_conditions.start->get_date(&timestamp, 0))
+          DBUG_RETURN(1);
+
+        ulonglong trx_id= 0;
+        table->file->ht->vers_query_commit_ts(thd, &trx_id, timestamp,
+                                              VTQ_TRX_ID, false);
+        DBUG_ASSERT(trx_id != 0);
+      }
+    }
+  }
+
   /* System Versioning: handle FOR SYSTEM_TIME clause. */
   if (vers_setup_select(thd, tables_list, &conds, select_lex) < 0)
     DBUG_RETURN(-1);
