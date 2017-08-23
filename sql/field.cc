@@ -10657,6 +10657,11 @@ Field *make_field(TABLE_SHARE *share,
   return 0;
 }
 
+bool Field_vers_system::test_if_equality_guarantees_uniqueness(const Item* item) const
+{
+  return item->type() == Item::DATE_ITEM;
+}
+
 
 /** Create a field suitable for create of table. */
 

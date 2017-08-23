@@ -2150,6 +2150,13 @@ public:
   {
     return get_date(ltime, fuzzydate, (ulonglong) val_int());
   }
+  bool test_if_equality_guarantees_uniqueness(const Item *item) const;
+  bool can_optimize_range(const Item_bool_func *cond,
+                                  const Item *item,
+                                  bool is_eq_func) const
+  {
+    return true;
+  }
 };
 
 
