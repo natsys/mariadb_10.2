@@ -63,6 +63,7 @@
 #include <hash.h>
 #include <ft_global.h>
 #include "sys_vars_shared.h"
+#include "vtmd.h"
 
 /*
   A key part number that means we're using a fulltext scan.
@@ -1099,32 +1100,6 @@ JOIN::prepare(TABLE_LIST *tables_init,
     remove_redundant_subquery_clauses(select_lex);
   }
 
-  {
-    if (thd->variables.vers_ddl_survival)
-    {
-      for (TABLE_LIST *tl= tables_list; tl; tl= tl->next_local)
-      {
-        TABLE *table = tl->table;
-        if (!table->versioned_by_engine())
-          continue;
-
-        if (!tl->vers_conditions != FOR_SYSTEM_TIME_AS_OF)
-          continue;
-
-        DBUG_ASSERT(tl->vers_conditions.unit_start == UNIT_TIMESTAMP);
-
-        MYSQL_TIME timestamp;
-        if (tl->vers_conditions.start->get_date(&timestamp, 0))
-          DBUG_RETURN(1);
-
-        ulonglong trx_id= 0;
-        table->file->ht->vers_query_commit_ts(thd, &trx_id, timestamp,
-                                              VTQ_TRX_ID, false);
-        DBUG_ASSERT(trx_id != 0);
-      }
-    }
-  }
-
   /* System Versioning: handle FOR SYSTEM_TIME clause. */
   if (vers_setup_select(thd, tables_list, &conds, select_lex) < 0)
     DBUG_RETURN(-1);
@@ -1244,6 +1219,72 @@ JOIN::prepare(TABLE_LIST *tables_init,
     {
       my_error(ER_WRONG_PLACEMENT_OF_WINDOW_FUNCTION, MYF(0));
       DBUG_RETURN(-1); 
+    }
+  }
+
+  {
+    if (thd->variables.vers_ddl_survival)
+    {
+      for (TABLE_LIST *tl= tables_list; tl; tl= tl->next_local)
+      {
+        if (!tl->table->versioned_by_engine())
+          continue;
+
+        if (tl->vers_conditions != FOR_SYSTEM_TIME_AS_OF)
+          continue;
+
+        MYSQL_TIME timestamp;
+        if (tl->vers_conditions.start->get_date(&timestamp, 0))
+          DBUG_RETURN(1);
+
+        ulonglong trx_id= 0;
+        tl->table->file->ht->vers_query_commit_ts(thd, &trx_id, timestamp,
+                                                  VTQ_TRX_ID, false);
+        DBUG_ASSERT(trx_id != 0);
+
+        String vtmd_name;
+        if (tl->vers_vtmd_name(vtmd_name))
+          DBUG_RETURN(1);
+
+        TABLE_LIST vtmd_tl;
+        vtmd_tl.init_one_table(tl->db, tl->db_length, vtmd_name.c_ptr(),
+                               vtmd_name.length(), vtmd_name.c_ptr(), TL_READ);
+
+        Open_tables_backup open_tables_backup;
+        if (!open_log_table(thd, &vtmd_tl, &open_tables_backup))
+          DBUG_RETURN(1);
+
+        READ_RECORD read_record;
+        SQL_SELECT *sql_select= new (thd->mem_root) SQL_SELECT;
+        if (!sql_select)
+          DBUG_RETURN(1);
+
+        int err= 0;
+        if (init_read_record(&read_record, thd, vtmd_tl.table, sql_select, NULL,
+                             false, true, true))
+        {
+          DBUG_RETURN(1);
+        }
+
+        String archive_table_name;
+        while (!(err= read_record.read_record(&read_record)))
+        {
+          ulonglong start= static_cast<ulonglong>(
+              vtmd_tl.table->field[VTMD_table::FLD_START]->val_int());
+          ulonglong end= static_cast<ulonglong>(
+              vtmd_tl.table->field[VTMD_table::FLD_END]->val_int());
+
+          if (start <= trx_id && trx_id < end)
+          {
+            vtmd_tl.table->field[VTMD_table::FLD_ARCHIVE_NAME]->val_str(
+                &archive_table_name);
+            break;
+          }
+        }
+        end_read_record(&read_record);
+
+        close_log_table(thd, &open_tables_backup);
+      }
     }
   }
 
