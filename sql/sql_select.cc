@@ -1222,72 +1222,6 @@ JOIN::prepare(TABLE_LIST *tables_init,
     }
   }
 
-  {
-    if (thd->variables.vers_ddl_survival)
-    {
-      for (TABLE_LIST *tl= tables_list; tl; tl= tl->next_local)
-      {
-        if (!tl->table->versioned_by_engine())
-          continue;
-
-        if (tl->vers_conditions != FOR_SYSTEM_TIME_AS_OF)
-          continue;
-
-        MYSQL_TIME timestamp;
-        if (tl->vers_conditions.start->get_date(&timestamp, 0))
-          DBUG_RETURN(1);
-
-        ulonglong trx_id= 0;
-        tl->table->file->ht->vers_query_commit_ts(thd, &trx_id, timestamp,
-                                                  VTQ_TRX_ID, false);
-        DBUG_ASSERT(trx_id != 0);
-
-        String vtmd_name;
-        if (tl->vers_vtmd_name(vtmd_name))
-          DBUG_RETURN(1);
-
-        TABLE_LIST vtmd_tl;
-        vtmd_tl.init_one_table(tl->db, tl->db_length, vtmd_name.c_ptr(),
-                               vtmd_name.length(), vtmd_name.c_ptr(), TL_READ);
-
-        Open_tables_backup open_tables_backup;
-        if (!open_log_table(thd, &vtmd_tl, &open_tables_backup))
-          DBUG_RETURN(1);
-
-        READ_RECORD read_record;
-        SQL_SELECT *sql_select= new (thd->mem_root) SQL_SELECT;
-        if (!sql_select)
-          DBUG_RETURN(1);
-
-        int err= 0;
-        if (init_read_record(&read_record, thd, vtmd_tl.table, sql_select, NULL,
-                             false, true, true))
-        {
-          DBUG_RETURN(1);
-        }
-
-        String archive_table_name;
-        while (!(err= read_record.read_record(&read_record)))
-        {
-          ulonglong start= static_cast<ulonglong>(
-              vtmd_tl.table->field[VTMD_table::FLD_START]->val_int());
-          ulonglong end= static_cast<ulonglong>(
-              vtmd_tl.table->field[VTMD_table::FLD_END]->val_int());
-
-          if (start <= trx_id && trx_id < end)
-          {
-            vtmd_tl.table->field[VTMD_table::FLD_ARCHIVE_NAME]->val_str(
-                &archive_table_name);
-            break;
-          }
-        }
-        end_read_record(&read_record);
-
-        close_log_table(thd, &open_tables_backup);
-      }
-    }
-  }
-
   With_clause *with_clause=select_lex->get_with_clause();
   if (with_clause && with_clause->prepare_unreferenced_elements(thd))
     DBUG_RETURN(1);
@@ -1635,6 +1569,151 @@ JOIN::optimize_inner()
   DEBUG_SYNC(thd, "before_join_optimize");
 
   THD_STAGE_INFO(thd, stage_optimizing);
+
+  if (thd->variables.vers_ddl_survival)
+  {
+    for (TABLE_LIST *tl= select_lex->table_list.first; tl; tl= tl->next_local)
+    {
+      if (!tl->table->versioned_by_engine() || tl->table->s->vtmd)
+        continue;
+
+      ulonglong start_trx_id= 0;
+      {
+        MYSQL_TIME timestamp;
+        if (tl->vers_conditions.start->get_date(&timestamp, 0))
+          DBUG_RETURN(1);
+
+        tl->table->file->ht->vers_query_commit_ts(thd, &start_trx_id, timestamp,
+                                                  VTQ_TRX_ID, false);
+        DBUG_ASSERT(start_trx_id != 0);
+      }
+
+      ulonglong end_trx_id= 0;
+      if (tl->vers_conditions == FOR_SYSTEM_TIME_FROM_TO ||
+          tl->vers_conditions == FOR_SYSTEM_TIME_BETWEEN)
+      {
+        MYSQL_TIME timestamp;
+        if (tl->vers_conditions.end->get_date(&timestamp, 0))
+          DBUG_RETURN(1);
+
+        tl->table->file->ht->vers_query_commit_ts(thd, &end_trx_id, timestamp,
+                                                  VTQ_TRX_ID, false);
+        DBUG_ASSERT(start_trx_id != 0);
+      }
+
+      String vtmd_name;
+      if (tl->vers_vtmd_name(vtmd_name))
+        DBUG_RETURN(1);
+
+      TABLE_LIST vtmd_tl;
+      vtmd_tl.init_one_table(tl->db, tl->db_length, vtmd_name.c_ptr(),
+                             vtmd_name.length(), vtmd_name.c_ptr(), TL_READ);
+
+      Open_tables_backup open_tables_backup;
+      if (!open_log_table(thd, &vtmd_tl, &open_tables_backup))
+        DBUG_RETURN(1);
+
+      READ_RECORD read_record;
+      SQL_SELECT *sql_select= new (thd->mem_root) SQL_SELECT;
+      if (!sql_select)
+        DBUG_RETURN(1);
+
+      int err= 0;
+      if (init_read_record(&read_record, thd, vtmd_tl.table, sql_select, NULL,
+                           false, true, true))
+      {
+        DBUG_RETURN(1);
+      }
+
+      Dynamic_array<String> archive_tables(thd->mem_root);
+      while (!(err= read_record.read_record()))
+      {
+        ulonglong start= static_cast<ulonglong>(
+            vtmd_tl.table->field[VTMD_table::FLD_START]->val_int());
+        ulonglong end= static_cast<ulonglong>(
+            vtmd_tl.table->field[VTMD_table::FLD_END]->val_int());
+
+        switch (tl->vers_conditions.type)
+        {
+        case FOR_SYSTEM_TIME_AS_OF:
+        {
+          if (start <= start_trx_id && start_trx_id < end)
+          {
+            String archive_table_name;
+            vtmd_tl.table->field[VTMD_table::FLD_ARCHIVE_NAME]->val_str(
+                &archive_table_name);
+            archive_tables.append(archive_table_name);
+            archive_tables.back()->copy();
+          }
+          break;
+        }
+
+        case FOR_SYSTEM_TIME_FROM_TO:
+        {
+          if (start < start_trx_id && end >= end_trx_id)
+          {
+            String archive_table_name;
+            vtmd_tl.table->field[VTMD_table::FLD_ARCHIVE_NAME]->val_str(
+                &archive_table_name);
+            archive_tables.append(archive_table_name);
+            archive_tables.back()->copy();
+          }
+          break;
+        }
+
+        case FOR_SYSTEM_TIME_BETWEEN:
+        {
+          if (start < start_trx_id && end > end_trx_id)
+          {
+            String archive_table_name;
+            vtmd_tl.table->field[VTMD_table::FLD_ARCHIVE_NAME]->val_str(
+                &archive_table_name);
+            archive_tables.append(archive_table_name);
+            archive_tables.back()->copy();
+          }
+          break;
+        }
+
+        case FOR_SYSTEM_TIME_ALL:
+        {
+          String archive_table_name;
+          vtmd_tl.table->field[VTMD_table::FLD_ARCHIVE_NAME]->val_str(
+              &archive_table_name);
+          archive_tables.append(archive_table_name);
+          archive_tables.back()->copy();
+        }
+
+        default:
+          DBUG_ASSERT(false);
+          break;
+        }
+      }
+      end_read_record(&read_record);
+
+      close_log_table(thd, &open_tables_backup);
+
+      String archive_names;
+      if (archive_tables.elements())
+      {
+        archive_names.append(archive_tables.at(0));
+
+        for (size_t i= 1; i < archive_tables.elements(); i++)
+        {
+          archive_names.append(", ");
+          archive_names.append(archive_tables.at(i));
+        }
+      }
+
+      // We have a real table name now. Swap current opene with what we should
+      // work with instead.
+
+      // TABLE_LIST table_list;
+      // table_list.init_one_table(tl->db, tl->db_length,
+      //                           archive_table_name.c_ptr(),
+      //                           archive_table_name.length(),
+      //                           archive_table_name.c_ptr(), tl->lock_type);
+    }
+  }
 
   set_allowed_join_cache_types();
   need_distinct= TRUE;
