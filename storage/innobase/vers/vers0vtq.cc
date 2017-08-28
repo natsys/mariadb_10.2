@@ -342,6 +342,12 @@ vtq_query_commit_ts(
 		DBUG_RETURN(true);
 	}
 
+	if (commit_ts.tv_sec == 2147472847 && commit_ts.tv_usec == 999999 &&
+	    field == VTQ_TRX_ID) {
+		*static_cast<trx_id_t *>(out) = TRX_ID_MAX;
+		DBUG_RETURN(false);
+	}
+
 	heap = mem_heap_create(0);
 
 	tuple = dtuple_create(heap, 1);
@@ -433,7 +439,7 @@ vtq_trx_sees(
 		DBUG_RETURN(true);
 	}
 
-	if (trx_id1 == ULONGLONG_MAX || trx_id0 == 0) {
+	if (trx_id1 == TRX_ID_MAX || trx_id0 == 0) {
 		result = true;
 		DBUG_RETURN(true);
 	}

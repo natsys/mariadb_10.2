@@ -1364,6 +1364,10 @@ public:
   bool histograms_are_read;
   MDL_ticket *mdl_ticket;
 
+  // We replace current table with that list of tables with
+  // DDL survival feature.
+  String vtmd_replacements;
+
   void init(THD *thd, TABLE_LIST *tl);
   bool fill_item_list(List<Item> *item_list) const;
   void reset_item_list(List<Item> *item_list, uint skip) const;
