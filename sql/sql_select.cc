@@ -1626,7 +1626,7 @@ JOIN::optimize_inner()
       }
 
       Dynamic_array<String> archive_tables(thd->mem_root);
-      while (!(err= read_record.read_record()))
+      while (!(err= read_record.read_record(&read_record)))
       {
         ulonglong start= static_cast<ulonglong>(
             vtmd_tl.table->field[VTMD_table::FLD_START]->val_int());
@@ -1681,6 +1681,7 @@ JOIN::optimize_inner()
               &archive_table_name);
           archive_tables.append(archive_table_name);
           archive_tables.back()->copy();
+          break;
         }
 
         default:
