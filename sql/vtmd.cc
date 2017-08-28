@@ -616,7 +616,7 @@ bool VTMD_table::compute_replacements(THD *thd)
 
   Open_tables_backup open_tables_backup;
   if (!(vtmd= open_log_table(thd, &vtmd_tl, &open_tables_backup)))
-    return false;
+    return true;
 
   READ_RECORD read_record;
   SQL_SELECT *sql_select= new (thd->mem_root) SQL_SELECT;
