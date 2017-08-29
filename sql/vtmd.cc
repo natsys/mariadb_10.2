@@ -610,7 +610,6 @@ bool VTMD_table::compute_replacements(THD *thd)
   if (about.vers_vtmd_name(vtmd_name))
     return true;
 
-
   Open_tables_backup open_tables_backup;
   {
     Local_da local_da(thd, ER_VERS_VTMD_ERROR);
