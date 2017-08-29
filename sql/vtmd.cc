@@ -572,3 +572,106 @@ err:
   close_log_table(thd, &open_tables_backup);
   return error ? true : false;
 }
+
+bool VTMD_table::compute_replacements(THD *thd)
+{
+  if (!about.table->versioned_by_engine() || about.table->s->vtmd ||
+      !about.vers_conditions)
+    return false;
+
+  vers_range_type_t type= about.vers_conditions.type;
+
+  ulonglong start_trx_id= 0;
+  if (type == FOR_SYSTEM_TIME_AS_OF || type == FOR_SYSTEM_TIME_FROM_TO ||
+      type == FOR_SYSTEM_TIME_BETWEEN)
+  {
+    MYSQL_TIME timestamp;
+    if (about.vers_conditions.start->get_date(&timestamp, 0))
+      return true;
+
+    about.table->file->ht->vers_query_commit_ts(thd, &start_trx_id, timestamp,
+                                                VTQ_TRX_ID, false);
+    DBUG_ASSERT(start_trx_id != 0);
+  }
+
+  ulonglong end_trx_id= 0;
+  if (type == FOR_SYSTEM_TIME_FROM_TO || type == FOR_SYSTEM_TIME_BETWEEN)
+  {
+    MYSQL_TIME timestamp;
+    if (about.vers_conditions.end->get_date(&timestamp, 0))
+      return true;
+
+    about.table->file->ht->vers_query_commit_ts(thd, &end_trx_id, timestamp,
+                                                VTQ_TRX_ID, false);
+    DBUG_ASSERT(end_trx_id != 0);
+  }
+
+  String vtmd_name;
+  if (about.vers_vtmd_name(vtmd_name))
+    return true;
+
+  Open_tables_backup open_tables_backup;
+  {
+    Local_da local_da(thd, ER_VERS_VTMD_ERROR);
+
+    TABLE_LIST vtmd_tl;
+    vtmd_tl.init_one_table(about.db, about.db_length, vtmd_name.c_ptr(),
+                           vtmd_name.length(), vtmd_name.c_ptr(), TL_READ);
+
+    vtmd= open_log_table(thd, &vtmd_tl, &open_tables_backup);
+
+    if (!vtmd && local_da.is_error() &&
+        local_da.sql_errno() == ER_NO_SUCH_TABLE)
+    {
+      local_da.reset_diagnostics_area();
+      return false;
+    }
+  }
+
+  READ_RECORD read_record;
+  SQL_SELECT *sql_select= new (thd->mem_root) SQL_SELECT;
+  if (!sql_select)
+    return true;
+
+  int err= 0;
+  if (init_read_record(&read_record, thd, vtmd, sql_select, NULL, false, true,
+                       true))
+  {
+    return true;
+  }
+
+  String archive_names;
+  while (!(err= read_record.read_record(&read_record)))
+  {
+    ulonglong start= static_cast<ulonglong>(vtmd->field[FLD_START]->val_int());
+    ulonglong end= static_cast<ulonglong>(vtmd->field[FLD_END]->val_int());
+
+    if ((type == FOR_SYSTEM_TIME_AS_OF && start <= start_trx_id &&
+         start_trx_id < end) ||
+
+        (type == FOR_SYSTEM_TIME_FROM_TO && start < end_trx_id &&
+         start_trx_id <= end) ||
+
+        (type == FOR_SYSTEM_TIME_BETWEEN && start <= end_trx_id &&
+         start_trx_id <= end) ||
+
+        (type == FOR_SYSTEM_TIME_ALL))
+    {
+        String archive_table_name;
+        vtmd->field[FLD_ARCHIVE_NAME]->val_str(&archive_table_name);
+        if (archive_table_name.length() == 0)
+          vtmd->field[FLD_NAME]->val_str(&archive_table_name);
+
+        if (archive_names.length() != 0)
+          archive_names.append(", ");
+        archive_names.append(archive_table_name);
+    }
+  }
+  end_read_record(&read_record);
+
+  close_log_table(thd, &open_tables_backup);
+
+  about.table->vtmd_replacements.move(archive_names);
+
+  return false;
+}

@@ -1517,6 +1517,9 @@ void Explain_table_access::tag_to_json(Json_writer *writer, enum explain_extra_t
     case ET_DISTINCT:
       writer->add_member("distinct").add_bool(true);
       break;
+    case ET_USING_VTMD:
+      writer->add_member("VTMD").add_bool(true);
+      break;
 
     default:
       DBUG_ASSERT(0);
@@ -1807,7 +1810,9 @@ const char * extra_tag_text[]=
 
   "const row not found",
   "unique row not found",
-  "Impossible ON condition"
+  "Impossible ON condition",
+
+  "VTMD replacements"
 };
 
 
@@ -1872,6 +1877,13 @@ void Explain_table_access::append_tag_name(String *str, enum explain_extra_tag t
       str->append(extra_tag_text[tag]);
       if (loose_scan_is_scanning)
         str->append(" (scanning)");
+      break;
+    }
+    case ET_USING_VTMD:
+    {
+      str->append(extra_tag_text[tag]);
+      str->append(": ");
+      str->append(vtmd_replacements);
       break;
     }
     default:

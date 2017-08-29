@@ -63,6 +63,7 @@
 #include <hash.h>
 #include <ft_global.h>
 #include "sys_vars_shared.h"
+#include "vtmd.h"
 
 /*
   A key part number that means we're using a fulltext scan.
@@ -1568,6 +1569,13 @@ JOIN::optimize_inner()
   DEBUG_SYNC(thd, "before_join_optimize");
 
   THD_STAGE_INFO(thd, stage_optimizing);
+
+  if (thd->variables.vers_ddl_survival && select_lex->parent_lex->describe)
+  {
+    VTMD_table tmp(*select_lex->table_list.first);
+    if (tmp.compute_replacements(thd))
+      DBUG_RETURN(1);
+  }
 
   set_allowed_join_cache_types();
   need_distinct= TRUE;
@@ -24890,6 +24898,12 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta,
       eta->push_extra(ET_USING_JOIN_BUFFER);
       cache->save_explain_data(&eta->bka_type);
     }
+  }
+
+  if (thd->variables.vers_ddl_survival && !table->s->vtmd)
+  {
+    eta->push_extra(ET_USING_VTMD);
+    eta->vtmd_replacements.move(table->vtmd_replacements);
   }
 
   /* 

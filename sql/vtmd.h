@@ -87,6 +87,8 @@ public:
   }
 
   bool find_archive_name(THD *thd, String &out);
+
+  bool compute_replacements(THD *thd);
 };
 
 class VTMD_exists : public VTMD_table

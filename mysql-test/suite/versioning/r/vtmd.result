@@ -265,6 +265,30 @@ A_start	B_end	name	C_archive_name
 1	0	other_name	t1_
 1	0	t1	t1_
 1	1	t2	NULL
+set versioning_ddl_survival = on;
+create or replace table t (a int) with system versioning;
+insert into t  values (1);
+update t set a = 2;
+set @ts = now(6);
+alter table t add column b int;
+explain select * from t;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	ALL	NULL	NULL	NULL	NULL	1	Using where; VTMD replacements: 
+explain select * from t for system_time as of @ts;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	ALL	NULL	NULL	NULL	NULL	1	Using where; VTMD replacements: t_20170829_130518_230438
+explain select * from t for system_time between @ts and '2038-01-19 03:14:07.999999';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	ALL	NULL	NULL	NULL	NULL	1	Using where; VTMD replacements: t_20170829_130518_230438, t
+explain select * from t for system_time from @ts to '2038-01-19 03:14:07.999999';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	ALL	NULL	NULL	NULL	NULL	1	Using where; VTMD replacements: t_20170829_130518_230438, t
+explain select * from t for system_time all;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	ALL	NULL	NULL	NULL	NULL	1	VTMD replacements: t_20170829_130518_230438, t
+explain select * from t for system_time before @ts;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	ALL	NULL	NULL	NULL	NULL	1	Using where; VTMD replacements: 
 drop database db0;
 drop database db1;
 drop database test;

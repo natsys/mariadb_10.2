@@ -539,6 +539,8 @@ enum explain_extra_tag
   ET_UNIQUE_ROW_NOT_FOUND,
   ET_IMPOSSIBLE_ON_CONDITION,
 
+  ET_USING_VTMD,
+
   ET_total
 };
 
@@ -788,6 +790,10 @@ public:
   Table_access_tracker tracker;
   Exec_time_tracker op_tracker;
   Table_access_tracker jbuf_tracker;
+
+  // This table will be replaced with that list of tables by
+  // DDL survival feature.
+  String vtmd_replacements;
   
   int print_explain(select_result_sink *output, uint8 explain_flags, 
                     bool is_analyze,
