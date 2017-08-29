@@ -610,13 +610,24 @@ bool VTMD_table::compute_replacements(THD *thd)
   if (about.vers_vtmd_name(vtmd_name))
     return true;
 
-  TABLE_LIST vtmd_tl;
-  vtmd_tl.init_one_table(about.db, about.db_length, vtmd_name.c_ptr(),
-                         vtmd_name.length(), vtmd_name.c_ptr(), TL_READ);
 
   Open_tables_backup open_tables_backup;
-  if (!(vtmd= open_log_table(thd, &vtmd_tl, &open_tables_backup)))
-    return true;
+  {
+    Local_da local_da(thd, ER_VERS_VTMD_ERROR);
+
+    TABLE_LIST vtmd_tl;
+    vtmd_tl.init_one_table(about.db, about.db_length, vtmd_name.c_ptr(),
+                           vtmd_name.length(), vtmd_name.c_ptr(), TL_READ);
+
+    vtmd= open_log_table(thd, &vtmd_tl, &open_tables_backup);
+
+    if (!vtmd && local_da.is_error() &&
+        local_da.sql_errno() == ER_NO_SUCH_TABLE)
+    {
+      local_da.reset_diagnostics_area();
+      return false;
+    }
+  }
 
   READ_RECORD read_record;
   SQL_SELECT *sql_select= new (thd->mem_root) SQL_SELECT;

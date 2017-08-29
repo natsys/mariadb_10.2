@@ -1570,7 +1570,7 @@ JOIN::optimize_inner()
 
   THD_STAGE_INFO(thd, stage_optimizing);
 
-  if (thd->variables.vers_ddl_survival)
+  if (thd->variables.vers_ddl_survival && select_lex->parent_lex->describe)
   {
     VTMD_table tmp(*select_lex->table_list.first);
     if (tmp.compute_replacements(thd))
