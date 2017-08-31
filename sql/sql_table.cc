@@ -6373,6 +6373,8 @@ static bool fill_alter_inplace_info(THD *thd,
     ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_ADD_CHECK_CONSTRAINT;
   if (alter_info->flags & Alter_info::ALTER_DROP_CHECK_CONSTRAINT)
     ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_DROP_CHECK_CONSTRAINT;
+  if (thd->variables.vers_alter_history == VERS_ALTER_HISTORY_DROP)
+    ha_alter_info->handler_flags|= Alter_inplace_info::ALTER_DROP_HISTORICAL;
 
   /*
     If we altering table with old VARCHAR fields we will be automatically
@@ -9958,6 +9960,9 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
       query_start= thd->query_start_TIME();
       from_sys_trx_end= from->vers_end_field();
       to_sys_trx_start= to->vers_start_field();
+    } else if (thd->variables.vers_alter_history == VERS_ALTER_HISTORY_DROP)
+    {
+      from_sys_trx_end= from->vers_end_field();
     }
   }
 
@@ -10013,6 +10018,12 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     for (Copy_field *copy_ptr=copy ; copy_ptr != copy_end ; copy_ptr++)
     {
       copy_ptr->do_copy(copy_ptr);
+    }
+
+    if (thd->variables.vers_alter_history == VERS_ALTER_HISTORY_DROP &&
+        from_sys_trx_end && !from_sys_trx_end->is_max())
+    {
+      continue;
     }
 
     if (make_versioned)

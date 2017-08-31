@@ -1797,7 +1797,8 @@ row_merge_read_clustered_index(
 	double 			pct_cost,
 	fil_space_crypt_t*	crypt_data,
 	row_merge_block_t*	crypt_block,
-	struct TABLE*		eval_table)
+	struct TABLE*		eval_table,
+	bool			drop_historical)
 
 {
 	dict_index_t*		clust_index;	/* Clustered index */
@@ -2302,10 +2303,9 @@ end_of_index:
 		}
 
 		if (DICT_TF2_FLAG_IS_SET(old_table, DICT_TF2_VERSIONED)) {
-			bool new_is_versioned =
-			    DICT_TF2_FLAG_IS_SET(new_table, DICT_TF2_VERSIONED);
-			bool drop = false;//thd_alter_history_drop(trx->mysql_thd);
-			if (new_is_versioned && !drop) {
+			if (DICT_TF2_FLAG_IS_SET(new_table,
+						 DICT_TF2_VERSIONED) &&
+			    !drop_historical) {
 				dfield_t *end = dtuple_get_nth_field(
 					row, new_table->vers_row_end);
 				byte *data = static_cast<byte *>(
@@ -4676,7 +4676,8 @@ row_merge_build_indexes(
 	bool			skip_pk_sort,
 	ut_stage_alter_t*	stage,
 	const dict_add_v_col_t*	add_v,
-	struct TABLE*		eval_table)
+	struct TABLE*		eval_table,
+	bool			drop_historical)
 {
 	merge_file_t*		merge_files;
 	row_merge_block_t*	block;
@@ -4850,7 +4851,8 @@ row_merge_build_indexes(
 			fts_sort_idx, psort_info, merge_files, key_numbers,
 			n_indexes, add_cols, add_v, col_map, add_autoinc,
 			sequence, block, skip_pk_sort, &tmpfd, stage,
-			pct_cost, crypt_data, crypt_block, eval_table);
+			pct_cost, crypt_data, crypt_block, eval_table,
+			drop_historical);
 
 	stage->end_phase_read_pk();
 
