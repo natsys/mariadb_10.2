@@ -2237,7 +2237,7 @@ end_of_index:
 			ut_ad(add_autoinc
 			      < dict_table_get_n_user_cols(new_table));
 
-			bool row_is_historic = false;
+			bool historical_system_row = false;
 			if (DICT_TF2_FLAG_IS_SET(
 				    new_table, DICT_TF2_VERSIONED)) {
 				const dfield_t *dfield = dtuple_get_nth_field(
@@ -2245,7 +2245,7 @@ end_of_index:
 				const byte *data = static_cast<const byte *>(
 					dfield_get_data(dfield));
 				ut_ad(dfield_get_len(dfield) == 8);
-				row_is_historic =
+				historical_system_row =
 					mach_read_from_8(data) != TRX_ID_MAX;
 			}
 
@@ -2270,7 +2270,7 @@ end_of_index:
 			}
 
 			ulonglong value;
-			if (likely(!row_is_historic))
+			if (likely(!historical_system_row))
 				value = sequence++;
                         else
 				value = historic_auto_decrement--;
@@ -2302,8 +2302,10 @@ end_of_index:
 		}
 
 		if (DICT_TF2_FLAG_IS_SET(old_table, DICT_TF2_VERSIONED)) {
-			if (DICT_TF2_FLAG_IS_SET(
-				    new_table, DICT_TF2_VERSIONED)) {
+			bool new_is_versioned =
+			    DICT_TF2_FLAG_IS_SET(new_table, DICT_TF2_VERSIONED);
+			bool drop = false;//thd_alter_history_drop(trx->mysql_thd);
+			if (new_is_versioned && !drop) {
 				dfield_t *end = dtuple_get_nth_field(
 					row, new_table->vers_row_end);
 				byte *data = static_cast<byte *>(
