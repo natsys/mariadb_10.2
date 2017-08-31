@@ -6671,7 +6671,7 @@ int Item_int::save_in_field(Field *field, bool no_conversions)
 
 Item *Item_int::clone_item(THD *thd)
 {
-  return new (thd->mem_root) Item_int(thd, name, value, max_length);
+  return new (thd->mem_root) Item_int(thd, name, value, max_length, unsigned_flag);
 }
 
 

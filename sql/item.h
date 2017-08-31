@@ -3203,6 +3203,9 @@ public:
   Item_int(THD *thd, const char *str_arg,longlong i,uint length):
     Item_num(thd), value(i)
     { max_length=length; name=(char*) str_arg; fixed= 1; }
+  Item_int(THD *thd, const char *str_arg,longlong i,uint length, bool flag):
+    Item_num(thd), value(i)
+    { max_length=length; name=(char*) str_arg; fixed= 1; unsigned_flag= flag; }
   Item_int(THD *thd, const char *str_arg, uint length=64);
   enum Type type() const { return INT_ITEM; }
   enum Item_result result_type () const { return INT_RESULT; }
