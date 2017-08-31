@@ -918,7 +918,7 @@ int vers_setup_select(THD *thd, TABLE_LIST *tables, COND **where_expr,
         switch (vers_conditions.type)
         {
         case FOR_SYSTEM_TIME_UNSPECIFIED:
-          if (!tmp_from_ib)
+          if (t->vers_start_field()->real_type() != MYSQL_TYPE_LONGLONG)
           {
             MYSQL_TIME max_time;
             thd->variables.time_zone->gmt_sec_to_TIME(&max_time, TIMESTAMP_MAX_VALUE);

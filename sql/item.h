@@ -1349,6 +1349,8 @@ public:
     {
       if (other->cmp_type() == TIME_RESULT)
         return other->field_type();
+      if (vers_trx_id() || other->vers_trx_id())
+        return MYSQL_TYPE_DATETIME;
       DBUG_ASSERT(0); // Two non-temporal data types, we should not get to here
       return MYSQL_TYPE_DATETIME;
     }
@@ -1661,6 +1663,8 @@ public:
 
   virtual Item *vers_optimized_fields_transformer(THD *thd, uchar *)
   { return this; }
+  virtual bool vers_trx_id() const
+  { return false; }
   virtual Item *neg_transformer(THD *thd) { return NULL; }
   virtual Item *update_value_transformer(THD *thd, uchar *select_arg)
   { return this; }
@@ -2761,6 +2765,7 @@ public:
   Item_field *field_for_view_update() { return this; }
   int fix_outer_field(THD *thd, Field **field, Item **reference);
   virtual Item *vers_optimized_fields_transformer(THD *thd, uchar *);
+  virtual bool vers_trx_id() const;
   virtual Item *update_value_transformer(THD *thd, uchar *select_arg);
   Item *derived_field_transformer_for_having(THD *thd, uchar *arg);
   Item *derived_field_transformer_for_where(THD *thd, uchar *arg);
