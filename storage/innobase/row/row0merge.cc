@@ -2238,7 +2238,7 @@ end_of_index:
 			ut_ad(add_autoinc
 			      < dict_table_get_n_user_cols(new_table));
 
-			bool historical_system_row = false;
+			bool historical_row = false;
 			if (DICT_TF2_FLAG_IS_SET(
 				    new_table, DICT_TF2_VERSIONED)) {
 				const dfield_t *dfield = dtuple_get_nth_field(
@@ -2246,7 +2246,7 @@ end_of_index:
 				const byte *data = static_cast<const byte *>(
 					dfield_get_data(dfield));
 				ut_ad(dfield_get_len(dfield) == 8);
-				historical_system_row =
+				historical_row =
 					mach_read_from_8(data) != TRX_ID_MAX;
 			}
 
@@ -2271,7 +2271,7 @@ end_of_index:
 			}
 
 			ulonglong value;
-			if (likely(!historical_system_row))
+			if (likely(!historical_row))
 				value = sequence++;
                         else
 				value = historic_auto_decrement--;
