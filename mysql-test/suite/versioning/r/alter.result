@@ -533,7 +533,7 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
-set versioning_alter_history = 'DROP';
+set versioning_alter_history = DROP;
 create or replace table t (a int) with system versioning engine innodb;
 insert into t values (1);
 update t set a = 2;

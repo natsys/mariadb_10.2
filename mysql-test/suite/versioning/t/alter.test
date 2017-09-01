@@ -257,7 +257,7 @@ select * from t;
 alter table t without system versioning;
 show create table t;
 
-set versioning_alter_history = 'DROP';
+set versioning_alter_history = DROP;
 
 create or replace table t (a int) with system versioning engine innodb;
 insert into t values (1);
