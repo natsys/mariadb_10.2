@@ -1443,7 +1443,7 @@ error:
     called for RANGE PARTITIONed tables.
 */
 
-bool partition_info::check_range_constants(THD *thd, bool init)
+bool partition_info::check_range_constants(THD *thd, bool alloc)
 {
   partition_element* part_def;
   bool first= TRUE;
@@ -1460,7 +1460,7 @@ bool partition_info::check_range_constants(THD *thd, bool init)
     part_column_list_val *UNINIT_VAR(current_largest_col_val);
     uint num_column_values= part_field_list.elements;
     uint size_entries= sizeof(part_column_list_val) * num_column_values;
-    if (init)
+    if (alloc)
     {
       range_col_array= (part_column_list_val*) thd->calloc(num_parts *
         size_entries);
@@ -1501,7 +1501,7 @@ bool partition_info::check_range_constants(THD *thd, bool init)
     longlong part_range_value;
     bool signed_flag= !part_expr->unsigned_flag;
 
-    if (init)
+    if (alloc)
     {
       range_int_array= (longlong*) thd->alloc(num_parts * sizeof(longlong));
       if (unlikely(range_int_array == NULL))

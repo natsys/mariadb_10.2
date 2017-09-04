@@ -351,7 +351,7 @@ public:
   char *find_duplicate_field();
   char *find_duplicate_name();
   bool check_engine_mix(handlerton *engine_type, bool default_engine);
-  bool check_range_constants(THD *thd, bool init= true);
+  bool check_range_constants(THD *thd, bool alloc= true);
   bool check_list_constants(THD *thd);
   bool check_partition_info(THD *thd, handlerton **eng_type,
                             handler *file, HA_CREATE_INFO *info,
@@ -552,7 +552,7 @@ public:
     if (part_id < vers_info->now_part->id)
       vers_update_stats(thd, get_partition(part_id));
   }
-  void vers_update_range_constants(THD *thd)
+  bool vers_update_range_constants(THD *thd)
   {
     DBUG_ASSERT(vers_info && vers_info->initialized());
     DBUG_ASSERT(table && table->s);
@@ -561,17 +561,19 @@ public:
     if (vers_info->stat_serial == table->s->stat_serial)
     {
       mysql_rwlock_unlock(&table->s->LOCK_stat_serial);
-      return;
+      return false;
     }
 
+    bool result= false;
     for (uint i= 0; i < num_columns; ++i)
     {
       Field *f= part_field_array[i];
       bitmap_set_bit(f->table->write_set, f->field_index);
     }
-    check_range_constants(thd, false);
+    result= check_range_constants(thd, false);
     vers_info->stat_serial= table->s->stat_serial;
     mysql_rwlock_unlock(&table->s->LOCK_stat_serial);
+    return result;
   }
 };
 
