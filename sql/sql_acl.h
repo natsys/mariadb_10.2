@@ -120,19 +120,22 @@
                    CREATE_PROC_ACL | ALTER_PROC_ACL )
 #define DB_CHUNK4 (EXECUTE_ACL)
 #define DB_CHUNK5 (EVENT_ACL | TRIGGER_ACL)
+#define DB_CHUNK6 (DELETE_HISTORY_ACL)
 
 #define fix_rights_for_db(A)  (((A)       & DB_CHUNK0) | \
                               (((A) << 4) & DB_CHUNK1) | \
                               (((A) << 6) & DB_CHUNK2) | \
                               (((A) << 9) & DB_CHUNK3) | \
                               (((A) << 2) & DB_CHUNK4) | \
-                              (((A) << 9) & DB_CHUNK5))
+                              (((A) << 9) & DB_CHUNK5) | \
+                              (((A) << 10) & DB_CHUNK6))
 #define get_rights_for_db(A)  (((A) & DB_CHUNK0)       | \
                               (((A) & DB_CHUNK1) >> 4) | \
                               (((A) & DB_CHUNK2) >> 6) | \
                               (((A) & DB_CHUNK3) >> 9) | \
                               (((A) & DB_CHUNK4) >> 2) | \
-                              (((A) & DB_CHUNK5) >> 9))
+                              (((A) & DB_CHUNK5) >> 9) | \
+                              (((A) & DB_CHUNK6) >> 10))
 #define TBL_CHUNK0 DB_CHUNK0
 #define TBL_CHUNK1 DB_CHUNK1
 #define TBL_CHUNK2 (CREATE_VIEW_ACL | SHOW_VIEW_ACL)
@@ -181,6 +184,7 @@ enum mysql_db_table_field
   MYSQL_DB_FIELD_EXECUTE_PRIV,
   MYSQL_DB_FIELD_EVENT_PRIV,
   MYSQL_DB_FIELD_TRIGGER_PRIV,
+  MYSQL_DB_FIELD_DELETE_HISTORY_PRIV,
   MYSQL_DB_FIELD_COUNT
 };
 
