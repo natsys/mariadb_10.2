@@ -540,7 +540,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  HOUR_MICROSECOND_SYM
 %token  HOUR_MINUTE_SYM
 %token  HOUR_SECOND_SYM
-%token  HISTORY_SYM
 %token  HOUR_SYM                      /* SQL-2003-R */
 %token  ID_SYM                        /* MYSQL */
 %token  IDENT

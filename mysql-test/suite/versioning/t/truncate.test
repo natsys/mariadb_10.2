@@ -4,7 +4,7 @@ create table t (a int);
 --error ER_VERSIONING_REQUIRED
 truncate t to system_time now();
 
-# TRUNCATE is not DELETE and triggest must not be called.
+# TRUNCATE is not DELETE and trigger must not be called.
 create or replace table t (a int) with system versioning;
 insert into t values (1);
 update t set a=2;
