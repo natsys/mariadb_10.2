@@ -425,7 +425,7 @@ public:
   bool vers_set_interval(const INTERVAL &i);
   bool vers_set_limit(ulonglong limit);
   partition_element* vers_part_rotate(THD *thd);
-  void vers_set_expression(THD *thd, partition_element *el, MYSQL_TIME &t);
+  bool vers_set_expression(THD *thd, partition_element *el, MYSQL_TIME &t);
   bool vers_setup_expression(THD *thd, uint32 alter_add= 0); /* Stage 1. */
   bool vers_setup_stats(THD *thd, bool is_create_table_ind); /* Stage 2. */
   bool vers_scan_min_max(THD *thd, partition_element *part);

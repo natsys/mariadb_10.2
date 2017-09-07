@@ -912,7 +912,7 @@ partition_info::vers_part_rotate(THD * thd)
   return vers_info->hist_part;
 }
 
-void partition_info::vers_set_expression(THD *thd, partition_element *el, MYSQL_TIME& t)
+bool partition_info::vers_set_expression(THD *thd, partition_element *el, MYSQL_TIME& t)
 {
   curr_part_elem= el;
   init_column_part(thd);
@@ -931,6 +931,8 @@ void partition_info::vers_set_expression(THD *thd, partition_element *el, MYSQL_
       continue;
     }
     Item *item_expression= new (thd->mem_root) Item_datetime_literal(thd, &t);
+    if (!item_expression)
+      return true;
     /* We initialize col_val with bogus max value to make fix_partition_func() and check_range_constants() happy.
         Later in vers_setup_stats() it is initialized with real stat value if there will be any. */
     /* FIXME: TIME_RESULT in col_val is expensive. It should be INT_RESULT
@@ -938,6 +940,7 @@ void partition_info::vers_set_expression(THD *thd, partition_element *el, MYSQL_
     init_col_val(col_val, item_expression);
     DBUG_ASSERT(item_expression == el->get_col_val(i).item_expression);
   } // for (num_columns)
+  return false;
 }
 
 bool partition_info::vers_setup_expression(THD * thd, uint32 alter_add)
@@ -1012,7 +1015,8 @@ bool partition_info::vers_setup_expression(THD * thd, uint32 alter_add)
 
   set_expression:
     thd->variables.time_zone->gmt_sec_to_TIME(&t, ts);
-    vers_set_expression(thd, el, t);
+    if (vers_set_expression(thd, el, t))
+      return true;
   }
   return false;
 }
