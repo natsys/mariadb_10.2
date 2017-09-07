@@ -700,9 +700,9 @@ bool ROLE_GRANT_PAIR::init(MEM_ROOT *mem, char *username,
 #endif /* HAVE_OPENSSL && !EMBEDDED_LIBRARY */
 #define NORMAL_HANDSHAKE_SIZE   6
 
-#define ROLE_ASSIGN_COLUMN_IDX  43
-#define DEFAULT_ROLE_COLUMN_IDX 44
-#define MAX_STATEMENT_TIME_COLUMN_IDX 45
+#define ROLE_ASSIGN_COLUMN_IDX  44
+#define DEFAULT_ROLE_COLUMN_IDX 45
+#define MAX_STATEMENT_TIME_COLUMN_IDX 46
 
 /* various flags valid for ACL_USER */
 #define IS_ROLE                 (1L << 0)
