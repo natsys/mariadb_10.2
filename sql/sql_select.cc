@@ -3992,6 +3992,50 @@ void JOIN::cleanup_item_list(List<Item> &items) const
     TRUE   an error
 */
 
+void f(THD *thd) {
+  // Save query LEX.
+  LEX* lex_memory= thd->lex;
+
+  // Fill SELECT.
+  
+  LEX lex;
+  thd->lex = &lex;
+  lex.start(thd);
+
+  lex.sql_command= SQLCOM_SELECT;
+  lex.current_select->options|= SELECT_ALL;
+
+  Item *archive_name= new (thd->mem_root)
+      Item_field(thd, lex.current_context(), NULL, NULL, "archive_name");
+  DBUG_ASSERT(archive_name);
+
+  lex.current_select->item_list.push_back(archive_name, thd->mem_root);
+
+  lex.current_select->table_join_options= 0;
+
+  static const char kTableName[] = "t1_vtmd";
+  LEX_STRING kTableNameLexString= {STRING_WITH_LEN((char *)kTableName)};
+
+  Table_ident *table_ident=
+      new (thd->mem_root) Table_ident(kTableNameLexString);
+  DBUG_ASSERT(table_ident);
+  // TABLE_LIST *table_list= lex.current_select->add_table_to_list(
+  //     thd, table_ident, &kTableNameLexString, 0, TL_READ, MDL_SHARED_READ, NULL,
+  //     NULL, NULL);
+  // DBUG_ASSERT(table_list);
+
+  // Prepare SELECT.
+
+  // JOIN *join= lex.current_select->join;
+  // DBUG_ASSERT(join);
+  // int err= join->prepare(table_list, 0, NULL, 0, NULL, false, NULL, NULL, NULL,
+  //                        lex.current_select, &lex.unit);
+  // DBUG_ASSERT(err == 0);
+
+  // Restore query LEX.
+  thd->lex= lex_memory;
+}
+
 bool
 mysql_select(THD *thd,
 	     TABLE_LIST *tables, uint wild_num, List<Item> &fields,
@@ -4000,6 +4044,9 @@ mysql_select(THD *thd,
 	     select_result *result, SELECT_LEX_UNIT *unit,
 	     SELECT_LEX *select_lex)
 {
+  f(thd);
+
+
   int err= 0;
   bool free_join= 1;
   DBUG_ENTER("mysql_select");
