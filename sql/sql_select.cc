@@ -3993,6 +3993,12 @@ void JOIN::cleanup_item_list(List<Item> &items) const
 */
 
 void f(THD *thd) {
+  if (!thd || !thd->lex || !thd->lex->current_select ||
+      !thd->lex->current_select->table_list.first ||
+      !thd->lex->current_select->table_list.first->table_name ||
+      strcmp("t1_vtmd", thd->lex->current_select->table_list.first->table_name))
+    return;
+
   // Save query LEX.
   LEX* lex_memory= thd->lex;
 
@@ -4001,36 +4007,66 @@ void f(THD *thd) {
   LEX lex;
   thd->lex = &lex;
   lex.start(thd);
+  lex.current_select->init_select();
 
   lex.sql_command= SQLCOM_SELECT;
-  lex.current_select->options|= SELECT_ALL;
+  //lex.current_select->options|= SELECT_ALL;
 
   Item *archive_name= new (thd->mem_root)
       Item_field(thd, lex.current_context(), NULL, NULL, "archive_name");
   DBUG_ASSERT(archive_name);
 
   lex.current_select->item_list.push_back(archive_name, thd->mem_root);
+  lex.current_select->select_n_having_items++;
 
   lex.current_select->table_join_options= 0;
 
   static const char kTableName[] = "t1_vtmd";
-  LEX_STRING kTableNameLexString= {STRING_WITH_LEN((char *)kTableName)};
+  LEX_STRING kTableNameLexString= {C_STRING_WITH_LEN((char *)kTableName)};
 
   Table_ident *table_ident=
       new (thd->mem_root) Table_ident(kTableNameLexString);
   DBUG_ASSERT(table_ident);
-  // TABLE_LIST *table_list= lex.current_select->add_table_to_list(
-  //     thd, table_ident, &kTableNameLexString, 0, TL_READ, MDL_SHARED_READ, NULL,
-  //     NULL, NULL);
-  // DBUG_ASSERT(table_list);
+  TABLE_LIST *table_list= lex.current_select->add_table_to_list(
+      thd, table_ident, &kTableNameLexString, 0, TL_READ, MDL_SHARED_READ, NULL,
+      NULL, NULL);
+  DBUG_ASSERT(table_list);
+  lex.current_select->add_joined_table(table_list);
+
+  lex.current_select->context.table_list= lex.current_select->table_list.first;
+  lex.current_select->context.first_name_resolution_table=
+      lex.current_select->table_list.first;
+
+  lex.current_select->context.resolve_in_select_list= true;
+
+  if (!lex.unit.global_parameters()->explicit_limit)
+  {
+    lex.unit.global_parameters()->select_limit= new (thd->mem_root)
+        Item_int(thd, (ulonglong)thd->variables.select_limit);
+    DBUG_ASSERT(lex.unit.global_parameters()->select_limit);
+  }
+
+  lex.current_select->clear_index_hints();
+  lex.charset= NULL;
+  lex.wild= NULL;
+  lex.exchange= NULL;
 
   // Prepare SELECT.
 
-  // JOIN *join= lex.current_select->join;
-  // DBUG_ASSERT(join);
-  // int err= join->prepare(table_list, 0, NULL, 0, NULL, false, NULL, NULL, NULL,
-  //                        lex.current_select, &lex.unit);
-  // DBUG_ASSERT(err == 0);
+  MDL_request mdl_request;
+  DBUG_ASSERT(!thd->global_read_lock.can_acquire_protection());
+  mdl_request.init(MDL_key::GLOBAL, "", "", MDL_INTENTION_EXCLUSIVE, MDL_STATEMENT);
+  DBUG_ASSERT(!thd->mdl_context.acquire_lock(&mdl_request,
+                                             thd->variables.lock_wait_timeout));
+  DBUG_ASSERT(!open_and_lock_tables(thd, table_list, false, 0));
+
+  lex.current_select->join=
+      new (thd->mem_root) JOIN(thd, lex.current_select->item_list, 0, NULL);
+  DBUG_ASSERT(lex.current_select->join);
+  int err= lex.current_select->join->prepare(table_list, 0, NULL, 0, NULL,
+                                             false, NULL, NULL, NULL,
+                                             lex.current_select, &lex.unit);
+  DBUG_ASSERT(err == 0);
 
   // Restore query LEX.
   thd->lex= lex_memory;
@@ -4044,9 +4080,6 @@ mysql_select(THD *thd,
 	     select_result *result, SELECT_LEX_UNIT *unit,
 	     SELECT_LEX *select_lex)
 {
-  f(thd);
-
-
   int err= 0;
   bool free_join= 1;
   DBUG_ENTER("mysql_select");
@@ -4099,6 +4132,7 @@ mysql_select(THD *thd,
 	DBUG_RETURN(TRUE);
     THD_STAGE_INFO(thd, stage_init);
     thd->lex->used_tables=0;
+        f(thd);
     if ((err= join->prepare(tables, wild_num,
                             conds, og_num, order, false, group, having, proc_param,
                             select_lex, unit)))
