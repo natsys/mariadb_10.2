@@ -4001,6 +4001,9 @@ void f(THD *thd) {
 
   // Save query LEX.
   LEX* lex_memory= thd->lex;
+  MYSQL_LOCK *lock_memory= thd->lock;
+
+  thd->lock= NULL;
 
   // Fill SELECT.
   
@@ -4062,8 +4065,11 @@ void f(THD *thd) {
   //DBUG_ASSERT(!open_and_lock_tables(thd, table_list, false, 0));
   DBUG_ASSERT(!open_table(thd, table_list, &open_table_context));
 
-  lex.current_select->join=
-      new (thd->mem_root) JOIN(thd, lex.current_select->item_list, 0, NULL);
+  select_result *select_result= new (thd->mem_root) class select_send(thd);
+  DBUG_ASSERT(select_result);
+
+  lex.current_select->join= new (thd->mem_root)
+      JOIN(thd, lex.current_select->item_list, 0, select_result);
   DBUG_ASSERT(lex.current_select->join);
   int err= lex.current_select->join->prepare(table_list, 0, NULL, 0, NULL,
                                              false, NULL, NULL, NULL,
@@ -4075,6 +4081,7 @@ void f(THD *thd) {
 
   // Restore query LEX.
   thd->lex= lex_memory;
+  thd->lock= lock_memory;
 }
 
 bool
