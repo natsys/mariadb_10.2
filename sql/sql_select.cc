@@ -4055,10 +4055,12 @@ void f(THD *thd) {
 
   MDL_request mdl_request;
   DBUG_ASSERT(!thd->global_read_lock.can_acquire_protection());
-  mdl_request.init(MDL_key::GLOBAL, "", "", MDL_INTENTION_EXCLUSIVE, MDL_STATEMENT);
+  mdl_request.init(MDL_key::TABLE, "", "", MDL_SHARED, MDL_STATEMENT);
   DBUG_ASSERT(!thd->mdl_context.acquire_lock(&mdl_request,
                                              thd->variables.lock_wait_timeout));
-  DBUG_ASSERT(!open_and_lock_tables(thd, table_list, false, 0));
+  Open_table_context open_table_context(thd, 0);
+  //DBUG_ASSERT(!open_and_lock_tables(thd, table_list, false, 0));
+  DBUG_ASSERT(!open_table(thd, table_list, &open_table_context));
 
   lex.current_select->join=
       new (thd->mem_root) JOIN(thd, lex.current_select->item_list, 0, NULL);
@@ -4066,6 +4068,9 @@ void f(THD *thd) {
   int err= lex.current_select->join->prepare(table_list, 0, NULL, 0, NULL,
                                              false, NULL, NULL, NULL,
                                              lex.current_select, &lex.unit);
+  DBUG_ASSERT(err == 0);
+
+  err = lex.current_select->join->optimize();
   DBUG_ASSERT(err == 0);
 
   // Restore query LEX.
