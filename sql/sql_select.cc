@@ -4060,14 +4060,21 @@ void f(THD *thd) {
 
   lex.current_select->join= new (thd->mem_root)
       JOIN(thd, lex.current_select->item_list, 0, select_result);
-  DBUG_ASSERT(lex.current_select->join);
-  int err= lex.current_select->join->prepare(table_list, 0, NULL, 0, NULL,
-                                             false, NULL, NULL, NULL,
-                                             lex.current_select, &lex.unit);
+  JOIN *join = lex.current_select->join;
+  DBUG_ASSERT(join);
+  int err= join->prepare(table_list, 0, NULL, 0, NULL, false, NULL, NULL, NULL,
+                         lex.current_select, &lex.unit);
   DBUG_ASSERT(err == 0);
 
-  err = lex.current_select->join->optimize();
+  err = join->optimize();
   DBUG_ASSERT(err == 0);
+
+  // Read rows.
+
+  JOIN_TAB *join_tab= join->join_tab;
+  DBUG_ASSERT(!join_init_read_record(join_tab));
+
+  // Cleanup.
 
   close_log_table(thd, &open_tables_backup);
   delete lex.explain;
