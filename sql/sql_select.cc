@@ -4001,12 +4001,8 @@ void f(THD *thd) {
 
   // Save query LEX.
   LEX* lex_memory= thd->lex;
-  MYSQL_LOCK *lock_memory= thd->lock;
-
-  thd->lock= NULL;
 
   // Fill SELECT.
-  
   LEX lex;
   thd->lex = &lex;
   lex.start(thd);
@@ -4056,14 +4052,8 @@ void f(THD *thd) {
 
   // Prepare SELECT.
 
-  MDL_request mdl_request;
-  DBUG_ASSERT(!thd->global_read_lock.can_acquire_protection());
-  mdl_request.init(MDL_key::TABLE, "", "", MDL_SHARED, MDL_STATEMENT);
-  DBUG_ASSERT(!thd->mdl_context.acquire_lock(&mdl_request,
-                                             thd->variables.lock_wait_timeout));
-  Open_table_context open_table_context(thd, 0);
-  //DBUG_ASSERT(!open_and_lock_tables(thd, table_list, false, 0));
-  DBUG_ASSERT(!open_table(thd, table_list, &open_table_context));
+  Open_tables_backup open_tables_backup;
+  DBUG_ASSERT(open_log_table(thd, table_list, &open_tables_backup));
 
   select_result *select_result= new (thd->mem_root) class select_send(thd);
   DBUG_ASSERT(select_result);
@@ -4079,9 +4069,11 @@ void f(THD *thd) {
   err = lex.current_select->join->optimize();
   DBUG_ASSERT(err == 0);
 
+  close_log_table(thd, &open_tables_backup);
+  delete lex.explain;
+
   // Restore query LEX.
   thd->lex= lex_memory;
-  thd->lock= lock_memory;
 }
 
 bool
