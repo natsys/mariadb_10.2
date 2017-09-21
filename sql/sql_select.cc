@@ -63,6 +63,7 @@
 #include <hash.h>
 #include <ft_global.h>
 #include "sys_vars_shared.h"
+#include "vtmd.h"
 
 /*
   A key part number that means we're using a fulltext scan.
@@ -3992,7 +3993,64 @@ void JOIN::cleanup_item_list(List<Item> &items) const
     TRUE   an error
 */
 
+List<String> get_vtmd_tables(THD *thd)
+{
+  List<String> result;
+
+  TABLE_LIST table_list;
+  table_list.init_one_table(C_STRING_WITH_LEN("mysql"), C_STRING_WITH_LEN(""), NULL, TL_READ);
+
+  result.push_back(new (thd->mem_root) String("t1_vtmd", system_charset_info));
+  result.push_back(new (thd->mem_root) String("t2_vtmd", system_charset_info));
+
+  return result;
+}
+
+List<String> get_archive_tables(THD *thd)
+{
+  List<String> result;
+
+  List<String> vtmd_tables = get_vtmd_tables(thd);
+  List_iterator_fast<String> it(vtmd_tables);
+  while (String *table_name = it++)
+  {
+    Open_tables_backup open_tables_backup;
+    TABLE_LIST table_list;
+    table_list.init_one_table("test", 4, table_name->c_ptr(),
+                              table_name->length(), table_name->c_ptr(),
+                              TL_READ);
+
+    TABLE *table= open_log_table(thd, &table_list, &open_tables_backup);
+    DBUG_ASSERT(table);
+
+    READ_RECORD read_record;
+    int error= 0;
+    SQL_SELECT *sql_select= make_select(table, 0, 0, NULL, NULL, 0, &error);
+    DBUG_ASSERT(error == 0);
+    DBUG_ASSERT(0 == init_read_record(&read_record, thd, table, sql_select,
+                                      NULL, 1, 1, false));
+
+    while (!(error = read_record.read_record(&read_record)))
+    {
+      Field *field= table->field[VTMD_table::FLD_ARCHIVE_NAME];
+      if (field->is_null())
+        continue;
+
+      String* archive_name = new (thd->mem_root) String();
+      field->val_str(archive_name);
+      result.push_back(archive_name);
+    }
+
+    end_read_record(&read_record);
+    close_log_table(thd, &open_tables_backup);
+  }
+
+  return result;
+}
+
 void f(THD *thd) {
+  get_vtmd_tables(thd);
+  
   if (!thd || !thd->lex || !thd->lex->current_select ||
       !thd->lex->current_select->table_list.first ||
       !thd->lex->current_select->table_list.first->table_name ||
