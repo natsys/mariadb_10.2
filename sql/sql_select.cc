@@ -3993,42 +3993,46 @@ void JOIN::cleanup_item_list(List<Item> &items) const
     TRUE   an error
 */
 
-List<String> get_vtmd_tables(THD *thd)
+Dynamic_array<LEX_STRING *> get_vtmd_tables(THD *thd)
 {
-  List<String> result;
+  LOOKUP_FIELD_VALUES lookup_field_values= {
+      *thd->make_lex_string(thd->db, strlen(thd->db)),
+      *thd->make_lex_string(C_STRING_WITH_LEN("%_vtmd")), false, true};
 
-  TABLE_LIST table_list;
-  table_list.init_one_table(C_STRING_WITH_LEN("mysql"), C_STRING_WITH_LEN(""), NULL, TL_READ);
+  Dynamic_array<LEX_STRING *> table_names;
+  make_table_name_list(thd, &table_names, thd->lex, &lookup_field_values,
+                       &lookup_field_values.db_value);
 
-  result.push_back(new (thd->mem_root) String("t1_vtmd", system_charset_info));
-  result.push_back(new (thd->mem_root) String("t2_vtmd", system_charset_info));
-
-  return result;
+  return table_names;
 }
 
-List<String> get_archive_tables(THD *thd)
+Dynamic_array<String> get_archive_tables(THD *thd)
 {
-  List<String> result;
+  Dynamic_array<String> result;
 
-  List<String> vtmd_tables = get_vtmd_tables(thd);
-  List_iterator_fast<String> it(vtmd_tables);
-  while (String *table_name = it++)
+  Dynamic_array<LEX_STRING *> vtmd_tables= get_vtmd_tables(thd);
+  for (uint i= 0; i < vtmd_tables.elements(); i++)
   {
+    LEX_STRING table_name= *vtmd_tables.at(i);
+
     Open_tables_backup open_tables_backup;
     TABLE_LIST table_list;
-    table_list.init_one_table("test", 4, table_name->c_ptr(),
-                              table_name->length(), table_name->c_ptr(),
+    table_list.init_one_table(thd->db, strlen(thd->db),
+                              LEX_STRING_WITH_LEN(table_name), table_name.str,
                               TL_READ);
 
     TABLE *table= open_log_table(thd, &table_list, &open_tables_backup);
-    DBUG_ASSERT(table);
+    if (!table)
+      return result;
 
     READ_RECORD read_record;
     int error= 0;
     SQL_SELECT *sql_select= make_select(table, 0, 0, NULL, NULL, 0, &error);
-    DBUG_ASSERT(error == 0);
-    DBUG_ASSERT(0 == init_read_record(&read_record, thd, table, sql_select,
-                                      NULL, 1, 1, false));
+    if (error)
+      goto error1;
+    if (init_read_record(&read_record, thd, table, sql_select, NULL, 1, 1,
+                         false))
+      goto error2;
 
     while (!(error = read_record.read_record(&read_record)))
     {
@@ -4036,12 +4040,18 @@ List<String> get_archive_tables(THD *thd)
       if (field->is_null())
         continue;
 
-      String* archive_name = new (thd->mem_root) String();
-      field->val_str(archive_name);
-      result.push_back(archive_name);
+      String archive_name;
+      field->val_str(&archive_name);
+      archive_name.set_ascii(strmake_root(thd->mem_root, archive_name.c_ptr(),
+                                          archive_name.length()),
+                             archive_name.length());
+      result.push(archive_name);
     }
 
     end_read_record(&read_record);
+error2:
+    delete sql_select;
+error1:
     close_log_table(thd, &open_tables_backup);
   }
 
@@ -4049,13 +4059,16 @@ List<String> get_archive_tables(THD *thd)
 }
 
 void f(THD *thd) {
-  get_vtmd_tables(thd);
-  
   if (!thd || !thd->lex || !thd->lex->current_select ||
       !thd->lex->current_select->table_list.first ||
       !thd->lex->current_select->table_list.first->table_name ||
       strcmp("t1_vtmd", thd->lex->current_select->table_list.first->table_name))
     return;
+
+  get_archive_tables(thd);
+  return;
+  
+
 
   // Save query LEX.
   LEX* lex_memory= thd->lex;
