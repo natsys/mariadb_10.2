@@ -63,7 +63,6 @@
 #include <hash.h>
 #include <ft_global.h>
 #include "sys_vars_shared.h"
-#include "vtmd.h"
 
 /*
   A key part number that means we're using a fulltext scan.
@@ -3993,167 +3992,6 @@ void JOIN::cleanup_item_list(List<Item> &items) const
     TRUE   an error
 */
 
-Dynamic_array<LEX_STRING *> get_vtmd_tables(THD *thd)
-{
-  LOOKUP_FIELD_VALUES lookup_field_values= {
-      *thd->make_lex_string(thd->db, strlen(thd->db)),
-      *thd->make_lex_string(C_STRING_WITH_LEN("%_vtmd")), false, true};
-
-  Dynamic_array<LEX_STRING *> table_names;
-  make_table_name_list(thd, &table_names, thd->lex, &lookup_field_values,
-                       &lookup_field_values.db_value);
-
-  return table_names;
-}
-
-Dynamic_array<String> get_archive_tables(THD *thd)
-{
-  Dynamic_array<String> result;
-
-  Dynamic_array<LEX_STRING *> vtmd_tables= get_vtmd_tables(thd);
-  for (uint i= 0; i < vtmd_tables.elements(); i++)
-  {
-    LEX_STRING table_name= *vtmd_tables.at(i);
-
-    Open_tables_backup open_tables_backup;
-    TABLE_LIST table_list;
-    table_list.init_one_table(thd->db, strlen(thd->db),
-                              LEX_STRING_WITH_LEN(table_name), table_name.str,
-                              TL_READ);
-
-    TABLE *table= open_log_table(thd, &table_list, &open_tables_backup);
-    if (!table)
-      return result;
-
-    READ_RECORD read_record;
-    int error= 0;
-    SQL_SELECT *sql_select= make_select(table, 0, 0, NULL, NULL, 0, &error);
-    if (error)
-      goto error1;
-    if (init_read_record(&read_record, thd, table, sql_select, NULL, 1, 1,
-                         false))
-      goto error2;
-
-    while (!(error = read_record.read_record(&read_record)))
-    {
-      Field *field= table->field[VTMD_table::FLD_ARCHIVE_NAME];
-      if (field->is_null())
-        continue;
-
-      String archive_name;
-      field->val_str(&archive_name);
-      archive_name.set_ascii(strmake_root(thd->mem_root, archive_name.c_ptr(),
-                                          archive_name.length()),
-                             archive_name.length());
-      result.push(archive_name);
-    }
-
-    end_read_record(&read_record);
-error2:
-    delete sql_select;
-error1:
-    close_log_table(thd, &open_tables_backup);
-  }
-
-  return result;
-}
-
-void f(THD *thd) {
-  if (!thd || !thd->lex || !thd->lex->current_select ||
-      !thd->lex->current_select->table_list.first ||
-      !thd->lex->current_select->table_list.first->table_name ||
-      strcmp("t1_vtmd", thd->lex->current_select->table_list.first->table_name))
-    return;
-
-  get_archive_tables(thd);
-  return;
-  
-
-
-  // Save query LEX.
-  LEX* lex_memory= thd->lex;
-
-  // Fill SELECT.
-  LEX lex;
-  thd->lex = &lex;
-  lex.start(thd);
-  lex.current_select->init_select();
-
-  lex.sql_command= SQLCOM_SELECT;
-  //lex.current_select->options|= SELECT_ALL;
-
-  Item *archive_name= new (thd->mem_root)
-      Item_field(thd, lex.current_context(), NULL, NULL, "archive_name");
-  DBUG_ASSERT(archive_name);
-
-  lex.current_select->item_list.push_back(archive_name, thd->mem_root);
-  lex.current_select->select_n_having_items++;
-
-  lex.current_select->table_join_options= 0;
-
-  static const char kTableName[] = "t1_vtmd";
-  LEX_STRING kTableNameLexString= {C_STRING_WITH_LEN((char *)kTableName)};
-
-  Table_ident *table_ident=
-      new (thd->mem_root) Table_ident(kTableNameLexString);
-  DBUG_ASSERT(table_ident);
-  TABLE_LIST *table_list= lex.current_select->add_table_to_list(
-      thd, table_ident, &kTableNameLexString, 0, TL_READ, MDL_SHARED_READ, NULL,
-      NULL, NULL);
-  DBUG_ASSERT(table_list);
-  lex.current_select->add_joined_table(table_list);
-
-  lex.current_select->context.table_list= lex.current_select->table_list.first;
-  lex.current_select->context.first_name_resolution_table=
-      lex.current_select->table_list.first;
-
-  lex.current_select->context.resolve_in_select_list= true;
-
-  if (!lex.unit.global_parameters()->explicit_limit)
-  {
-    lex.unit.global_parameters()->select_limit= new (thd->mem_root)
-        Item_int(thd, (ulonglong)thd->variables.select_limit);
-    DBUG_ASSERT(lex.unit.global_parameters()->select_limit);
-  }
-
-  lex.current_select->clear_index_hints();
-  lex.charset= NULL;
-  lex.wild= NULL;
-  lex.exchange= NULL;
-
-  // Prepare SELECT.
-
-  Open_tables_backup open_tables_backup;
-  DBUG_ASSERT(open_log_table(thd, table_list, &open_tables_backup));
-
-  select_result *select_result= new (thd->mem_root) class select_send(thd);
-  DBUG_ASSERT(select_result);
-
-  lex.current_select->join= new (thd->mem_root)
-      JOIN(thd, lex.current_select->item_list, 0, select_result);
-  JOIN *join = lex.current_select->join;
-  DBUG_ASSERT(join);
-  int err= join->prepare(table_list, 0, NULL, 0, NULL, false, NULL, NULL, NULL,
-                         lex.current_select, &lex.unit);
-  DBUG_ASSERT(err == 0);
-
-  err = join->optimize();
-  DBUG_ASSERT(err == 0);
-
-  // Read rows.
-
-  JOIN_TAB *join_tab= join->join_tab;
-  DBUG_ASSERT(!join_init_read_record(join_tab));
-
-  // Cleanup.
-
-  close_log_table(thd, &open_tables_backup);
-  delete lex.explain;
-
-  // Restore query LEX.
-  thd->lex= lex_memory;
-}
-
 bool
 mysql_select(THD *thd,
 	     TABLE_LIST *tables, uint wild_num, List<Item> &fields,
@@ -4214,7 +4052,6 @@ mysql_select(THD *thd,
 	DBUG_RETURN(TRUE);
     THD_STAGE_INFO(thd, stage_init);
     thd->lex->used_tables=0;
-        f(thd);
     if ((err= join->prepare(tables, wild_num,
                             conds, og_num, order, false, group, having, proc_param,
                             select_lex, unit)))
