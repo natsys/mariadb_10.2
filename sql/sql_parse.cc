@@ -113,6 +113,7 @@
 
 #include "wsrep_mysqld.h"
 #include "wsrep_thd.h"
+#include "vtmd.h"
 
 static void wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
                               Parser_state *parser_state,
@@ -6375,6 +6376,15 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
 
   if (!(res= open_and_lock_tables(thd, all_tables, TRUE, 0)))
   {
+    for (TABLE_LIST *table= all_tables; table; table= table->next_local)
+    {
+      if (table->vers_conditions)
+      {
+        VTMD_table vtmd(*table);
+        if (vtmd.setup_select(thd))
+          return 1;
+      }
+    }
     if (lex->describe)
     {
       /*

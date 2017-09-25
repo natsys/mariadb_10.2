@@ -644,3 +644,8 @@ VTMD_table::get_archive_tables(THD *thd, const char *db, size_t db_length,
 
   return false;
 }
+
+bool VTMD_table::setup_select(THD* thd)
+{
+  return false;
+}
