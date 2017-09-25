@@ -4987,10 +4987,33 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
       if (res)
         goto err;
 
+      Dynamic_array<String> archive_tables;
+      if (VTMD_table::get_archive_tables(thd, db_name->str, db_name->length,
+                                         archive_tables))
+        goto err;
+
       for (size_t i=0; i < table_names.elements(); i++)
       {
         LEX_STRING *table_name= table_names.at(i);
         DBUG_ASSERT(table_name->length <= NAME_LEN);
+
+        bool skip_archive= false;
+        if (thd->variables.vers_hide != VERS_HIDE_NEVER)
+        {
+          for (size_t i= 0; i < archive_tables.elements(); i++)
+          {
+            String &archive_table= archive_tables.at(i);
+            if (table_name->length == archive_table.length() &&
+                !memcmp(table_name->str, archive_table.ptr(),
+                        table_name->length))
+            {
+              skip_archive= true;
+              break;
+            }
+          }
+        }
+        if (skip_archive)
+          continue;
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
         if (!(thd->col_access & TABLE_ACLS))
