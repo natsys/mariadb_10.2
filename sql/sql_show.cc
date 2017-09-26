@@ -5055,17 +5055,6 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
         LEX_STRING *table_name= table_names.at(i);
         DBUG_ASSERT(table_name->length <= NAME_LEN);
 
-        bool skip_archive= false;
-        for (size_t i= 0; i < all_archive_tables.elements(); i++)
-        {
-          String &archive_table= all_archive_tables.at(i);
-          if (table_name->length == archive_table.length() &&
-              !memcmp(table_name->str, archive_table.ptr(), table_name->length))
-          {
-            skip_archive= true;
-            break;
-          }
-        }
         if (is_archive_table(all_archive_tables, *table_name))
           continue;
 
