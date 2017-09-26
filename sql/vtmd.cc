@@ -633,6 +633,9 @@ VTMD_table::get_archive_tables(THD *thd, const char *db, size_t db_length,
                              archive_name.length());
       result.push(archive_name);
     }
+    // check for EOF
+    if (!thd->is_error())
+      error= 0;
 
     end_read_record(&read_record);
     delete sql_select;

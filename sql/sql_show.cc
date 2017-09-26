@@ -4863,6 +4863,40 @@ public:
   }
 };
 
+static bool get_all_archive_tables(THD *thd,
+                                   const Dynamic_array<LEX_STRING *> &db_names,
+                                   Dynamic_array<String> &all_archive_tables)
+{
+  if (thd->variables.vers_hide != VERS_HIDE_NEVER)
+  {
+    for (size_t i= 0; i < db_names.elements(); i++)
+    {
+      LEX_STRING db_name= *db_names.at(i);
+      Dynamic_array<String> archive_tables;
+      if (VTMD_table::get_archive_tables(thd, db_name.str, db_name.length, archive_tables))
+        return true;
+      for (size_t i= 0; i < archive_tables.elements(); i++)
+        if (all_archive_tables.push(archive_tables.at(i)))
+          return true;
+    }
+  }
+  return false;
+}
+
+static bool is_archive_table(const Dynamic_array<String> &all_archive_tables,
+                             LEX_STRING candidate)
+{
+  for (size_t i= 0; i < all_archive_tables.elements(); i++)
+  {
+    const String &archive_table= all_archive_tables.at(i);
+    if (candidate.length == archive_table.length() &&
+        !memcmp(candidate.str, archive_table.ptr(), candidate.length))
+    {
+      return true;
+    }
+  }
+  return false;
+}
 
 /**
   @brief          Fill I_S tables whose data are retrieved
@@ -4905,6 +4939,7 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
 #endif
   uint table_open_method= tables->table_open_method;
   bool can_deadlock;
+  Dynamic_array<String> all_archive_tables;
   DBUG_ENTER("get_all_tables");
 
   /*
@@ -4967,6 +5002,10 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
 
   if (make_db_list(thd, &db_names, &plan->lookup_field_vals))
     goto err;
+
+  if (get_all_archive_tables(thd, db_names, all_archive_tables))
+    goto err;
+
   for (size_t i=0; i < db_names.elements(); i++)
   {
     LEX_STRING *db_name= db_names.at(i);
@@ -4987,32 +5026,23 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
       if (res)
         goto err;
 
-      Dynamic_array<String> archive_tables;
-      if (VTMD_table::get_archive_tables(thd, db_name->str, db_name->length,
-                                         archive_tables))
-        goto err;
-
       for (size_t i=0; i < table_names.elements(); i++)
       {
         LEX_STRING *table_name= table_names.at(i);
         DBUG_ASSERT(table_name->length <= NAME_LEN);
 
         bool skip_archive= false;
-        if (thd->variables.vers_hide != VERS_HIDE_NEVER)
+        for (size_t i= 0; i < all_archive_tables.elements(); i++)
         {
-          for (size_t i= 0; i < archive_tables.elements(); i++)
+          String &archive_table= all_archive_tables.at(i);
+          if (table_name->length == archive_table.length() &&
+              !memcmp(table_name->str, archive_table.ptr(), table_name->length))
           {
-            String &archive_table= archive_tables.at(i);
-            if (table_name->length == archive_table.length() &&
-                !memcmp(table_name->str, archive_table.ptr(),
-                        table_name->length))
-            {
-              skip_archive= true;
-              break;
-            }
+            skip_archive= true;
+            break;
           }
         }
-        if (skip_archive)
+        if (is_archive_table(all_archive_tables, *table_name))
           continue;
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS

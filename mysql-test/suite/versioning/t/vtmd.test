@@ -177,7 +177,9 @@ select table_name, table_schema from information_schema.tables
   where table_schema not in ('mysql', 'performance_schema', 'information_schema');
 
 set versioning_hide = never;
+--replace_regex /\d{8}_\d{6}_\d{6}/TIMESTAMP_SUFFIX/
 show tables;
+--replace_regex /\d{8}_\d{6}_\d{6}/TIMESTAMP_SUFFIX/
 select table_name, table_schema from information_schema.tables
   where table_schema not in ('mysql', 'performance_schema', 'information_schema');
 
