@@ -7,6 +7,8 @@
 #include "table_cache.h" // tdc_remove_table()
 #include "key.h"
 #include "sql_show.h"
+#include "sql_parse.h"
+#include "sql_lex.h"
 
 LString VERS_VTMD_TEMPLATE(C_STRING_WITH_LEN("vtmd_template"));
 
@@ -647,5 +649,21 @@ VTMD_table::get_archive_tables(THD *thd, const char *db, size_t db_length,
 
 bool VTMD_table::setup_select(THD* thd)
 {
-  return false;
+  static const char* query= "select * from t0_vtmd";
+  static const size_t query_len= strlen(query);
+
+  Local_da local_da(thd, ER_VERS_VTMD_ERROR);
+  if (open(thd, local_da))
+    return true;
+
+  LEX *old_lex= thd->lex;
+  LEX lex;
+
+  Parser_state parser_state;
+  parser_state.init(thd, const_cast<char *>(query), query_len);
+  init_lex_with_single_table(thd, vtmd, &lex);
+  bool error= parse_sql(thd, &parser_state, NULL);
+  end_lex_with_single_table(thd, vtmd, old_lex);
+
+  return error;
 }
