@@ -4863,23 +4863,47 @@ public:
   }
 };
 
-static bool get_all_archive_tables(THD *thd,
-                                   const Dynamic_array<LEX_STRING *> &db_names,
-                                   Dynamic_array<String> &all_archive_tables)
+static void get_all_db(THD *thd, Dynamic_array<LEX_STRING *> &all_db)
 {
-  if (thd->variables.vers_hide != VERS_HIDE_NEVER)
+  LOOKUP_FIELD_VALUES lookup_field_values= {
+      *thd->make_lex_string(C_STRING_WITH_LEN("%")), {NULL, 0}, true, false};
+  if (make_db_list(thd, &all_db, &lookup_field_values))
+    return;
+
+  LEX_STRING information_schema = {C_STRING_WITH_LEN("information_schema")};
+  for (size_t i= 0; i < all_db.elements(); i++)
   {
-    for (size_t i= 0; i < db_names.elements(); i++)
+    LEX_STRING db= *all_db.at(i);
+    if (db.length == information_schema.length &&
+        !memcmp(db.str, information_schema.str, db.length))
     {
-      LEX_STRING db_name= *db_names.at(i);
-      Dynamic_array<String> archive_tables;
-      if (VTMD_table::get_archive_tables(thd, db_name.str, db_name.length, archive_tables))
-        return true;
-      for (size_t i= 0; i < archive_tables.elements(); i++)
-        if (all_archive_tables.push(archive_tables.at(i)))
-          return true;
+      all_db.del(i);
+      break;
     }
   }
+}
+
+static bool get_all_archive_tables(THD *thd,
+                                   Dynamic_array<String> &all_archive_tables)
+{
+  if (thd->variables.vers_hide == VERS_HIDE_NEVER)
+    return false;
+
+  Dynamic_array<LEX_STRING *> all_db;
+  get_all_db(thd, all_db);
+
+  for (size_t i= 0; i < all_db.elements(); i++)
+  {
+    LEX_STRING db_name= *all_db.at(i);
+    Dynamic_array<String> archive_tables;
+    if (VTMD_table::get_archive_tables(thd, db_name.str, db_name.length,
+                                       archive_tables))
+      return true;
+    for (size_t i= 0; i < archive_tables.elements(); i++)
+      if (all_archive_tables.push(archive_tables.at(i)))
+        return true;
+  }
+
   return false;
 }
 
@@ -5003,7 +5027,7 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
   if (make_db_list(thd, &db_names, &plan->lookup_field_vals))
     goto err;
 
-  if (get_all_archive_tables(thd, db_names, all_archive_tables))
+  if (get_all_archive_tables(thd, all_archive_tables))
     goto err;
 
   for (size_t i=0; i < db_names.elements(); i++)
