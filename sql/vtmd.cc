@@ -548,8 +548,6 @@ VTMD_table::find_archive_name(THD *thd, String &out)
     if (select->skip_record(thd) > 0)
     {
       vtmd.table->field[FLD_ARCHIVE_NAME]->val_str(&out);
-      if (out.length() == 0) // Handle AS OF NOW or RENAME TABLE case
-        out.set(about.table_name, about.table_name_length, system_charset_info);
       break;
     }
   }
@@ -649,21 +647,17 @@ VTMD_table::get_archive_tables(THD *thd, const char *db, size_t db_length,
 
 bool VTMD_table::setup_select(THD* thd)
 {
-  static const char* query= "select * from t0_vtmd";
-  static const size_t query_len= strlen(query);
-
-  Local_da local_da(thd, ER_VERS_VTMD_ERROR);
-  if (open(thd, local_da))
+  SString archive_name;
+  if (find_archive_name(thd, archive_name))
     return true;
 
-  LEX *old_lex= thd->lex;
-  LEX lex;
+  if (archive_name.length() == 0)
+    return false;
 
-  Parser_state parser_state;
-  parser_state.init(thd, const_cast<char *>(query), query_len);
-  init_lex_with_single_table(thd, vtmd.table, &lex);
-  bool error= parse_sql(thd, &parser_state, NULL);
-  end_lex_with_single_table(thd, vtmd.table, old_lex);
-
-  return error;
+  about.table_name= (char *) thd->memdup(archive_name.c_ptr_safe(), archive_name.length() + 1);
+  about.table_name_length= archive_name.length();
+  DBUG_ASSERT(!about.mdl_request.ticket);
+  about.mdl_request.init(MDL_key::TABLE, about.db, about.table_name,
+                         about.mdl_request.type, about.mdl_request.duration);
+  return false;
 }
