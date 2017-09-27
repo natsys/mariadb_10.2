@@ -661,9 +661,9 @@ bool VTMD_table::setup_select(THD* thd)
 
   Parser_state parser_state;
   parser_state.init(thd, const_cast<char *>(query), query_len);
-  init_lex_with_single_table(thd, vtmd, &lex);
+  init_lex_with_single_table(thd, vtmd.table, &lex);
   bool error= parse_sql(thd, &parser_state, NULL);
-  end_lex_with_single_table(thd, vtmd, old_lex);
+  end_lex_with_single_table(thd, vtmd.table, old_lex);
 
   return error;
 }
