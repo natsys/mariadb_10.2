@@ -44,6 +44,12 @@ substr(archive_name, 1, instr(archive_name, '_')) as C_archive_name
 from tmp_vtmd for system_time all;
 drop table tmp_vtmd;
 end~~
+create or replace procedure show_tables()
+begin
+show tables;
+select table_name, table_schema from information_schema.tables
+where table_schema not in ('mysql', 'performance_schema', 'information_schema', 'mtr');
+end~~
 set versioning_alter_history= keep;
 create table t0 (z int) with system versioning;
 show tables;
@@ -268,55 +274,43 @@ A_start	B_end	name	C_archive_name
 1	0	t3	t3_
 1	1	t3	NULL
 set versioning_hide = auto;
-show tables;
+call show_tables();
 Tables_in_test
 t2
 t2_vtmd
 t3
 t3_vtmd
-select table_name, table_schema from information_schema.tables
-where table_schema not in ('mysql', 'performance_schema', 'information_schema');
 table_name	table_schema
-global_suppressions	mtr
-test_suppressions	mtr
 t2	test
 t2_vtmd	test
 t3	test
 t3_vtmd	test
 set versioning_hide = implicit;
-show tables;
+call show_tables();
 Tables_in_test
 t2
 t2_vtmd
 t3
 t3_vtmd
-select table_name, table_schema from information_schema.tables
-where table_schema not in ('mysql', 'performance_schema', 'information_schema');
 table_name	table_schema
-global_suppressions	mtr
-test_suppressions	mtr
 t2	test
 t2_vtmd	test
 t3	test
 t3_vtmd	test
 set versioning_hide = full;
-show tables;
+call show_tables();
 Tables_in_test
 t2
 t2_vtmd
 t3
 t3_vtmd
-select table_name, table_schema from information_schema.tables
-where table_schema not in ('mysql', 'performance_schema', 'information_schema');
 table_name	table_schema
-global_suppressions	mtr
-test_suppressions	mtr
 t2	test
 t2_vtmd	test
 t3	test
 t3_vtmd	test
 set versioning_hide = never;
-show tables;
+call show_tables();
 Tables_in_test
 t0_TIMESTAMP_SUFFIX
 t0_TIMESTAMP_SUFFIX
@@ -328,12 +322,8 @@ t3
 t3_TIMESTAMP_SUFFIX
 t3_TIMESTAMP_SUFFIX
 t3_vtmd
-select table_name, table_schema from information_schema.tables
-where table_schema not in ('mysql', 'performance_schema', 'information_schema');
 table_name	table_schema
 t1_TIMESTAMP_SUFFIX	db1
-global_suppressions	mtr
-test_suppressions	mtr
 t0_TIMESTAMP_SUFFIX	test
 t0_TIMESTAMP_SUFFIX	test
 t0_TIMESTAMP_SUFFIX	test
