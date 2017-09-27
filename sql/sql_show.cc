@@ -4863,14 +4863,19 @@ public:
   }
 };
 
-static void get_all_db(THD *thd, Dynamic_array<LEX_STRING *> &all_db)
+static bool get_all_archive_tables(THD *thd,
+                                   Dynamic_array<String> &all_archive_tables)
 {
+  if (thd->variables.vers_hide == VERS_HIDE_NEVER)
+    return false;
+
+  Dynamic_array<LEX_STRING *> all_db;
   LOOKUP_FIELD_VALUES lookup_field_values= {
       *thd->make_lex_string(C_STRING_WITH_LEN("%")), {NULL, 0}, true, false};
   if (make_db_list(thd, &all_db, &lookup_field_values))
-    return;
+    return true;
 
-  LEX_STRING information_schema = {C_STRING_WITH_LEN("information_schema")};
+  LEX_STRING information_schema= {C_STRING_WITH_LEN("information_schema")};
   for (size_t i= 0; i < all_db.elements(); i++)
   {
     LEX_STRING db= *all_db.at(i);
@@ -4881,16 +4886,6 @@ static void get_all_db(THD *thd, Dynamic_array<LEX_STRING *> &all_db)
       break;
     }
   }
-}
-
-static bool get_all_archive_tables(THD *thd,
-                                   Dynamic_array<String> &all_archive_tables)
-{
-  if (thd->variables.vers_hide == VERS_HIDE_NEVER)
-    return false;
-
-  Dynamic_array<LEX_STRING *> all_db;
-  get_all_db(thd, all_db);
 
   for (size_t i= 0; i < all_db.elements(); i++)
   {
