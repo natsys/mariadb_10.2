@@ -6374,15 +6374,18 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
   if (check_dependencies_in_with_clauses(lex->with_clauses_list))
     return 1;
 
-  for (TABLE_LIST *table= all_tables; table; table= table->next_local)
+  if (thd->variables.vers_alter_history == VERS_ALTER_HISTORY_SURVIVE)
   {
-    if (table->vers_conditions)
+    for (TABLE_LIST *table= all_tables; table; table= table->next_local)
     {
-      VTMD_exists vtmd(*table);
-      if (vtmd.check_exists(thd))
-        return 1;
-      if (vtmd.exists && vtmd.setup_select(thd))
-        return 1;
+      if (table->vers_conditions)
+      {
+        VTMD_exists vtmd(*table);
+        if (vtmd.check_exists(thd))
+          return 1;
+        if (vtmd.exists && vtmd.setup_select(thd))
+          return 1;
+      }
     }
   }
 
