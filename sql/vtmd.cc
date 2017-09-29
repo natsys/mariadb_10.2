@@ -526,6 +526,8 @@ VTMD_table::find_archive_name(THD *thd, String &out)
   TABLE_LIST *table_list= ctx.table_list;
   TABLE_LIST *first_name_resolution_table= ctx.first_name_resolution_table;
   table_map map = vtmd.table->map;
+  vers_idend_mode_enum mode=
+      static_cast<vers_idend_mode_enum>(thd->variables.vers_ident_mode);
   ctx.table_list= &vtmd;
   ctx.first_name_resolution_table= &vtmd;
   vtmd.table->map= 1;
@@ -549,8 +551,29 @@ VTMD_table::find_archive_name(THD *thd, String &out)
   {
     if (!select || select->skip_record(thd) > 0)
     {
+      if ((vtmd.vers_conditions == FOR_SYSTEM_TIME_FROM_TO ||
+           vtmd.vers_conditions == FOR_SYSTEM_TIME_BETWEEN) &&
+          mode == VERS_IDENT_MODE_HISTORICAL)
+      {
+        if (vtmd.table->field[FLD_ARCHIVE_NAME]->is_null())
+          break;
+      }
       vtmd.table->field[FLD_ARCHIVE_NAME]->val_str(&out);
-      break;
+      out.set_ascii(static_cast<const char *>(
+                        thd->memdup(out.c_ptr_safe(), out.length() + 1)),
+                    out.length());
+
+      if (vtmd.vers_conditions == FOR_SYSTEM_TIME_AS_OF)
+        break;
+
+      if (vtmd.vers_conditions == FOR_SYSTEM_TIME_FROM_TO ||
+          vtmd.vers_conditions == FOR_SYSTEM_TIME_BETWEEN)
+      {
+        if (mode == VERS_IDENT_MODE_HISTORICAL_EARLY)
+          break;
+        if (mode == VERS_IDENT_MODE_HISTORICAL)
+          ; // loop till the last record
+      }
     }
   }
 
