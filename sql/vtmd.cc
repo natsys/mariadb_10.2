@@ -696,6 +696,8 @@ bool VTMD_table::setup_select(THD* thd)
   if (archive_name.length() == 0)
     return false;
 
+  Query_arena_stmt on_stmt_arena(thd);
+
   about.table_name= (char *) thd->memdup(archive_name.c_ptr_safe(), archive_name.length() + 1);
   about.table_name_length= archive_name.length();
   DBUG_ASSERT(!about.mdl_request.ticket);
