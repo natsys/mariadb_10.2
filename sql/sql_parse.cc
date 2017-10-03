@@ -6383,7 +6383,15 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
   {
     for (TABLE_LIST *table= all_tables; table; table= table->next_local)
     {
-      if (table->vers_conditions)
+      vers_idend_mode_enum mode=
+          static_cast<vers_idend_mode_enum>(thd->variables.vers_ident_mode);
+      bool range_and_historical=
+          (table->vers_conditions == FOR_SYSTEM_TIME_FROM_TO ||
+           table->vers_conditions == FOR_SYSTEM_TIME_BETWEEN) &&
+          (mode == VERS_IDENT_MODE_HISTORICAL ||
+           mode == VERS_IDENT_MODE_HISTORICAL_EARLY);
+
+      if (table->vers_conditions && !range_and_historical)
       {
         VTMD_exists vtmd(*table);
         if (vtmd.check_exists(thd))

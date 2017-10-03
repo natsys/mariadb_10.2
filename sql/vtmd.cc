@@ -528,6 +528,11 @@ VTMD_table::find_archive_name(THD *thd, String &out)
   table_map map = vtmd.table->map;
   vers_idend_mode_enum mode=
       static_cast<vers_idend_mode_enum>(thd->variables.vers_ident_mode);
+  bool range_and_historical=
+      (vtmd.vers_conditions == FOR_SYSTEM_TIME_FROM_TO ||
+       vtmd.vers_conditions == FOR_SYSTEM_TIME_BETWEEN) &&
+      (mode == VERS_IDENT_MODE_HISTORICAL ||
+       mode == VERS_IDENT_MODE_HISTORICAL_EARLY);
   ctx.table_list= &vtmd;
   ctx.first_name_resolution_table= &vtmd;
   vtmd.table->map= 1;
@@ -551,31 +556,31 @@ VTMD_table::find_archive_name(THD *thd, String &out)
   {
     if (!select || select->skip_record(thd) > 0)
     {
-      if ((vtmd.vers_conditions == FOR_SYSTEM_TIME_FROM_TO ||
-           vtmd.vers_conditions == FOR_SYSTEM_TIME_BETWEEN) &&
-          mode == VERS_IDENT_MODE_HISTORICAL)
+      if (range_and_historical)
       {
         if (vtmd.table->field[FLD_ARCHIVE_NAME]->is_null())
-          break;
-      }
-      vtmd.table->field[FLD_ARCHIVE_NAME]->val_str(&out);
-      out.set_ascii(static_cast<const char *>(
-                        thd->memdup(out.c_ptr_safe(), out.length() + 1)),
-                    out.length());
+          vtmd.table->field[FLD_NAME]->val_str(&out);
+        else
+          vtmd.table->field[FLD_ARCHIVE_NAME]->val_str(&out);
 
-      if (vtmd.vers_conditions == FOR_SYSTEM_TIME_AS_OF)
-        break;
-
-      if (vtmd.vers_conditions == FOR_SYSTEM_TIME_FROM_TO ||
-          vtmd.vers_conditions == FOR_SYSTEM_TIME_BETWEEN)
-      {
         if (mode == VERS_IDENT_MODE_HISTORICAL_EARLY)
           break;
         if (mode == VERS_IDENT_MODE_HISTORICAL)
           ; // loop till the last record
       }
+      else
+      {
+        vtmd.table->field[FLD_ARCHIVE_NAME]->val_str(&out);
+        // Record is found.
+        break;
+      }
     }
   }
+
+  // out points here to a buffer inside some field of a TABLE.
+  if (uint32 len= out.length())
+    out.set_ascii(
+        static_cast<const char *>(thd->memdup(out.c_ptr_safe(), len + 1)), len);
 
   if (error < 0)
     my_error(ER_NO_SUCH_TABLE, MYF(0), about.db, about.alias);
