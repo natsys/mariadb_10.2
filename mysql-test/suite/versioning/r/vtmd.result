@@ -358,6 +358,42 @@ set versioning_alter_history= survive;
 create or replace table t (x int) with system versioning;
 select * from t for system_time all;
 x	sys_trx_start	sys_trx_end
+drop database test;
+create database test;
+use test;
+set versioning_alter_history = survive;
+create or replace table t (a int) with system versioning;
+insert into t values (1);
+set @ts1 = now(6);
+alter table t add column b int;
+update t set a=2;
+set @ts2 = now(6);
+alter table t drop column b;
+update t set a = 3;
+select a from t for system_time all;
+a
+3
+2
+select a from t;
+a
+3
+select a from t for system_time as of now;
+a
+3
+select a from t for system_time as of timestamp now(6);
+a
+3
+select a from t for system_time as of @ts2;
+a
+2
+select a from t for system_time from '0-0-0' to now(6);
+a
+3
+2
+select a from t for system_time between '0-0-0' and now(6);
+a
+3
+2
 drop database db0;
 drop database db1;
 drop database test;
