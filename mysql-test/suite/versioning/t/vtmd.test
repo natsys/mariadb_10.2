@@ -220,19 +220,19 @@ begin
 end~~
 delimiter ;~~
 
-set versioning_identifier_mode = current;
-call select_a_from_range();
+#set versioning_identifier_mode = current;
+#call select_a_from_range();
 set versioning_identifier_mode = historical_early;
 call select_a_from_range();
 set versioning_identifier_mode = historical;
 call select_a_from_range();
 
 set versioning_identifier_mode = current;
-select * from t for system_time as of @ts1;
+select * from t for system_time as of @ts2;
 set versioning_identifier_mode = historical_early;
-select * from t for system_time as of @ts1;
+select * from t for system_time as of @ts2;
 set versioning_identifier_mode = historical;
-select * from t for system_time as of @ts1;
+select * from t for system_time as of @ts2;
 
 select * from t;
 

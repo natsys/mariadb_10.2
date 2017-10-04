@@ -528,9 +528,9 @@ VTMD_table::find_archive_name(THD *thd, String &out)
   table_map map = vtmd.table->map;
   vers_idend_mode_enum mode=
       static_cast<vers_idend_mode_enum>(thd->variables.vers_ident_mode);
-  bool range_and_historical=
-      (vtmd.vers_conditions == FOR_SYSTEM_TIME_FROM_TO ||
-       vtmd.vers_conditions == FOR_SYSTEM_TIME_BETWEEN) &&
+  const bool range_and_historical=
+      (about.vers_conditions == FOR_SYSTEM_TIME_FROM_TO ||
+       about.vers_conditions == FOR_SYSTEM_TIME_BETWEEN) &&
       (mode == VERS_IDENT_MODE_HISTORICAL ||
        mode == VERS_IDENT_MODE_HISTORICAL_EARLY);
   ctx.table_list= &vtmd;
@@ -565,8 +565,11 @@ VTMD_table::find_archive_name(THD *thd, String &out)
 
         if (mode == VERS_IDENT_MODE_HISTORICAL_EARLY)
           break;
+
         if (mode == VERS_IDENT_MODE_HISTORICAL)
-          ; // loop till the last record
+        {
+          // loop till the last record
+        }
       }
       else
       {
@@ -576,6 +579,9 @@ VTMD_table::find_archive_name(THD *thd, String &out)
       }
     }
   }
+  // check for EOF
+  if (!thd->is_error())
+    error= 0;
 
   // out points here to a buffer inside some field of a TABLE.
   if (uint32 len= out.length())
