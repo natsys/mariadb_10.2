@@ -6383,7 +6383,7 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
   {
     for (TABLE_LIST *table= all_tables; table; table= table->next_local)
     {
-      if (table->vers_conditions)
+      if (table->vers_conditions == FOR_SYSTEM_TIME_AS_OF)
       {
         VTMD_exists vtmd(*table);
         if (vtmd.check_exists(thd))
