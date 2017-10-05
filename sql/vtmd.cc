@@ -585,8 +585,7 @@ VTMD_table::find_archive_name(THD *thd, String &out)
 
   // out points here to a buffer inside some field of a TABLE.
   if (uint32 len= out.length())
-    out.set_ascii(
-        static_cast<const char *>(thd->memdup(out.c_ptr_safe(), len + 1)), len);
+    out.set_ascii(strmake_root(thd->mem_root, out.c_ptr_safe(), len), len);
 
   if (error < 0)
     my_error(ER_NO_SUCH_TABLE, MYF(0), about.db, about.alias);
@@ -706,8 +705,6 @@ bool VTMD_table::setup_select(THD* thd)
 
   if (archive_name.length() == 0)
     return false;
-
-  Query_arena_stmt on_stmt_arena(thd);
 
   about.table_name= (char *) thd->memdup(archive_name.c_ptr_safe(), archive_name.length() + 1);
   about.table_name_length= archive_name.length();

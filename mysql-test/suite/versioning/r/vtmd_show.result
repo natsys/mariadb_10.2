@@ -58,10 +58,22 @@ show create table t for system_time between timestamp @tm1 and timestamp @tm1;
 ERROR HY000: SYSTEM_TIME range selector is prohibited
 show create table t for system_time from timestamp @tm1 to timestamp @tm1;
 ERROR HY000: SYSTEM_TIME range selector is prohibited
-show create table t for system_time as of timestamp '01-01-1990';
-ERROR HY000: VTMD error: Table 'test.t' doesn't exist
-show create table t for system_time as of timestamp '01-01-2020';
-ERROR HY000: VTMD error: Table 'test.t' doesn't exist
+show create table t for system_time as of timestamp '1990-01-01';
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL,
+  `sys_trx_start` timestamp(6) GENERATED ALWAYS AS ROW START,
+  `sys_trx_end` timestamp(6) GENERATED ALWAYS AS ROW END,
+  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+show create table t for system_time as of timestamp '2020-01-01';
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL,
+  `sys_trx_start` timestamp(6) GENERATED ALWAYS AS ROW START,
+  `sys_trx_end` timestamp(6) GENERATED ALWAYS AS ROW END,
+  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 drop table t;
 call drop_archives('t_vtmd');
 drop table t_vtmd;
