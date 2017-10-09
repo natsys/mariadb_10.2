@@ -2756,6 +2756,7 @@ public:
   int fix_outer_field(THD *thd, Field **field, Item **reference);
   virtual Item *vers_optimized_fields_transformer(THD *thd, uchar *);
   virtual bool vers_trx_id() const;
+  void vers_rename(const char *new_name);
   virtual Item *update_value_transformer(THD *thd, uchar *select_arg);
   Item *derived_field_transformer_for_having(THD *thd, uchar *arg);
   Item *derived_field_transformer_for_where(THD *thd, uchar *arg);

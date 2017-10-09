@@ -6425,7 +6425,7 @@ static void map_field(Item_field *item, const Dynamic_array<String_pair> &map)
   for (size_t i =0; i<map.elements(); i++)
   {
     if (!strcmp(item->field_name, map.at(i).first))
-      item->field_name= map.at(i).second;
+      item->vers_rename((char *)map.at(i).second);
   }
 }
 

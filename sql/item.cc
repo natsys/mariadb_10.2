@@ -10781,6 +10781,14 @@ bool Item_field::vers_trx_id() const
   return field->vers_trx_id();
 }
 
+void Item_field::vers_rename(const char *new_name)
+{
+  DBUG_ASSERT(new_name);
+  name= (char *)new_name;
+  field_name= new_name;
+  orig_field_name= new_name;
+}
+
 void Item::register_in(THD *thd)
 {
   next= thd->free_list;
