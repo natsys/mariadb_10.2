@@ -6410,7 +6410,8 @@ static bool get_fields_mapping(THD *thd, LEX_STRING db, LEX_STRING current_name,
     return true;
 
   map.clear();
-  for (size_t i= 0; i < archive_fields.elements(); i++)
+  for (size_t i= 0;
+       i < archive_fields.elements() && i < current_fields.elements(); i++)
   {
     if (map.append(String_pair(current_fields.at(i), archive_fields.at(i))))
       return true;
@@ -6456,7 +6457,8 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
         if (vtmd.exists && vtmd.setup_select(thd))
           return 1;
 
-        if (thd->variables.vers_ident_mode == VERS_IDENT_MODE_CURRENT)
+        if (thd->variables.vers_ident_mode == VERS_IDENT_MODE_CURRENT &&
+            table->vers_conditions == FOR_SYSTEM_TIME_AS_OF)
         {
           Dynamic_array<String_pair> map;
           LEX_STRING db = {table->db, table->db_length};
