@@ -6422,7 +6422,7 @@ static bool get_fields_mapping(THD *thd, LEX_STRING db, LEX_STRING current_name,
 
 static void map_field(Item_field *item, const Dynamic_array<String_pair> &map)
 {
-  for (size_t i =0; i<map.elements(); i++)
+  for (size_t i= 0; i < map.elements(); i++)
   {
     if (!strcmp(item->field_name, map.at(i).first))
       item->vers_rename((char *)map.at(i).second);
@@ -6467,8 +6467,7 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
           if (get_fields_mapping(thd, db, current_name, archive_name, map))
             return 1;
 
-          List_iterator_fast<Item> it(thd->lex->current_select->item_list);
-          while (Item *item= it++)
+          for (Item *item= thd->stmt_arena->free_list; item; item= item->next)
           {
             if (Item::FIELD_ITEM == item->type())
             {
