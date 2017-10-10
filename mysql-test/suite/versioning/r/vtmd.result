@@ -402,6 +402,24 @@ a
 2
 a
 2
+drop database test;
+create database test;
+use test;
+set versioning_alter_history = survive;
+set versioning_identifier_mode = current;
+create or replace table t (a int) with system versioning;
+insert into t values (1);
+set @ts = now(6);
+alter table t add column b int first, drop column a;
+select a from t for system_time as of @ts;
+a
+1
+select b from t for system_time as of @ts;
+a
+1
+select b from t for system_time as of @ts order by b asc;
+a
+1
 drop database db0;
 drop database db1;
 drop database test;
