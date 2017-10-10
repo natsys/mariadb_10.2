@@ -216,7 +216,7 @@ enum vers_alter_history_enum
   VERS_ALTER_HISTORY_DROP
 };
 
-enum vers_idend_mode_enum
+enum vers_ident_mode_enum
 {
   VERS_IDENT_MODE_CURRENT= 0,
   VERS_IDENT_MODE_HISTORICAL_EARLY,

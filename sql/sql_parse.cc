@@ -6385,14 +6385,13 @@ static bool get_table_fields(THD *thd, LEX_STRING db, LEX_STRING table_name,
     TABLE_SHARE *s= tl.table->s;
     for (size_t i= 0; i < s->fields; i++)
     {
-      // TODO try remove strdup()
-      if (fields.append(thd->strdup(s->field[i]->field_name)))
+      if (fields.append(s->field[i]->field_name))
         return true;
     }
   }
   close_thread_tables(thd);
-  thd->mdl_context.rollback_to_savepoint(
-      open_tables_backup.mdl_system_tables_svp);
+  MDL_savepoint &savepoint= open_tables_backup.mdl_system_tables_svp;
+  thd->mdl_context.rollback_to_savepoint(savepoint);
   thd->restore_backup_open_tables_state(&open_tables_backup);
 
   return error;
@@ -6411,8 +6410,8 @@ static bool get_fields_mapping(THD *thd, LEX_STRING db, LEX_STRING current_name,
     return true;
 
   map.clear();
-  for (size_t i= 0;
-       i < archive_fields.elements() && i < current_fields.elements(); i++)
+  size_t size= std::min(archive_fields.elements(), current_fields.elements());
+  for (size_t i= 0; i < size; i++)
   {
     if (map.append(String_pair(current_fields.at(i), archive_fields.at(i))))
       return true;

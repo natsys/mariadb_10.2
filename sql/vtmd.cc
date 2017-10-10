@@ -526,8 +526,7 @@ VTMD_table::find_archive_name(THD *thd, String &out)
   TABLE_LIST *table_list= ctx.table_list;
   TABLE_LIST *first_name_resolution_table= ctx.first_name_resolution_table;
   table_map map = vtmd.table->map;
-  vers_idend_mode_enum mode=
-      static_cast<vers_idend_mode_enum>(thd->variables.vers_ident_mode);
+  vers_ident_mode_enum mode= (vers_ident_mode_enum)thd->variables.vers_ident_mode;
   const bool range_and_historical=
       (about.vers_conditions == FOR_SYSTEM_TIME_FROM_TO ||
        about.vers_conditions == FOR_SYSTEM_TIME_BETWEEN) &&
@@ -566,10 +565,8 @@ VTMD_table::find_archive_name(THD *thd, String &out)
         if (mode == VERS_IDENT_MODE_HISTORICAL_EARLY)
           break;
 
-        if (mode == VERS_IDENT_MODE_HISTORICAL)
-        {
-          // loop till the last record
-        }
+        DBUG_ASSERT(mode == VERS_IDENT_MODE_HISTORICAL);
+        // loop till the last record
       }
       else
       {
