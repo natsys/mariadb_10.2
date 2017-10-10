@@ -6362,7 +6362,8 @@ finish:
   DBUG_RETURN(res || thd->is_error());
 }
 
-struct String_pair {
+struct String_pair
+{
   String_pair(const char *f, const char *s) : first(f), second(s) {}
   const char *first;
   const char *second;
