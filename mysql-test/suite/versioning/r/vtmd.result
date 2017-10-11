@@ -407,18 +407,28 @@ create database test;
 use test;
 set versioning_alter_history = survive;
 set versioning_identifier_mode = current;
-create or replace table t (a int) with system versioning;
+create or replace table t (fire int) with system versioning;
 insert into t values (1);
 set @ts = now(6);
-alter table t add column b int first, drop column a;
-select a from t for system_time as of @ts;
-a
+alter table t add column ice int first, drop column fire;
+select fire from t for system_time as of @ts;
+fire
 1
-select b from t for system_time as of @ts;
-a
+select ice from t for system_time as of @ts;
+fire
 1
-select b from t for system_time as of @ts order by b asc;
-a
+select ice from t for system_time as of @ts order by ice asc;
+fire
+1
+alter table t rename not_t;
+select fire from not_t for system_time as of @ts;
+fire
+1
+select ice from not_t for system_time as of @ts;
+fire
+1
+select ice from not_t for system_time as of @ts order by ice asc;
+fire
 1
 drop database db0;
 drop database db1;
