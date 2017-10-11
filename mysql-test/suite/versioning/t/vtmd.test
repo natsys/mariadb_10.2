@@ -203,21 +203,21 @@ use test;
 
 set versioning_alter_history = survive;
 
-create or replace table t (a int) with system versioning;
+create or replace table t (fire int) with system versioning;
 insert into t values (1);
 set @ts1= now(6);
-alter table t add column b int;
-update t set a= 2;
+alter table t add column ice int;
+update t set fire= 2;
 set @ts2= now(6);
-alter table t drop column b;
-update t set a= 3;
+alter table t drop column ice;
+update t set fire= 3;
 
 delimiter ~~;
 create or replace procedure select_a_from_range()
 begin
-  select a from t for system_time from '0-0-0' to now(6);
-  select a from t for system_time between '0-0-0' and now(6);
-  select a from t for system_time as of @ts2;
+  select fire from t for system_time from '0-0-0' to now(6);
+  select fire from t for system_time between '0-0-0' and now(6);
+  select fire from t for system_time as of @ts2;
 end~~
 delimiter ;~~
 
