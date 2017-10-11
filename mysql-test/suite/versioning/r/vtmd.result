@@ -430,6 +430,8 @@ fire
 select ice from not_t for system_time as of @ts order by ice asc;
 fire
 1
+select * from t;
+ERROR 42S02: Table 'test.t' doesn't exist
 set versioning_identifier_mode= default;
 select @@versioning_identifier_mode;
 @@versioning_identifier_mode

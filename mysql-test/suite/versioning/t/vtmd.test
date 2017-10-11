@@ -250,6 +250,9 @@ select fire from not_t for system_time as of @ts;
 select ice from not_t for system_time as of @ts;
 select ice from not_t for system_time as of @ts order by ice asc;
 
+--error ER_NO_SUCH_TABLE
+select * from t;
+
 set versioning_identifier_mode= default;
 select @@versioning_identifier_mode;
 
