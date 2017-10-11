@@ -219,8 +219,8 @@ enum vers_alter_history_enum
 enum vers_ident_mode_enum
 {
   VERS_IDENT_MODE_CURRENT= 0,
-  VERS_IDENT_MODE_HISTORICAL_EARLY,
-  VERS_IDENT_MODE_HISTORICAL
+  VERS_IDENT_MODE_HISTORICAL,
+  VERS_IDENT_MODE_HISTORICAL_EARLY
 };
 /* System Versioning end */
 

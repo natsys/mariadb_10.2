@@ -530,8 +530,7 @@ VTMD_table::find_archive_name(THD *thd, String &out)
   const bool range_and_historical=
       (about.vers_conditions == FOR_SYSTEM_TIME_FROM_TO ||
        about.vers_conditions == FOR_SYSTEM_TIME_BETWEEN) &&
-      (mode == VERS_IDENT_MODE_HISTORICAL ||
-       mode == VERS_IDENT_MODE_HISTORICAL_EARLY);
+      (mode >= VERS_IDENT_MODE_HISTORICAL);
   ctx.table_list= &vtmd;
   ctx.first_name_resolution_table= &vtmd;
   vtmd.table->map= 1;
