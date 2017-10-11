@@ -420,9 +420,9 @@ static const char *vers_ident_mode_keywords[]= {"CURRENT", "HISTORICAL_EARLY",
                                                 "HISTORICAL", NULL};
 static Sys_var_enum Sys_vers_ident_mode(
        "versioning_identifier_mode", "Versioning identifier selection mode. "
-       "CURRENT: current table column names to archive table;"
-       "HISTORICAL_EARLY: take earlier of a range of archive tables;"
-       "HISTORICAL: take later of a range of archive tables;",
+       "CURRENT: current table and column names;"
+       "HISTORICAL_EARLY: historical table and column names, earliest for range;"
+       "HISTORICAL: historical table and column names, latest for range;",
        SESSION_VAR(vers_ident_mode), CMD_LINE(OPT_ARG),
        vers_ident_mode_keywords, DEFAULT(VERS_IDENT_MODE_CURRENT));
 
