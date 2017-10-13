@@ -84,6 +84,7 @@ public:
   bool open(THD *thd, Local_da &local_da, bool *created= NULL);
   bool update(THD *thd, const char* archive_name= NULL);
   bool setup_select(THD *thd);
+  bool setup_select_historical_mode(THD *thd);
 
   static void archive_name(THD *thd, const char *table_name, char *new_name, size_t new_name_size);
   void archive_name(THD *thd, char *new_name, size_t new_name_size)

@@ -526,11 +526,6 @@ VTMD_table::find_archive_name(THD *thd, String &out)
   TABLE_LIST *table_list= ctx.table_list;
   TABLE_LIST *first_name_resolution_table= ctx.first_name_resolution_table;
   table_map map = vtmd.table->map;
-  vers_ident_mode_enum mode= (vers_ident_mode_enum)thd->variables.vers_ident_mode;
-  const bool range_and_historical=
-      (about.vers_conditions == FOR_SYSTEM_TIME_FROM_TO ||
-       about.vers_conditions == FOR_SYSTEM_TIME_BETWEEN) &&
-      (mode >= VERS_IDENT_MODE_HISTORICAL);
   ctx.table_list= &vtmd;
   ctx.first_name_resolution_table= &vtmd;
   vtmd.table->map= 1;
@@ -554,34 +549,14 @@ VTMD_table::find_archive_name(THD *thd, String &out)
   {
     if (!select || select->skip_record(thd) > 0)
     {
-      if (range_and_historical)
-      {
-        if (vtmd.table->field[FLD_ARCHIVE_NAME]->is_null())
-          vtmd.table->field[FLD_NAME]->val_str(&out);
-        else
-          vtmd.table->field[FLD_ARCHIVE_NAME]->val_str(&out);
-
-        if (mode == VERS_IDENT_MODE_HISTORICAL_EARLY)
-          break;
-
-        DBUG_ASSERT(mode == VERS_IDENT_MODE_HISTORICAL);
-        // loop till the last record
-      }
-      else
-      {
-        vtmd.table->field[FLD_ARCHIVE_NAME]->val_str(&out);
-        // Record is found.
-        break;
-      }
+      vtmd.table->field[FLD_ARCHIVE_NAME]->val_str(&out);
+      // Record is found.
+      break;
     }
   }
   // check for EOF
   if (!thd->is_error())
     error= 0;
-
-  // out points here to a buffer inside some field of a TABLE.
-  if (uint32 len= out.length())
-    out.set_ascii(strmake_root(thd->mem_root, out.c_ptr_safe(), len), len);
 
   if (error < 0)
     my_error(ER_NO_SUCH_TABLE, MYF(0), about.db, about.alias);
@@ -714,5 +689,30 @@ bool VTMD_table::setup_select(THD* thd)
     DBUG_ASSERT(thd->spcont->sp);
     thd->spcont->sp->set_sp_cache_version(ULONG_MAX);
   }
+  return false;
+}
+
+bool VTMD_table::setup_select_historical_mode(THD *thd)
+{
+  ulong mode= thd->variables.vers_ident_mode;
+  DBUG_ASSERT(mode == VERS_IDENT_MODE_HISTORICAL ||
+              mode == VERS_IDENT_MODE_HISTORICAL_EARLY);
+
+  Dynamic_array<LEX_STRING *> vtmd_tables;
+  if (get_vtmd_tables(thd, about.db, about.db_length, vtmd_tables))
+    return true;
+
+  if (about.vers_conditions == FOR_SYSTEM_TIME_BETWEEN ||
+      about.vers_conditions == FOR_SYSTEM_TIME_FROM_TO)
+  {
+    about.vers_conditions.type == FOR_SYSTEM_TIME_AS_OF;
+    if (mode = VERS_IDENT_MODE_HISTORICAL)
+      about.vers_conditions.start = about.vers_conditions.end;
+  }
+
+  String table_name;
+  if (find_archive_name(thd, table_name))
+    return true;
+
   return false;
 }

@@ -362,6 +362,10 @@ drop database test;
 create database test;
 use test;
 set versioning_alter_history = survive;
+set versioning_identifier_mode= default;
+select @@versioning_identifier_mode;
+@@versioning_identifier_mode
+CURRENT
 create or replace table t (fire int) with system versioning;
 insert into t values (1);
 set @ts1= now(6);
@@ -377,65 +381,8 @@ select fire from t for system_time between '0-0-0' and now(6);
 select fire from t for system_time as of @ts2;
 end~~
 set versioning_identifier_mode= current;
-call select_a_from_range();
-fire
-1
-fire
-1
-fire
-2
 set versioning_identifier_mode= historical_early;
-call select_a_from_range();
-fire
-1
-fire
-1
-fire
-2
 set versioning_identifier_mode= historical;
-call select_a_from_range();
-fire
-3
-2
-fire
-3
-2
-fire
-2
-drop database test;
-create database test;
-use test;
-set versioning_alter_history= survive;
-set versioning_identifier_mode= current;
-create or replace table t (fire int) with system versioning;
-insert into t values (1);
-set @ts= now(6);
-alter table t add column ice int first, drop column fire;
-select fire from t for system_time as of @ts;
-fire
-1
-select ice from t for system_time as of @ts;
-fire
-1
-select ice from t for system_time as of @ts order by ice asc;
-fire
-1
-alter table t rename not_t;
-select fire from not_t for system_time as of @ts;
-fire
-1
-select ice from not_t for system_time as of @ts;
-fire
-1
-select ice from not_t for system_time as of @ts order by ice asc;
-fire
-1
-select * from t;
-ERROR 42S02: Table 'test.t' doesn't exist
-set versioning_identifier_mode= default;
-select @@versioning_identifier_mode;
-@@versioning_identifier_mode
-CURRENT
 drop database db0;
 drop database db1;
 drop database test;

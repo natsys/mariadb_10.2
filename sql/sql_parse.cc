@@ -6362,73 +6362,6 @@ finish:
   DBUG_RETURN(res || thd->is_error());
 }
 
-struct String_pair
-{
-  String_pair(const char *f, const char *s) : first(f), second(s) {}
-  const char *first;
-  const char *second;
-};
-
-static bool get_table_fields(THD *thd, LEX_STRING db, LEX_STRING table_name,
-                             Dynamic_array<const char *> &fields)
-{
-  TABLE_LIST tl;
-  tl.init_one_table(LEX_STRING_WITH_LEN(db), LEX_STRING_WITH_LEN(table_name),
-                    table_name.str, TL_READ);
-  Open_tables_backup open_tables_backup;
-  thd->reset_n_backup_open_tables_state(&open_tables_backup);
-  bool can_deadlock= thd->mdl_context.has_locks();
-  bool error= open_tables_only_view_structure(thd, &tl, can_deadlock);
-  if (!error)
-  {
-    fields.clear();
-    TABLE_SHARE *s= tl.table->s;
-    for (size_t i= 0; i < s->fields; i++)
-    {
-      if (fields.append(s->field[i]->field_name))
-        return true;
-    }
-  }
-  close_thread_tables(thd);
-  MDL_savepoint &savepoint= open_tables_backup.mdl_system_tables_svp;
-  thd->mdl_context.rollback_to_savepoint(savepoint);
-  thd->restore_backup_open_tables_state(&open_tables_backup);
-
-  return error;
-}
-
-static bool get_fields_mapping(THD *thd, LEX_STRING db, LEX_STRING current_name,
-                               LEX_STRING archive_name,
-                               Dynamic_array<String_pair> &map)
-{
-  Dynamic_array<const char *> current_fields;
-  Dynamic_array<const char *> archive_fields;
-
-  if (get_table_fields(thd, db, current_name, current_fields))
-    return true;
-  if (get_table_fields(thd, db, archive_name, archive_fields))
-    return true;
-
-  map.clear();
-  size_t size= std::min(archive_fields.elements(), current_fields.elements());
-  for (size_t i= 0; i < size; i++)
-  {
-    if (map.append(String_pair(current_fields.at(i), archive_fields.at(i))))
-      return true;
-  }
-
-  return false;
-}
-
-static void map_field(Item_field *item, const Dynamic_array<String_pair> &map)
-{
-  for (size_t i= 0; i < map.elements(); i++)
-  {
-    if (!strcmp(item->field_name, map.at(i).first))
-      item->vers_rename((char *)map.at(i).second);
-  }
-}
-
 static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
 {
   LEX	*lex= thd->lex;
@@ -6451,29 +6384,19 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
     {
       if (table->vers_conditions)
       {
-        VTMD_exists vtmd(*table);
-        if (vtmd.check_exists(thd))
-          return 1;
-        if (vtmd.exists && vtmd.setup_select(thd))
-          return 1;
-
-        if (thd->variables.vers_ident_mode == VERS_IDENT_MODE_CURRENT &&
-            table->vers_conditions == FOR_SYSTEM_TIME_AS_OF)
+        if (thd->variables.vers_ident_mode == VERS_IDENT_MODE_CURRENT)
         {
-          Dynamic_array<String_pair> map;
-          LEX_STRING db = {table->db, table->db_length};
-          LEX_STRING current_name = {table->alias, strlen(table->alias)};
-          LEX_STRING archive_name = {table->table_name, table->table_name_length};
-          if (get_fields_mapping(thd, db, current_name, archive_name, map))
+          VTMD_exists vtmd(*table);
+          if (vtmd.check_exists(thd))
             return 1;
-
-          for (Item *item= thd->stmt_arena->free_list; item; item= item->next)
-          {
-            if (Item::FIELD_ITEM == item->type())
-            {
-              map_field((Item_field *)item, map);
-            }
-          }
+          if (vtmd.exists && vtmd.setup_select(thd))
+            return 1;
+        }
+        else
+        {
+          VTMD_table vtmd(*table);
+          if (vtmd.setup_select_historical_mode(thd))
+            return 1;
         }
       }
     }
