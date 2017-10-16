@@ -509,7 +509,7 @@ VTMD_table::archive_name(
 }
 
 bool
-VTMD_table::find_archive_name(THD *thd, String &out)
+VTMD_table::find_archive_name(THD *thd, String &out, int field)
 {
   READ_RECORD info;
   int error;
@@ -549,7 +549,7 @@ VTMD_table::find_archive_name(THD *thd, String &out)
   {
     if (!select || select->skip_record(thd) > 0)
     {
-      vtmd.table->field[FLD_ARCHIVE_NAME]->val_str(&out);
+      vtmd.table->field[field]->val_str(&out);
       // Record is found.
       break;
     }
@@ -698,21 +698,46 @@ bool VTMD_table::setup_select_historical_mode(THD *thd)
   DBUG_ASSERT(mode == VERS_IDENT_MODE_HISTORICAL ||
               mode == VERS_IDENT_MODE_HISTORICAL_EARLY);
 
+  if (about.vers_conditions == FOR_SYSTEM_TIME_BETWEEN ||
+      about.vers_conditions == FOR_SYSTEM_TIME_FROM_TO)
+  {
+    about.vers_conditions.type= FOR_SYSTEM_TIME_AS_OF;
+    if (mode == VERS_IDENT_MODE_HISTORICAL)
+      about.vers_conditions.start = about.vers_conditions.end;
+  }
+
   Dynamic_array<LEX_STRING *> vtmd_tables;
   if (get_vtmd_tables(thd, about.db, about.db_length, vtmd_tables))
     return true;
 
-  if (about.vers_conditions == FOR_SYSTEM_TIME_BETWEEN ||
-      about.vers_conditions == FOR_SYSTEM_TIME_FROM_TO)
+  // cut off _vtmd postfix
+  for (size_t i= 0; i < vtmd_tables.elements(); i++)
   {
-    about.vers_conditions.type == FOR_SYSTEM_TIME_AS_OF;
-    if (mode = VERS_IDENT_MODE_HISTORICAL)
-      about.vers_conditions.start = about.vers_conditions.end;
+    LEX_STRING &name= *vtmd_tables.at(i);
+    name.length-= strlen("_vtmd");
+    name.str[name.length]= '\0';
   }
 
-  String table_name;
-  if (find_archive_name(thd, table_name))
-    return true;
+  char *name= about.table_name;
+  size_t name_length= about.table_name_length;
+  for (size_t i= 0; i < vtmd_tables.elements(); i++)
+  {
+    about.table_name= vtmd_tables.at(i)->str;
+    about.table_name_length= vtmd_tables.at(i)->length;
+
+    String name;
+    if (find_archive_name(thd, name))
+      return true;
+
+    if (name.length())
+    {
+      about.table_name= name.c_ptr();
+      about.table_name_length= name.length();
+      return false;
+    }
+  }
+  about.table_name= name;
+  about.table_name_length= name_length;
 
   return false;
 }
