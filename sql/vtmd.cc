@@ -509,7 +509,7 @@ VTMD_table::archive_name(
 }
 
 bool
-VTMD_table::find_archive_name(THD *thd, String &out, int field)
+VTMD_table::find_archive_name(THD *thd, String &out)
 {
   READ_RECORD info;
   int error;
@@ -549,7 +549,7 @@ VTMD_table::find_archive_name(THD *thd, String &out, int field)
   {
     if (!select || select->skip_record(thd) > 0)
     {
-      vtmd.table->field[field]->val_str(&out);
+      vtmd.table->field[FLD_ARCHIVE_NAME]->val_str(&out);
       // Record is found.
       break;
     }
@@ -725,14 +725,26 @@ bool VTMD_table::setup_select_historical_mode(THD *thd)
     about.table_name= vtmd_tables.at(i)->str;
     about.table_name_length= vtmd_tables.at(i)->length;
 
-    String name;
-    if (find_archive_name(thd, name))
+    String found_name;
+    if (get_table_name_mode2(thd, name, found_name))
       return true;
 
-    if (name.length())
+    if (found_name.length())
     {
-      about.table_name= name.c_ptr();
-      about.table_name_length= name.length();
+      about.table_name= found_name.c_ptr();
+      about.table_name_length= found_name.length();
+      DBUG_ASSERT(!about.mdl_request.ticket);
+      about.mdl_request.init(MDL_key::TABLE, about.db, about.table_name,
+                             about.mdl_request.type,
+                             about.mdl_request.duration);
+      about.vers_force_alias= true;
+      // Since we modified SELECT_LEX::table_list, we need to invalidate current
+      // SP
+      if (thd->spcont)
+      {
+        DBUG_ASSERT(thd->spcont->sp);
+        thd->spcont->sp->set_sp_cache_version(ULONG_MAX);
+      }
       return false;
     }
   }
@@ -740,4 +752,87 @@ bool VTMD_table::setup_select_historical_mode(THD *thd)
   about.table_name_length= name_length;
 
   return false;
+}
+
+bool VTMD_table::get_table_name_mode2(THD *thd, const char *name, String &out)
+{
+  out.free();
+
+  READ_RECORD info;
+  int error;
+  SQL_SELECT *select= NULL;
+  COND *conds= NULL;
+  List<TABLE_LIST> dummy;
+  SELECT_LEX &select_lex= thd->lex->select_lex;
+
+  Local_da local_da(thd, ER_VERS_VTMD_ERROR);
+  if (open(thd, local_da))
+    return true;
+
+  Name_resolution_context &ctx= thd->lex->select_lex.context;
+  TABLE_LIST *table_list= ctx.table_list;
+  TABLE_LIST *first_name_resolution_table= ctx.first_name_resolution_table;
+  table_map map = vtmd.table->map;
+  ctx.table_list= &vtmd;
+  ctx.first_name_resolution_table= &vtmd;
+  vtmd.table->map= 1;
+  bool found_name= false;
+
+  vtmd.vers_conditions= about.vers_conditions;
+  if ((error= vers_setup_select(thd, &vtmd, &conds, &select_lex)) ||
+      (error= setup_conds(thd, &vtmd, dummy, &conds)))
+    goto err;
+
+  select= make_select(vtmd.table, 0, 0, conds, NULL, 0, &error);
+  if (error)
+    goto loc_err;
+
+  error= init_read_record(&info, thd, vtmd.table, select, NULL,
+                          1 /* use_record_cache */, true /* print_error */,
+                          false /* disable_rr_cache */);
+  if (error)
+    goto loc_err;
+
+  while (!(error= info.read_record(&info)) && !thd->killed && !thd->is_error())
+  {
+    if (found_name)
+    {
+      vtmd.table->field[FLD_NAME]->val_str(&out);
+      if (out.length())
+        break;
+    }
+    else if (!select || select->skip_record(thd) > 0)
+    {
+      String tmp;
+      vtmd.table->field[FLD_NAME]->val_str(&tmp);
+      if (!strcmp(tmp.c_ptr(), name))
+      {
+        vtmd.table->field[FLD_ARCHIVE_NAME]->val_str(&tmp);
+        if (tmp.length())
+        {
+          out = tmp;
+          break;
+        }
+        found_name= true;
+        // now get next non-null FLD_NAME
+      }
+    }
+  }
+  // check for EOF
+  if (!thd->is_error())
+    error= 0;
+
+  if (error < 0)
+    my_error(ER_NO_SUCH_TABLE, MYF(0), about.db, about.alias);
+
+loc_err:
+  end_read_record(&info);
+err:
+  delete select;
+  ctx.table_list= table_list;
+  ctx.first_name_resolution_table= first_name_resolution_table;
+  vtmd.table->map= map;
+  close_log_table(thd, &open_tables_backup);
+  DBUG_ASSERT(!error || local_da.is_error());
+  return error;
 }

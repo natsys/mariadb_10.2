@@ -92,9 +92,11 @@ public:
     archive_name(thd, about.table_name, new_name, new_name_size);
   }
 
-  bool find_archive_name(THD *thd, String &out, int field= FLD_ARCHIVE_NAME);
+  bool find_archive_name(THD *thd, String &out);
   static bool get_archive_tables(THD *thd, const char *db, size_t db_length,
                                  Dynamic_array<String> &result);
+
+  bool get_table_name_mode2(THD *thd, const char *name, String &out);
 };
 
 class VTMD_exists : public VTMD_table

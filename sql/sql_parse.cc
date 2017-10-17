@@ -6394,6 +6394,14 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
         }
         else
         {
+          size_t length = table->table_name_length;
+          if (length > strlen("_vtmd"))
+          {
+            const char *postfix= table->table_name + (length - strlen("_vtmd"));
+            if (!strcmp(postfix, "_vtmd"))
+              continue;
+          }
+
           VTMD_table vtmd(*table);
           if (vtmd.setup_select_historical_mode(thd))
             return 1;
