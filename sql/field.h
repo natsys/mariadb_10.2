@@ -674,6 +674,14 @@ public:
   static void operator delete(void *ptr, MEM_ROOT *mem_root)
   { DBUG_ASSERT(0); }
 
+  /**
+     Used by System Versioning.
+   */
+  virtual void set_max()
+  { DBUG_ASSERT(0); }
+  virtual bool is_max()
+  { DBUG_ASSERT(0); return false; }
+
   uchar		*ptr;			// Position to field in record
   /**
      Byte where the @c NULL bit is stored inside a record. If this Field is a
@@ -956,6 +964,9 @@ public:
     return bitmap_is_set(&table->has_value_set, field_index);
   }
   virtual bool set_explicit_default(Item *value);
+
+  virtual my_time_t get_timestamp(const uchar *pos= NULL, ulong *sec_part= NULL) const
+  { DBUG_ASSERT(0); return 0; }
 
   /**
      Evaluates the @c UPDATE default function, if one exists, and stores the
@@ -1389,6 +1400,16 @@ public:
     DBUG_ASSERT(column_format() == COLUMN_FORMAT_TYPE_DEFAULT);
     flags |= static_cast<uint32>(column_format_arg) <<
       FIELD_FLAGS_COLUMN_FORMAT;
+  }
+
+  bool vers_sys_field() const
+  {
+    return flags & (VERS_SYS_START_FLAG | VERS_SYS_END_FLAG);
+  }
+
+  virtual bool vers_trx_id() const
+  {
+    return false;
   }
 
   /*
@@ -2108,6 +2129,56 @@ public:
   {
     return unpack_int64(to, from, from_end);
   }
+
+  void set_max();
+  bool is_max();
+};
+
+
+class Field_vers_trx_id :public Field_longlong {
+  MYSQL_TIME cache;
+  ulonglong cached;
+public:
+  Field_vers_trx_id(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
+	      uchar null_bit_arg,
+	      enum utype unireg_check_arg, const char *field_name_arg,
+	      bool zero_arg, bool unsigned_arg)
+    :Field_longlong(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
+	       unireg_check_arg, field_name_arg, zero_arg,unsigned_arg),
+    cached(0)
+    {}
+  enum_field_types real_type() const { return MYSQL_TYPE_LONGLONG; }
+  enum_field_types type() const { return MYSQL_TYPE_LONGLONG;}
+  uint size_of() const { return sizeof(*this); }
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate, ulonglong trx_id);
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  {
+    return get_date(ltime, fuzzydate, (ulonglong) val_int());
+  }
+  bool test_if_equality_guarantees_uniqueness(const Item *item) const;
+  bool can_optimize_keypart_ref(const Item_bool_func *cond,
+                                      const Item *item) const
+  {
+    return true;
+  }
+
+  bool can_optimize_group_min_max(const Item_bool_func *cond,
+                                        const Item *const_item) const
+  {
+    return true;
+  }
+  bool can_optimize_range(const Item_bool_func *cond,
+                                  const Item *item,
+                                  bool is_eq_func) const
+  {
+    return true;
+  }
+  /* cmp_type() cannot be TIME_RESULT, because we want to compare this field against
+     integers. But in all other cases we treat it as TIME_RESULT! */
+  bool vers_trx_id() const
+  {
+    return true;
+  }
 };
 
 
@@ -2517,8 +2588,10 @@ public:
   {
     return memcmp(a_ptr, b_ptr, pack_length());
   }
+  void set_max();
+  bool is_max();
   void store_TIME(my_time_t timestamp, ulong sec_part);
-  my_time_t get_timestamp(const uchar *pos, ulong *sec_part) const;
+  my_time_t get_timestamp(const uchar *pos= NULL, ulong *sec_part= NULL) const;
   uint size_of() const { return sizeof(*this); }
 };
 
@@ -3757,7 +3830,8 @@ Field *make_field(TABLE_SHARE *share, MEM_ROOT *mem_root,
                   CHARSET_INFO *cs,
                   Field::geometry_type geom_type, uint srid,
                   Field::utype unireg_check,
-                  TYPELIB *interval, const char *field_name);
+                  TYPELIB *interval, const char *field_name,
+                  uint32 flags);
 
 /*
   Create field class for CREATE TABLE
@@ -3803,6 +3877,13 @@ class Column_definition: public Sql_alloc
     }
   }
 public:
+  enum enum_column_versioning
+  {
+    VERSIONING_NOT_SET,
+    WITH_VERSIONING,
+    WITHOUT_VERSIONING
+  };
+
   const char *field_name;
   LEX_STRING comment;			// Comment for field
   Item *on_update;		        // ON UPDATE NOW()
@@ -3838,6 +3919,9 @@ public:
     *default_value,                  // Default value
     *check_constraint;               // Check constraint
 
+  enum_column_versioning versioning;
+  bool implicit_not_null;
+
   Column_definition():
     comment(null_lex_str),
     on_update(NULL), sql_type(MYSQL_TYPE_NULL), length(0), decimals(0),
@@ -3845,7 +3929,9 @@ public:
     interval(0), charset(&my_charset_bin),
     srid(0), geom_type(Field::GEOM_GEOMETRY),
     option_list(NULL), pack_flag(0),
-    vcol_info(0), default_value(0), check_constraint(0)
+    vcol_info(0), default_value(0), check_constraint(0),
+    versioning(VERSIONING_NOT_SET),
+    implicit_not_null(false)
   {
     interval_list.empty();
   }
@@ -3932,7 +4018,7 @@ public:
                         (uint32)length, null_pos, null_bit,
                         pack_flag, sql_type, charset,
                         geom_type, srid, unireg_check, interval,
-                        field_name_arg);
+                        field_name_arg, flags);
   }
   Field *make_field(TABLE_SHARE *share, MEM_ROOT *mem_root,
                     const char *field_name_arg)
@@ -4207,6 +4293,7 @@ bool check_expression(Virtual_column_info *vcol, const char *name,
 
 #define FIELDFLAG_TREAT_BIT_AS_CHAR     4096U   /* use Field_bit_as_char */
 #define FIELDFLAG_LONG_DECIMAL          8192U
+#define FIELDFLAG_WITHOUT_SYSTEM_VERSIONING 8192U
 #define FIELDFLAG_NO_DEFAULT		16384U  /* sql */
 #define FIELDFLAG_MAYBE_NULL		32768U	// sql
 #define FIELDFLAG_HEX_ESCAPE		0x10000U

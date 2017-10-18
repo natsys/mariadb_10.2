@@ -5621,6 +5621,7 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
       expression to 'reference', i.e. it substitute that expression instead
       of this Item_field
     */
+    DBUG_ASSERT(context);
     if ((from_field= find_field_in_tables(thd, this,
                                           context->first_name_resolution_table,
                                           context->last_name_resolution_table,
@@ -6324,9 +6325,18 @@ Field *Item::tmp_table_field_from_field_type(TABLE *table,
     break;
 #ifdef HAVE_LONG_LONG
   case MYSQL_TYPE_LONGLONG:
-    field= new (mem_root)
-      Field_longlong((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
-                     name, 0, unsigned_flag);
+    if (field_flags() & (VERS_SYS_START_FLAG|VERS_SYS_END_FLAG))
+    {
+      field= new (mem_root)
+        Field_vers_trx_id((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
+                      name, 0, unsigned_flag);
+    }
+    else
+    {
+      field= new (mem_root)
+        Field_longlong((uchar*) 0, max_length, null_ptr, 0, Field::NONE,
+                      name, 0, unsigned_flag);
+    }
     break;
 #endif
   case MYSQL_TYPE_FLOAT:
@@ -6661,7 +6671,7 @@ int Item_int::save_in_field(Field *field, bool no_conversions)
 
 Item *Item_int::clone_item(THD *thd)
 {
-  return new (thd->mem_root) Item_int(thd, name, value, max_length);
+  return new (thd->mem_root) Item_int(thd, name, value, max_length, unsigned_flag);
 }
 
 
@@ -6973,6 +6983,26 @@ bool Item_temporal_literal::eq(const Item *item, bool binary_cmp) const
                      &((Item_temporal_literal *) item)->cached_time);
 }
 
+bool Item_temporal_literal::operator<(const MYSQL_TIME &ltime) const
+{
+  if (my_time_compare(&cached_time, &ltime) < 0)
+    return true;
+  return false;
+}
+
+bool Item_temporal_literal::operator>(const MYSQL_TIME &ltime) const
+{
+  if (my_time_compare(&cached_time, &ltime) > 0)
+    return true;
+  return false;
+}
+
+bool Item_temporal_literal::operator==(const MYSQL_TIME &ltime) const
+{
+  if (my_time_compare(&cached_time, &ltime) == 0)
+    return true;
+  return false;
+}
 
 void Item_date_literal::print(String *str, enum_query_type query_type)
 {
@@ -10235,7 +10265,8 @@ void Item_cache_row::set_null()
 Item_type_holder::Item_type_holder(THD *thd, Item *item)
   :Item(thd, item),
    Type_handler_hybrid_field_type(item->real_type_handler()),
-   enum_set_typelib(0)
+   enum_set_typelib(0),
+   flags(0)
 {
   DBUG_ASSERT(item->fixed);
   maybe_null= item->maybe_null;
@@ -10246,6 +10277,12 @@ Item_type_holder::Item_type_holder(THD *thd, Item *item)
   if (item->field_type() == MYSQL_TYPE_GEOMETRY)
     geometry_type= item->get_geometry_type();
 #endif /* HAVE_SPATIAL */
+  if (item->real_type() == Item::FIELD_ITEM)
+  {
+    Item_field *item_field= (Item_field*)item->real_item();
+    flags|=
+        (item_field->field->flags & (VERS_SYS_START_FLAG | VERS_SYS_END_FLAG));
+  }
 }
 
 
@@ -10713,6 +10750,35 @@ bool Item_field::exclusive_dependence_on_grouping_fields_processor(void *arg)
     }
   }
   return true;
+}
+
+Item *Item_field::vers_optimized_fields_transformer(THD *thd, uchar *)
+{
+  if (!field)
+    return this;
+
+  if (field->flags & VERS_OPTIMIZED_UPDATE_FLAG && context &&
+      field->table->pos_in_table_list &&
+      field->table->pos_in_table_list->vers_conditions)
+  {
+    push_warning_printf(
+        current_thd, Sql_condition::WARN_LEVEL_WARN,
+        ER_NON_VERSIONED_FIELD_IN_VERSIONED_QUERY,
+        ER_THD(current_thd, ER_NON_VERSIONED_FIELD_IN_VERSIONED_QUERY),
+        field_name);
+
+    Item *null_item= new (thd->mem_root) Item_null(thd);
+    if (null_item)
+      return null_item;
+  }
+
+  return this;
+}
+
+bool Item_field::vers_trx_id() const
+{
+  DBUG_ASSERT(field);
+  return field->vers_trx_id();
 }
 
 void Item::register_in(THD *thd)

@@ -1,11 +1,17 @@
 *-t
 *.ctest
 *.reject
+*.orig
 *.spec
 *.bak
 *.dgcov
 *.rpm
 .*.swp
+.#*
+.vimrc
+.editorconfig
+.kateconfig
+*.kdev4
 *.ninja
 .ninja_*
 .gdb_history
@@ -482,3 +488,7 @@ UpgradeLog*.htm
 
 # Microsoft Fakes
 FakesAssemblies/
+
+compile_commands.json
+.clang-format
+.kscope/

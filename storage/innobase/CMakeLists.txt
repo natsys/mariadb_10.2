@@ -74,7 +74,7 @@ SET(INNOBASE_SOURCES
 	gis/gis0sea.cc
 	fts/fts0plugin.cc
 	handler/ha_innodb.cc
-#	handler/ha_innopart.cc
+	handler/ha_innopart.cc
 	handler/handler0alter.cc
 	handler/i_s.cc
 	ibuf/ibuf0ibuf.cc
@@ -149,7 +149,8 @@ SET(INNOBASE_SOURCES
 	ut/ut0ut.cc
 	ut/ut0vec.cc
 	ut/ut0wqueue.cc
-	ut/ut0timer.cc)
+	ut/ut0timer.cc
+	vers/vers0vtq.cc)
 
 IF(WITH_INNODB)
   # Legacy option

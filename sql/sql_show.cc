@@ -62,6 +62,8 @@
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 #include "ha_partition.h"
 #endif
+#include "vtmd.h"
+#include "transaction.h"
 
 enum enum_i_s_events_fields
 {
@@ -562,6 +564,7 @@ static struct show_privileges_st sys_privileges[]=
   {"Create view", "Tables",  "To create new views"},
   {"Create user", "Server Admin",  "To create new users"},
   {"Delete", "Tables",  "To delete existing rows"},
+  {"Delete versioning rows", "Tables", "To delete versioning table historical rows"},
   {"Drop", "Databases,Tables", "To drop databases, tables, and views"},
 #ifdef HAVE_EVENT_SCHEDULER
   {"Event","Server Admin","To create, alter, drop and execute events"},
@@ -1267,6 +1270,15 @@ mysqld_show_create(THD *thd, TABLE_LIST *table_list)
   */
   MDL_savepoint mdl_savepoint= thd->mdl_context.mdl_savepoint();
 
+  TABLE_LIST archive;
+  bool versioned= table_list->vers_conditions;
+  if (versioned)
+  {
+    DBUG_ASSERT(table_list->vers_conditions == FOR_SYSTEM_TIME_AS_OF);
+    VTMD_table vtmd(*table_list);
+    if (vtmd.setup_select(thd))
+      goto exit;
+  }
 
   if (mysqld_show_create_get_fields(thd, table_list, &field_list, &buffer))
     goto exit;
@@ -1309,6 +1321,13 @@ mysqld_show_create(THD *thd, TABLE_LIST *table_list)
   my_eof(thd);
 
 exit:
+  if (versioned)
+  {
+    /* If commit fails, we should be able to reset the OK status. */
+    thd->get_stmt_da()->set_overwrite_status(true);
+    trans_commit_stmt(thd);
+    thd->get_stmt_da()->set_overwrite_status(false);
+  }
   close_thread_tables(thd);
   /* Release any metadata locks taken during SHOW CREATE. */
   thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
@@ -1666,6 +1685,7 @@ static bool get_field_default_value(THD *thd, Field *field, String *def_value,
 
   has_default= (field->default_value ||
                 (!(field->flags & NO_DEFAULT_VALUE_FLAG) &&
+		 !field->vers_sys_field() &&
                  field->unireg_check != Field::NEXT_NUMBER));
 
   def_value->length(0);
@@ -1985,6 +2005,7 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
   TABLE *table= table_list->table;
   TABLE_SHARE *share= table->s;
   sql_mode_t sql_mode= thd->variables.sql_mode;
+  ulong vers_hide= thd->variables.vers_hide;
   bool foreign_db_mode=  sql_mode & (MODE_POSTGRESQL | MODE_ORACLE |
                                      MODE_MSSQL | MODE_DB2 |
                                      MODE_MAXDB | MODE_ANSI);
@@ -2024,7 +2045,7 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
     alias= table_list->schema_table->table_name;
   else
   {
-    if (lower_case_table_names == 2)
+    if (lower_case_table_names == 2 || table_list->vers_force_alias)
       alias= table->alias.c_ptr();
     else
     {
@@ -2062,6 +2083,10 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
   for (ptr=table->field ; (field= *ptr); ptr++)
   {
     uint flags = field->flags;
+
+    if (vers_hide == VERS_HIDE_FULL &&
+        (flags & (VERS_SYS_START_FLAG | VERS_SYS_END_FLAG)))
+      continue;
 
     if (ptr != table->field)
       packet->append(STRING_WITH_LEN(",\n"));
@@ -2106,9 +2131,18 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
     }
     else
     {
+      if (field->flags & VERS_SYS_START_FLAG)
+      {
+        packet->append(STRING_WITH_LEN(" GENERATED ALWAYS AS ROW START"));
+      }
+      else if (field->flags & VERS_SYS_END_FLAG)
+      {
+        packet->append(STRING_WITH_LEN(" GENERATED ALWAYS AS ROW END"));
+      }
+
       if (flags & NOT_NULL_FLAG)
         packet->append(STRING_WITH_LEN(" NOT NULL"));
-      else if (field->type() == MYSQL_TYPE_TIMESTAMP)
+      else if (field->type() == MYSQL_TYPE_TIMESTAMP && !field->vers_sys_field())
       {
         /*
           TIMESTAMP field require explicit NULL flag, because unlike
@@ -2122,6 +2156,11 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
       {
         packet->append(STRING_WITH_LEN(" DEFAULT "));
         packet->append(def_value.ptr(), def_value.length(), system_charset_info);
+      }
+
+      if (field->flags & VERS_OPTIMIZED_UPDATE_FLAG)
+      {
+        packet->append(STRING_WITH_LEN(" WITHOUT SYSTEM VERSIONING"));
       }
 
       if (!limited_mysql_mode &&
@@ -2215,6 +2254,17 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
                           hton->index_options);
   }
 
+  if (table->versioned() && vers_hide != VERS_HIDE_FULL)
+  {
+    const Field *fs = table->vers_start_field();
+    const Field *fe = table->vers_end_field();
+    packet->append(STRING_WITH_LEN(",\n  PERIOD FOR SYSTEM_TIME ("));
+    append_identifier(thd,packet,fs->field_name, strlen(fs->field_name));
+    packet->append(STRING_WITH_LEN(", "));
+    append_identifier(thd,packet,fe->field_name, strlen(fe->field_name));
+    packet->append(STRING_WITH_LEN(")"));
+  }
+
   /*
     Get possible foreign key definitions stored in InnoDB and append them
     to the CREATE TABLE statement
@@ -2252,6 +2302,11 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
   if (show_table_options)
     add_table_options(thd, table, create_info_arg,
                       table_list->schema_table != 0, 0, packet);
+
+  if (table->versioned() && vers_hide != VERS_HIDE_FULL)
+  {
+    packet->append(STRING_WITH_LEN(" WITH SYSTEM VERSIONING"));
+  }
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   {
@@ -4152,7 +4207,7 @@ int schema_tables_add(THD *thd, Dynamic_array<LEX_STRING*> *files,
     @retval       2           Not fatal error; Safe to ignore this file list
 */
 
-static int
+int
 make_table_name_list(THD *thd, Dynamic_array<LEX_STRING*> *table_names,
                      LEX *lex, LOOKUP_FIELD_VALUES *lookup_field_vals,
                      LEX_STRING *db_name)
@@ -4800,6 +4855,59 @@ public:
   }
 };
 
+static bool get_all_archive_tables(THD *thd,
+                                   Dynamic_array<String> &all_archive_tables)
+{
+  if (thd->variables.vers_hide == VERS_HIDE_NEVER)
+    return false;
+
+  Dynamic_array<LEX_STRING *> all_db;
+  LOOKUP_FIELD_VALUES lookup_field_values= {
+      *thd->make_lex_string(C_STRING_WITH_LEN("%")), {NULL, 0}, true, false};
+  if (make_db_list(thd, &all_db, &lookup_field_values))
+    return true;
+
+  LEX_STRING information_schema= {C_STRING_WITH_LEN("information_schema")};
+  for (size_t i= 0; i < all_db.elements(); i++)
+  {
+    LEX_STRING db= *all_db.at(i);
+    if (db.length == information_schema.length &&
+        !memcmp(db.str, information_schema.str, db.length))
+    {
+      all_db.del(i);
+      break;
+    }
+  }
+
+  for (size_t i= 0; i < all_db.elements(); i++)
+  {
+    LEX_STRING db_name= *all_db.at(i);
+    Dynamic_array<String> archive_tables;
+    if (VTMD_table::get_archive_tables(thd, db_name.str, db_name.length,
+                                       archive_tables))
+      return true;
+    for (size_t i= 0; i < archive_tables.elements(); i++)
+      if (all_archive_tables.push(archive_tables.at(i)))
+        return true;
+  }
+
+  return false;
+}
+
+static bool is_archive_table(const Dynamic_array<String> &all_archive_tables,
+                             LEX_STRING candidate)
+{
+  for (size_t i= 0; i < all_archive_tables.elements(); i++)
+  {
+    const String &archive_table= all_archive_tables.at(i);
+    if (candidate.length == archive_table.length() &&
+        !memcmp(candidate.str, archive_table.ptr(), candidate.length))
+    {
+      return true;
+    }
+  }
+  return false;
+}
 
 /**
   @brief          Fill I_S tables whose data are retrieved
@@ -4842,6 +4950,7 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
 #endif
   uint table_open_method= tables->table_open_method;
   bool can_deadlock;
+  Dynamic_array<String> all_archive_tables;
   DBUG_ENTER("get_all_tables");
 
   /*
@@ -4904,6 +5013,10 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
 
   if (make_db_list(thd, &db_names, &plan->lookup_field_vals))
     goto err;
+
+  if (get_all_archive_tables(thd, all_archive_tables))
+    goto err;
+
   for (size_t i=0; i < db_names.elements(); i++)
   {
     LEX_STRING *db_name= db_names.at(i);
@@ -4928,6 +5041,9 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
       {
         LEX_STRING *table_name= table_names.at(i);
         DBUG_ASSERT(table_name->length <= NAME_LEN);
+
+        if (is_archive_table(all_archive_tables, *table_name))
+          continue;
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
         if (!(thd->col_access & TABLE_ACLS))
@@ -7000,6 +7116,11 @@ static int get_schema_partitions_record(THD *thd, TABLE_LIST *tables,
                        partition_keywords[PKW_HASH].length);
       table->field[7]->store(tmp_res.ptr(), tmp_res.length(), cs);
       break;
+    case VERSIONING_PARTITION:
+      tmp_res.length(0);
+      tmp_res.append(partition_keywords[PKW_SYSTEM_TIME].str,
+                    partition_keywords[PKW_SYSTEM_TIME].length);
+      break;
     default:
       DBUG_ASSERT(0);
       my_error(ER_OUT_OF_RESOURCES, MYF(ME_FATALERROR));
@@ -7705,7 +7826,8 @@ TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
       if (!(item=new (mem_root)
             Item_return_date_time(thd, fields_info->field_name,
                                   strlen(fields_info->field_name),
-                                  fields_info->field_type)))
+                                  fields_info->field_type,
+                                  fields_info->field_length)))
         DBUG_RETURN(0);
       item->decimals= fields_info->field_length;
       break;

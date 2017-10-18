@@ -1,6 +1,10 @@
 # vim ft=yaml
 # travis-ci.org definition
 
+branches:
+  only:
+    - natsys/trunk
+
 # non-container builds don't have enough RAM to reliably compile
 sudo: required
 dist: trusty
@@ -17,6 +21,7 @@ env:
     - GCC_VERSION=4.8
     - GCC_VERSION=5
     - GCC_VERSION=6
+
 addons:
   apt:
     sources:
@@ -28,10 +33,6 @@ addons:
 # https://github.com/travis-ci/apt-source-whitelist/pull/288
 # https://github.com/travis-ci/apt-source-whitelist/pull/309
     packages: # make sure these match debian/control contents
-      - gcc-5
-      - g++-5
-      - gcc-6
-      - g++-6
       - bison
       - chrpath
       - cmake
@@ -58,6 +59,12 @@ addons:
       - libcrack2-dev
       - libjemalloc-dev
       - devscripts # implicit for any build on Ubuntu
+      - valgrind
+
+env:
+  - BUILD_TYPE="-DCMAKE_BUILD_TYPE=Debug -DWITH_JEMALLOC=yes -DSECURITY_HARDENED=no -DWITH_PIC=no ${TRAVIS_BUILD_DIR}" MTR_FLAGS=""
+  - BUILD_TYPE="-DCMAKE_BUILD_TYPE=Debug -DSECURITY_HARDENED=no -DWITH_PIC=no ${TRAVIS_BUILD_DIR}" MTR_FLAGS="--valgrind --valgrind-option=--show-reachable=no --valgrind-option=--num-callers=120"
+  - BUILD_TYPE="-DCMAKE_BUILD_TYPE=RelWithDebInfo -DWITH_JEMALLOC=yes -DSECURITY_HARDENED=yes ${TRAVIS_BUILD_DIR}" MTR_FLAGS=""
 
 # libsnappy-dev # https://github.com/travis-ci/apt-package-whitelist/issues/3880
 # liblzma-dev # https://github.com/travis-ci/apt-package-whitelist/issues/3879
@@ -65,16 +72,6 @@ addons:
 # libsystemd-daemon-dev # https://github.com/travis-ci/apt-package-whitelist/issues/3882
 
 script:
-  - export MYSQL_BUILD_CC=/usr/bin/gcc-${GCC_VERSION} MYSQL_BUILD_CXX=/usr/bin/g++-${GCC_VERSION}
-  - ${MYSQL_BUILD_CC} --version ; ${MYSQL_BUILD_CXX} --version
+  - ${CC} --version ; ${CXX} --version
   - cd "${TRAVIS_BUILD_DIR}"
-  - env DEB_BUILD_OPTIONS="parallel=3" debian/autobake-deb.sh;
-
-notifications:
-  irc:
-    channels:
-      - "chat.freenode.net#maria"
-    on_success: never # [always|never|change]
-    on_failure: never
-    template:
-      - "%{repository}/%{branch} (%{commit} - %{author}): %{build_url}: %{message}"
+  - "cmake -DWITH_INNOBASE_STORAGE_ENGINE=1 -DWITHOUT_TOKUDB_STORAGE_ENGINE=1 -DWITHOUT_ROCKSDB_STORAGE_ENGINE=1 $BUILD_TYPE && make -j $(grep -c processor /proc/cpuinfo) && cd ./mysql-test && ./mtr $MTR_FLAGS --mem --suite=versioning --force --max-test-fail=0"

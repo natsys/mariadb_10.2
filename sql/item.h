@@ -480,7 +480,6 @@ public:
   String_copier_for_item(THD *thd): m_thd(thd) { }
 };
 
-
 class Item: public Value_source,
             public Type_std_attributes
 {
@@ -736,6 +735,10 @@ public:
   virtual bool send(Protocol *protocol, String *str);
   virtual bool eq(const Item *, bool binary_cmp) const;
   virtual enum_field_types field_type() const= 0;
+  virtual uint field_flags() const
+  {
+    return 0;
+  }
   virtual const Type_handler *type_handler() const
   {
     return Type_handler::get_handler_by_field_type(field_type());
@@ -1334,6 +1337,8 @@ public:
     {
       if (other->cmp_type() == TIME_RESULT)
         return other->field_type();
+      if (vers_trx_id() || other->vers_trx_id())
+        return MYSQL_TYPE_DATETIME;
       DBUG_ASSERT(0); // Two non-temporal data types, we should not get to here
       return MYSQL_TYPE_DATETIME;
     }
@@ -1644,6 +1649,10 @@ public:
 
   virtual Item_field *field_for_view_update() { return 0; }
 
+  virtual Item *vers_optimized_fields_transformer(THD *thd, uchar *)
+  { return this; }
+  virtual bool vers_trx_id() const
+  { return false; }
   virtual Item *neg_transformer(THD *thd) { return NULL; }
   virtual Item *update_value_transformer(THD *thd, uchar *select_arg)
   { return this; }
@@ -1828,8 +1837,10 @@ public:
   {
     marker &= ~EXTRACTION_MASK;
   }
-};
 
+  /* System versioning */
+  virtual vtq_record_t *vtq_cached_result() { return NULL; }
+};
 
 template <class T>
 inline Item* get_item_copy (THD *thd, MEM_ROOT *mem_root, T* item)
@@ -2656,6 +2667,10 @@ public:
   {
     return field->type();
   }
+  uint32 field_flags() const
+  {
+    return field->flags;
+  }
   const Type_handler *real_type_handler() const;
   enum_monotonicity_info get_monotonicity_info() const
   {
@@ -2739,6 +2754,8 @@ public:
   uint32 max_display_length() const { return field->max_display_length(); }
   Item_field *field_for_view_update() { return this; }
   int fix_outer_field(THD *thd, Field **field, Item **reference);
+  virtual Item *vers_optimized_fields_transformer(THD *thd, uchar *);
+  virtual bool vers_trx_id() const;
   virtual Item *update_value_transformer(THD *thd, uchar *select_arg);
   Item *derived_field_transformer_for_having(THD *thd, uchar *arg);
   Item *derived_field_transformer_for_where(THD *thd, uchar *arg);
@@ -3176,6 +3193,9 @@ public:
   Item_int(THD *thd, const char *str_arg,longlong i,uint length):
     Item_num(thd), value(i)
     { max_length=length; name=(char*) str_arg; fixed= 1; }
+  Item_int(THD *thd, const char *str_arg,longlong i,uint length, bool flag):
+    Item_num(thd), value(i)
+    { max_length=length; name=(char*) str_arg; fixed= 1; unsigned_flag= flag; }
   Item_int(THD *thd, const char *str_arg, uint length=64);
   enum Type type() const { return INT_ITEM; }
   enum Item_result result_type () const { return INT_RESULT; }
@@ -3622,10 +3642,10 @@ class Item_return_date_time :public Item_partition_func_safe_string
   enum_field_types date_time_field_type;
 public:
   Item_return_date_time(THD *thd, const char *name_arg, uint length_arg,
-                        enum_field_types field_type_arg):
+                        enum_field_types field_type_arg, uint dec_arg= 0):
     Item_partition_func_safe_string(thd, name_arg, length_arg, &my_charset_bin),
     date_time_field_type(field_type_arg)
-  { decimals= 0; }
+  { decimals= dec_arg; }
   enum_field_types field_type() const { return date_time_field_type; }
 };
 
@@ -3854,6 +3874,13 @@ public:
   { return  val_decimal_from_date(decimal_value); }
   int save_in_field(Field *field, bool no_conversions)
   { return save_date_in_field(field, no_conversions); }
+  void set_time(MYSQL_TIME *ltime)
+  {
+    cached_time= *ltime;
+  }
+  bool operator>(const MYSQL_TIME &ltime) const;
+  bool operator<(const MYSQL_TIME &ltime) const;
+  bool operator==(const MYSQL_TIME &ltime) const;
 };
 
 
@@ -3913,7 +3940,7 @@ public:
 class Item_datetime_literal: public Item_temporal_literal
 {
 public:
-  Item_datetime_literal(THD *thd, MYSQL_TIME *ltime, uint dec_arg):
+  Item_datetime_literal(THD *thd, MYSQL_TIME *ltime, uint dec_arg= 0):
     Item_temporal_literal(thd, ltime, dec_arg)
   {
     max_length= MAX_DATETIME_WIDTH + (decimals ? decimals + 1 : 0);
@@ -4920,6 +4947,7 @@ public:
 #include "item_xmlfunc.h"
 #include "item_jsonfunc.h"
 #include "item_create.h"
+#include "item_vers.h"
 #endif
 
 /**
@@ -5875,6 +5903,12 @@ public:
   Field *make_field_by_type(TABLE *table);
   Field::geometry_type get_geometry_type() const { return geometry_type; };
   Item* get_copy(THD *thd, MEM_ROOT *mem_root) { return 0; }
+
+  uint flags;
+  uint32 field_flags() const
+  {
+    return flags;
+  }
 };
 
 

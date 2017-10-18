@@ -113,6 +113,7 @@
 
 #include "wsrep_mysqld.h"
 #include "wsrep_thd.h"
+#include "vtmd.h"
 
 static void wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
                               Parser_state *parser_state,
@@ -3848,7 +3849,6 @@ mysql_execute_command(THD *thd)
       copy.
     */
     Alter_info alter_info(lex->alter_info, thd->mem_root);
-
     if (thd->is_fatal_error)
     {
       /* If out of memory when creating a copy of alter_info. */
@@ -3876,6 +3876,7 @@ mysql_execute_command(THD *thd)
     */
     if (!(create_info.used_fields & HA_CREATE_USED_ENGINE))
       create_info.use_default_db_type(thd);
+
     /*
       If we are using SET CHARSET without DEFAULT, add an implicit
       DEFAULT to not confuse old users. (This may change).
@@ -4062,6 +4063,11 @@ mysql_execute_command(THD *thd)
       }
       else
       {
+        if (create_info.vers_info.check_and_fix_implicit(
+              thd, &alter_info, &create_info, create_table->table_name))
+        {
+          goto end_with_restore_list;
+        }
         /*
           In STATEMENT format, we probably have to replicate also temporary
           tables, like mysql replication does. Also check if the requested
@@ -5804,6 +5810,11 @@ end_with_restore_list:
 
         if (do_execute_sp(thd, sp))
           goto error;
+
+        if (sp->sp_cache_version() == ULONG_MAX)
+        {
+          sp_cache_flush(thd->sp_proc_cache, sp);
+        }
       }
       break;
     }
@@ -6367,6 +6378,21 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
   }
   if (check_dependencies_in_with_clauses(lex->with_clauses_list))
     return 1;
+
+  if (thd->variables.vers_alter_history == VERS_ALTER_HISTORY_SURVIVE)
+  {
+    for (TABLE_LIST *table= all_tables; table; table= table->next_local)
+    {
+      if (table->vers_conditions)
+      {
+        VTMD_exists vtmd(*table);
+        if (vtmd.check_exists(thd))
+          return 1;
+        if (vtmd.exists && vtmd.setup_select(thd))
+          return 1;
+      }
+    }
+  }
 
   if (!(res= open_and_lock_tables(thd, all_tables, TRUE, 0)))
   {
