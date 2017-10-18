@@ -215,6 +215,13 @@ enum vers_alter_history_enum
   VERS_ALTER_HISTORY_SURVIVE,
   VERS_ALTER_HISTORY_DROP
 };
+
+enum vers_ident_mode_enum
+{
+  VERS_IDENT_MODE_CURRENT= 0,
+  VERS_IDENT_MODE_HISTORICAL,
+  VERS_IDENT_MODE_HISTORICAL_EARLY
+};
 /* System Versioning end */
 
 extern char *mysql_home_ptr, *pidfile_name_ptr;

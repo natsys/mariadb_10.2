@@ -75,10 +75,8 @@ create or replace table t (a int) with system versioning;
 show create table t for system_time between timestamp @tm1 and timestamp @tm1;
 --error ER_VERS_RANGE_PROHIBITED
 show create table t for system_time from timestamp @tm1 to timestamp @tm1;
---error ER_VERS_VTMD_ERROR
-show create table t for system_time as of timestamp '01-01-1990';
---error ER_VERS_VTMD_ERROR
-show create table t for system_time as of timestamp '01-01-2020';
+show create table t for system_time as of timestamp '1990-01-01';
+show create table t for system_time as of timestamp '2020-01-01';
 drop table t;
 call drop_archives('t_vtmd');
 drop table t_vtmd;

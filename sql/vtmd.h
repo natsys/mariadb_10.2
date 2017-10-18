@@ -84,6 +84,7 @@ public:
   bool open(THD *thd, Local_da &local_da, bool *created= NULL);
   bool update(THD *thd, const char* archive_name= NULL);
   bool setup_select(THD *thd);
+  bool setup_select_historical_mode(THD *thd);
 
   static void archive_name(THD *thd, const char *table_name, char *new_name, size_t new_name_size);
   void archive_name(THD *thd, char *new_name, size_t new_name_size)
@@ -94,6 +95,8 @@ public:
   bool find_archive_name(THD *thd, String &out);
   static bool get_archive_tables(THD *thd, const char *db, size_t db_length,
                                  Dynamic_array<String> &result);
+
+  bool get_table_name_mode2(THD *thd, const char *name, String &out);
 };
 
 class VTMD_exists : public VTMD_table

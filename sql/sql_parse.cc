@@ -6362,7 +6362,6 @@ finish:
   DBUG_RETURN(res || thd->is_error());
 }
 
-
 static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
 {
   LEX	*lex= thd->lex;
@@ -6385,11 +6384,28 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
     {
       if (table->vers_conditions)
       {
-        VTMD_exists vtmd(*table);
-        if (vtmd.check_exists(thd))
-          return 1;
-        if (vtmd.exists && vtmd.setup_select(thd))
-          return 1;
+        if (thd->variables.vers_ident_mode == VERS_IDENT_MODE_CURRENT)
+        {
+          VTMD_exists vtmd(*table);
+          if (vtmd.check_exists(thd))
+            return 1;
+          if (vtmd.exists && vtmd.setup_select(thd))
+            return 1;
+        }
+        else
+        {
+          size_t length = table->table_name_length;
+          if (length > strlen("_vtmd"))
+          {
+            const char *postfix= table->table_name + (length - strlen("_vtmd"));
+            if (!strcmp(postfix, "_vtmd"))
+              continue;
+          }
+
+          VTMD_table vtmd(*table);
+          if (vtmd.setup_select_historical_mode(thd))
+            return 1;
+        }
       }
     }
   }

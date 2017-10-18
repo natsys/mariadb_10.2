@@ -416,6 +416,16 @@ static Sys_var_enum Sys_vers_alter_history(
        SESSION_VAR(vers_alter_history), CMD_LINE(OPT_ARG),
        vers_alter_history_keywords, DEFAULT(VERS_ALTER_HISTORY_KEEP));
 
+static const char *vers_ident_mode_keywords[]= {"CURRENT", "HISTORICAL",
+                                                "HISTORICAL_EARLY", NULL};
+static Sys_var_enum Sys_vers_ident_mode(
+       "versioning_identifier_mode", "Versioning identifier selection mode. "
+       "CURRENT: current table and column names; "
+       "HISTORICAL: historical table and column names, latest for range; "
+       "HISTORICAL_EARLY: historical table and column names, earliest for range",
+       SESSION_VAR(vers_ident_mode), CMD_LINE(OPT_ARG),
+       vers_ident_mode_keywords, DEFAULT(VERS_IDENT_MODE_CURRENT));
+
 static Sys_var_ulonglong Sys_binlog_cache_size(
        "binlog_cache_size", "The size of the transactional cache for "
        "updates to transactional engines for the binary log. "

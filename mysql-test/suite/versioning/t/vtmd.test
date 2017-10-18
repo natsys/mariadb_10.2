@@ -197,6 +197,38 @@ set versioning_alter_history= survive;
 create or replace table t (x int) with system versioning;
 select * from t for system_time all;
 
+drop database test;
+create database test;
+use test;
+
+set versioning_alter_history = survive;
+
+set versioning_identifier_mode= default;
+select @@versioning_identifier_mode;
+
+create or replace table t (fire int) with system versioning;
+insert into t values (1);
+set @ts1= now(6);
+alter table t add column ice int;
+update t set fire= 2;
+set @ts2= now(6);
+alter table t drop column ice;
+update t set fire= 3;
+
+delimiter ~~;
+create or replace procedure select_a_from_range()
+begin
+  select fire from t for system_time from '0-0-0' to now(6);
+  select fire from t for system_time between '0-0-0' and now(6);
+  select fire from t for system_time as of @ts2;
+end~~
+delimiter ;~~
+
+set versioning_identifier_mode= current;
+set versioning_identifier_mode= historical_early;
+set versioning_identifier_mode= historical;
+
+
 drop database db0;
 drop database db1;
 drop database test;

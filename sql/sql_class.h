@@ -712,6 +712,7 @@ typedef struct system_variables
   ulong vers_hide;
   my_bool vers_innodb_algorithm_simple;
   ulong vers_alter_history;
+  ulong vers_ident_mode;
 } SV;
 
 /**
