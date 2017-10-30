@@ -2102,7 +2102,6 @@ run_again:
 		node->cascade_upd_nodes = cascade_upd_nodes;
 		cascade_upd_nodes->pop_front();
 		thr->fk_cascade_depth++;
-		prebuilt->m_mysql_table = NULL;
 		vers_set_fields = DICT_TF2_FLAG_IS_SET(node->table, DICT_TF2_VERSIONED)
 			&& (node->is_delete || node->versioned);
 
