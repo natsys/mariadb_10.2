@@ -1276,6 +1276,24 @@ ha_check_and_coalesce_trx_read_only(THD *thd, Ha_trx_info *ha_list,
 }
 
 
+static
+bool update_transaction_registry(THD* thd)
+{
+  static const LString table_name("transaction_registry");
+  TABLE_LIST tl;
+  tl.init_one_table(LEX_STRING_WITH_LEN(MYSQL_SCHEMA_NAME),
+                    XSTRING_WITH_LEN(table_name), table_name, TL_WRITE);
+
+  Open_tables_backup open_tables_backup;
+  TABLE *res= open_log_table(thd, &tl, &open_tables_backup);
+  if (!res)
+    return true;
+
+  close_log_table(thd, &open_tables_backup);
+  return false;
+}
+
+
 /**
   @retval
     0   ok
@@ -1413,6 +1431,9 @@ int ha_commit_trans(THD *thd, bool all)
     my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--read-only");
     goto err;
   }
+
+  if (rw_trans && update_transaction_registry(thd))
+    goto err;
 
   if (trans->no_2pc || (rw_ha_count <= 1))
   {

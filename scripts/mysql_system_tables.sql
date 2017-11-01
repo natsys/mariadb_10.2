@@ -131,7 +131,7 @@ SET @create_innodb_index_stats="CREATE TABLE IF NOT EXISTS innodb_index_stats (
 	PRIMARY KEY (database_name, table_name, index_name, stat_name)
 ) ENGINE=INNODB DEFAULT CHARSET=utf8 COLLATE=utf8_bin STATS_PERSISTENT=0";
 
-SET @create_transactions_registry="CREATE TABLE IF NOT EXISTS transactions_registry (
+SET @create_transaction_registry="CREATE TABLE IF NOT EXISTS transaction_registry (
 	transaction_id			BIGINT UNSIGNED NOT NULL,
 	commit_id			BIGINT UNSIGNED NOT NULL,
 	begin_timestamp			BIGINT UNSIGNED NOT NULL,
@@ -164,7 +164,7 @@ PREPARE stmt FROM @str;
 EXECUTE stmt;
 DROP PREPARE stmt;
 
-SET @str=IF(@have_innodb <> 0, @create_transactions_registry, "SET @dummy = 0");
+SET @str=IF(@have_innodb <> 0, @create_transaction_registry, "SET @dummy = 0");
 PREPARE stmt FROM @str;
 EXECUTE stmt;
 DROP PREPARE stmt;

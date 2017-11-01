@@ -67,6 +67,8 @@ LEX_CSTRING GENERAL_LOG_NAME= {STRING_WITH_LEN("general_log")};
 /* SLOW_LOG name */
 LEX_CSTRING SLOW_LOG_NAME= {STRING_WITH_LEN("slow_log")};
 
+LEX_CSTRING TRANSACTION_REG_NAME= {STRING_WITH_LEN("transaction_registry")};
+
 /* 
   Keyword added as a prefix when parsing the defining expression for a
   virtual column read from the column definition saved in the frm file
@@ -263,6 +265,9 @@ TABLE_CATEGORY get_table_category(const LEX_CSTRING *db,
       return TABLE_CATEGORY_LOG;
 
     if (lex_string_eq(&SLOW_LOG_NAME, name) == 0)
+      return TABLE_CATEGORY_LOG;
+
+    if (lex_string_eq(&TRANSACTION_REG_NAME, name) == 0)
       return TABLE_CATEGORY_LOG;
   }
 
