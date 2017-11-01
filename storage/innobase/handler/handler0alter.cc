@@ -5083,8 +5083,7 @@ new_clustered_failed:
 	if (ctx->need_rebuild() && ctx->new_table->supports_instant()) {
 		// Add versioning is:
 		// 1. add sys_trx_start (CUR_TRX_ID), sys_trx_end (MAX_TRX_ID)
-		// 2. set DICT_TF2_VERSIONED
-		// 3. set vers_row_start, vers_row_end for dict_table_t
+		// 2. set vers_row_start, vers_row_end for dict_table_t
 		// It's not supported for instand ADD COLUMN yet.
 		if (ha_alter_info->create_info->vers_info
 			.with_system_versioning)
