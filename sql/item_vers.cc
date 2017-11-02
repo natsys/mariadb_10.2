@@ -23,32 +23,15 @@
 #include "tztime.h"
 #include "item.h"
 
-Item_func_vtq_ts::Item_func_vtq_ts(
-    THD *thd,
-    handlerton* hton,
-    Item* a,
-    TR_table::field_id_t _vtq_field) :
-  VTQ_common<Item_datetimefunc>(thd, hton, a),
+Item_func_vtq_ts::Item_func_vtq_ts(THD *thd, Item* a, TR_table::field_id_t _vtq_field) :
+  Item_datetimefunc(thd, a),
   vtq_field(_vtq_field)
 {
   decimals= 6;
   null_value= true;
   DBUG_ASSERT(arg_count == 1 && args[0]);
-  check_hton();
 }
 
-template <class Item_func_X>
-void
-VTQ_common<Item_func_X>::check_hton()
-{
-  DBUG_ASSERT(hton);
-  if (!(hton->flags & HTON_NATIVE_SYS_VERSIONING) && hton->db_type != DB_TYPE_HEAP)
-  {
-    my_error(ER_VERS_ENGINE_UNSUPPORTED, MYF(0), this->Item::name.str ?
-      this->Item::name.str : this->func_name());
-    hton= NULL;
-  }
-}
 
 bool
 Item_func_vtq_ts::get_date(MYSQL_TIME *res, ulonglong fuzzy_date)
@@ -85,13 +68,9 @@ Item_func_vtq_ts::get_date(MYSQL_TIME *res, ulonglong fuzzy_date)
 }
 
 
-Item_func_vtq_id::Item_func_vtq_id(
-    THD *thd,
-    handlerton *hton,
-    Item* a,
-    TR_table::field_id_t _vtq_field,
-    bool _backwards) :
-  VTQ_common<Item_longlong_func>(thd, hton, a),
+Item_func_vtq_id::Item_func_vtq_id(THD *thd, Item* a, TR_table::field_id_t _vtq_field,
+                                   bool _backwards) :
+  Item_longlong_func(thd, a),
   vtq_field(_vtq_field),
   backwards(_backwards)
 {
@@ -100,16 +79,10 @@ Item_func_vtq_id::Item_func_vtq_id(
   unsigned_flag= 1;
   null_value= true;
   DBUG_ASSERT(arg_count == 1 && args[0]);
-  check_hton();
 }
 
-Item_func_vtq_id::Item_func_vtq_id(
-    THD *thd,
-    handlerton *hton,
-    Item* a,
-    Item* b,
-    TR_table::field_id_t _vtq_field) :
-  VTQ_common<Item_longlong_func>(thd, hton, a, b),
+Item_func_vtq_id::Item_func_vtq_id(THD *thd, Item* a, Item* b, TR_table::field_id_t _vtq_field) :
+  Item_longlong_func(thd, a, b),
   vtq_field(_vtq_field),
   backwards(false)
 {
@@ -118,7 +91,6 @@ Item_func_vtq_id::Item_func_vtq_id(
   unsigned_flag= 1;
   null_value= true;
   DBUG_ASSERT(arg_count == 2 && args[0] && args[1]);
-  check_hton();
 }
 
 longlong
@@ -147,12 +119,15 @@ Item_func_vtq_id::get_by_commit_ts(MYSQL_TIME &commit_ts, bool backwards)
   THD *thd= current_thd; // can it differ from constructor's?
   DBUG_ASSERT(thd);
 
+  // FIXME:
+#if 0
   DBUG_ASSERT(hton->vers_query_commit_ts);
   null_value= !hton->vers_query_commit_ts(thd, &cached_result, commit_ts, VTQ_ALL, backwards);
   if (null_value)
   {
     return 0;
   }
+#endif
 
   switch (vtq_field)
   {
@@ -173,12 +148,6 @@ Item_func_vtq_id::get_by_commit_ts(MYSQL_TIME &commit_ts, bool backwards)
 longlong
 Item_func_vtq_id::val_int()
 {
-  if (!hton)
-  {
-    null_value= true;
-    return 0;
-  }
-
   if (args[0]->is_null())
   {
     if (arg_count < 2 || vtq_field == TR_table::FLD_TRX_ID)
@@ -205,12 +174,8 @@ Item_func_vtq_id::val_int()
   }
 }
 
-Item_func_vtq_trx_sees::Item_func_vtq_trx_sees(
-    THD *thd,
-    handlerton *hton,
-    Item* a,
-    Item* b) :
-  VTQ_common<Item_bool_func>(thd, hton, a, b),
+Item_func_vtq_trx_sees::Item_func_vtq_trx_sees(THD *thd, Item* a, Item* b) :
+  Item_bool_func(thd, a, b),
   accept_eq(false)
 {
   null_value= true;
@@ -222,12 +187,6 @@ Item_func_vtq_trx_sees::val_int()
 {
   THD *thd= current_thd;
   DBUG_ASSERT(thd);
-
-  if (!hton)
-  {
-    null_value= true;
-    return 0;
-  }
 
   ulonglong trx_id1, trx_id0;
   ulonglong commit_id1= 0;
@@ -257,8 +216,11 @@ Item_func_vtq_trx_sees::val_int()
     return true;
   }
 
-  DBUG_ASSERT(hton->vers_trx_sees);
   bool result= false;
+  // FIXME
+#if 0
+  DBUG_ASSERT(hton->vers_trx_sees);
   null_value= !hton->vers_trx_sees(thd, result, trx_id1, trx_id0, commit_id1, iso_level1, commit_id0);
+#endif
   return result;
 }

@@ -25,9 +25,6 @@
 #include "vtq.h"
 #include "vers_utils.h"
 
-plugin_ref innodb_plugin= NULL;
-static handlerton* innodb_hton= NULL;
-
 /* System Versioning: VTQ_TRX_ID(), VTQ_COMMIT_ID(), VTQ_BEGIN_TS(), VTQ_COMMIT_TS(), VTQ_ISO_LEVEL() */
 template <TR_table::field_id_t VTQ_FIELD>
 class Create_func_vtq : public Create_native_func
@@ -64,12 +61,12 @@ Create_func_vtq<VTQ_FIELD>::create_native(THD *thd, LEX_CSTRING *name,
     {
     case VTQ_BEGIN_TS:
     case VTQ_COMMIT_TS:
-      func= new (thd->mem_root) Item_func_vtq_ts(thd, innodb_hton, param_1, VTQ_FIELD);
+      func= new (thd->mem_root) Item_func_vtq_ts(thd, param_1, VTQ_FIELD);
       break;
     case VTQ_TRX_ID:
     case VTQ_COMMIT_ID:
     case VTQ_ISO_LEVEL:
-      func= new (thd->mem_root) Item_func_vtq_id(thd, innodb_hton, param_1, VTQ_FIELD);
+      func= new (thd->mem_root) Item_func_vtq_id(thd, param_1, VTQ_FIELD);
       break;
     default:
       DBUG_ASSERT(0);
@@ -84,7 +81,7 @@ Create_func_vtq<VTQ_FIELD>::create_native(THD *thd, LEX_CSTRING *name,
     {
     case VTQ_TRX_ID:
     case VTQ_COMMIT_ID:
-      func= new (thd->mem_root) Item_func_vtq_id(thd, innodb_hton, param_1, param_2, VTQ_FIELD);
+      func= new (thd->mem_root) Item_func_vtq_id(thd, param_1, param_2, VTQ_FIELD);
       break;
     default:
       goto error;
@@ -119,7 +116,7 @@ public:
     {
       Item *param_1= item_list->pop();
       Item *param_2= item_list->pop();
-      func= new (thd->mem_root) Item_func_vtq_trx_seesX(thd, innodb_hton, param_1, param_2);
+      func= new (thd->mem_root) Item_func_vtq_trx_seesX(thd, param_1, param_2);
       break;
     }
     default:
@@ -164,8 +161,6 @@ static Native_func_registry func_array[] =
 
 static int versioning_plugin_init(void *p __attribute__ ((unused)))
 {
-  static LString InnoDB= "InnoDB";
-
   DBUG_ENTER("versioning_plugin_init");
   // No need in locking since we so far single-threaded
   int res= item_create_append(func_array);
@@ -175,28 +170,12 @@ static int versioning_plugin_init(void *p __attribute__ ((unused)))
     DBUG_RETURN(res);
   }
 
-  innodb_plugin= ha_resolve_by_name(NULL, &InnoDB.lex_cstring(), false);
-  if (!innodb_plugin)
-  {
-    my_error(ER_PLUGIN_IS_NOT_LOADED, MYF(0), InnoDB.ptr());
-    DBUG_RETURN(1);
-  }
-
-  innodb_hton= plugin_hton(innodb_plugin);
-  if (!innodb_hton || (innodb_hton->flags & HTON_NOT_USER_SELECTABLE))
-  {
-    my_message(ER_PLUGIN_IS_NOT_LOADED, "Can't get handlerton" , MYF(0));
-    DBUG_RETURN(1);
-  }
-
   DBUG_RETURN(0);
 }
 
 static int versioning_plugin_deinit(void *p __attribute__ ((unused)))
 {
   DBUG_ENTER("versioning_plugin_deinit");
-  if (innodb_plugin)
-    plugin_unlock(NULL, innodb_plugin);
   DBUG_RETURN(0);
 }
 
