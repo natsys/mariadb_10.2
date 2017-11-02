@@ -8484,6 +8484,37 @@ LEX_CSTRING *fk_option_name(enum_fk_option opt)
   return names + opt;
 }
 
+TR_table::TR_table(THD* _thd) : thd(_thd)
+{
+  init_one_table(LEX_STRING_WITH_LEN(MYSQL_SCHEMA_NAME),
+    STRING_WITH_LEN("transaction_registry"), "transaction_registry", TL_WRITE);
+}
+
+void TR_table::store(unsigned int field_id, ulonglong val)
+{
+  table->field[field_id]->store(val, true);
+  table->field[field_id]->set_notnull();
+}
+
+bool TR_table::update()
+{
+  Open_tables_backup open_tables_backup;
+  TABLE *table= open_log_table(thd, this, &open_tables_backup);
+  if (!table)
+    return true;
+
+  DBUG_ASSERT(table->s);
+  handlerton *hton= table->s->db_type();
+  DBUG_ASSERT(hton);
+  DBUG_ASSERT(hton->flags & HTON_NATIVE_SYS_VERSIONING);
+
+  hton->vers_get_trt_data(*this);
+  table->file->ha_write_row(table->record[0]);
+
+  close_log_table(thd, &open_tables_backup);
+  return false;
+}
+
 void vers_select_conds_t::resolve_units(bool timestamps_only)
 {
   DBUG_ASSERT(type != FOR_SYSTEM_TIME_UNSPECIFIED);

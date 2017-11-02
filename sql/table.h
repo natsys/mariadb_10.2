@@ -2923,6 +2923,24 @@ inline void mark_as_null_row(TABLE *table)
 
 bool is_simple_order(ORDER *order);
 
+class TR_table: public TABLE_LIST
+{
+  THD *thd;
+
+public:
+  enum {
+    FLD_TRX_ID= 0,
+    FLD_COMMIT_ID,
+    FLD_BEGIN_TS,
+    FLD_COMMIT_TS,
+    FLD_ISO_LEVEL,
+    FIELD_COUNT
+  };
+  TR_table(THD *_thd);
+  void store(uint field_id, ulonglong val);
+  bool update();
+};
+
 #endif /* MYSQL_CLIENT */
 
 #endif /* TABLE_INCLUDED */

@@ -1275,60 +1275,6 @@ ha_check_and_coalesce_trx_read_only(THD *thd, Ha_trx_info *ha_list,
   return rw_ha_count;
 }
 
-class TR_table: public TABLE_LIST
-{
-  THD *thd;
-
-public:
-  enum {
-    FLD_TRX_ID= 0,
-    FLD_COMMIT_ID,
-    FLD_BEGIN_TS,
-    FLD_COMMIT_TS,
-    FLD_ISO_LEVEL,
-    FIELD_COUNT
-  };
-  TR_table(THD *_thd) : thd(_thd)
-  {
-    init_one_table(LEX_STRING_WITH_LEN(MYSQL_SCHEMA_NAME),
-      STRING_WITH_LEN("transaction_registry"), "transaction_registry", TL_WRITE);
-  }
-  void store(uint field_id, ulonglong val)
-  {
-    table->field[field_id]->store(val, true);
-    table->field[field_id]->set_notnull();
-  }
-  bool update();
-};
-
-
-bool TR_table::update()
-{
-  Open_tables_backup open_tables_backup;
-  TABLE *table= open_log_table(thd, this, &open_tables_backup);
-  if (!table)
-    return true;
-
-  DBUG_ASSERT(table->s);
-  handlerton *hton= table->s->db_type();
-  DBUG_ASSERT(hton);
-  DBUG_ASSERT(hton->flags & HTON_NATIVE_SYS_VERSIONING);
-
-  ulonglong trx_id;
-  ulonglong commit_id;
-  hton->vers_get_trt_data(trx_id, commit_id);
-  store(FLD_TRX_ID, trx_id);
-  store(FLD_COMMIT_ID, commit_id);
-  store(FLD_BEGIN_TS, 1);
-  store(FLD_COMMIT_TS, 1);
-  store(FLD_ISO_LEVEL, 1);
-
-  table->file->ha_write_row(table->record[0]);
-
-  close_log_table(thd, &open_tables_backup);
-  return false;
-}
-
 
 /**
   @retval

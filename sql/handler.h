@@ -981,6 +981,7 @@ struct handler_iterator {
 class handler;
 class group_by_handler;
 struct Query;
+class TR_table;
 typedef class st_select_lex SELECT_LEX;
 typedef struct st_order ORDER;
 
@@ -1390,7 +1391,7 @@ struct handlerton
    /*
      System Versioning
    */
-   bool (*vers_get_trt_data)(ulonglong &trx_id, ulonglong &commit_id);
+   bool (*vers_get_trt_data)(TR_table &trx_id);
 
   /**
     Query VTQ by TRX_ID.

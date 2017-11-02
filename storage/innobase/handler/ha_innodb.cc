@@ -3626,10 +3626,13 @@ static const char* ha_innobase_exts[] = {
 	NullS
 };
 
-bool innodb_get_trt_data(ulonglong &trx_id, ulonglong &commit_id)
+bool innodb_get_trt_data(TR_table &trt)
 {
-	trx_id = 2;
-	commit_id = 3;
+	trt.store(TR_table::FLD_TRX_ID, 3);
+	trt.store(TR_table::FLD_COMMIT_ID, 4);
+	trt.store(TR_table::FLD_BEGIN_TS, 5);
+	trt.store(TR_table::FLD_COMMIT_TS, 6);
+	trt.store(TR_table::FLD_ISO_LEVEL, 7);
 	return false;
 }
 
