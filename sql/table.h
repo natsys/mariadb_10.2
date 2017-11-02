@@ -2937,7 +2937,10 @@ public:
     FIELD_COUNT
   };
   TR_table(THD *_thd);
+  THD *get_thd() const { return thd; }
   void store(uint field_id, ulonglong val);
+  void store(uint field_id, timeval ts);
+  void store_data(ulonglong trx_id, ulonglong commit_id, timeval &commit_ts);
   bool update();
 };
 

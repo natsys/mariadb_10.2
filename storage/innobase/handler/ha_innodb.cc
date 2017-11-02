@@ -3628,11 +3628,17 @@ static const char* ha_innobase_exts[] = {
 
 bool innodb_get_trt_data(TR_table &trt)
 {
-	trt.store(TR_table::FLD_TRX_ID, 3);
-	trt.store(TR_table::FLD_COMMIT_ID, 4);
-	trt.store(TR_table::FLD_BEGIN_TS, 5);
-	trt.store(TR_table::FLD_COMMIT_TS, 6);
-	trt.store(TR_table::FLD_ISO_LEVEL, 7);
+	THD *thd = trt.get_thd();
+	trx_t *trx = thd_to_trx(thd);
+	ut_a(trx);
+	timeval commit_ts;
+
+	mutex_enter(&trx_sys->mutex);
+	trx_id_t commit_id = trx_sys_get_new_trx_id();
+	ut_usectime((ulint *)&commit_ts.tv_sec, (ulint *)&commit_ts.tv_usec);
+	mutex_exit(&trx_sys->mutex);
+
+	trt.store_data(trx->id, commit_id, commit_ts);
 	return false;
 }
 

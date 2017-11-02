@@ -134,8 +134,8 @@ SET @create_innodb_index_stats="CREATE TABLE IF NOT EXISTS innodb_index_stats (
 SET @create_transaction_registry="CREATE TABLE IF NOT EXISTS transaction_registry (
 	transaction_id			BIGINT UNSIGNED NOT NULL,
 	commit_id			BIGINT UNSIGNED NOT NULL,
-	begin_timestamp			BIGINT UNSIGNED NOT NULL,
-	commit_timestamp		BIGINT UNSIGNED NOT NULL,
+	begin_timestamp			TIMESTAMP(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
+	commit_timestamp		TIMESTAMP(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
 	isolation_level			TINYINT UNSIGNED NOT NULL,
 	PRIMARY KEY (transaction_id),
 	INDEX (commit_id),

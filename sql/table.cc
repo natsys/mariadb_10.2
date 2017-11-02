@@ -8490,10 +8490,26 @@ TR_table::TR_table(THD* _thd) : thd(_thd)
     STRING_WITH_LEN("transaction_registry"), "transaction_registry", TL_WRITE);
 }
 
-void TR_table::store(unsigned int field_id, ulonglong val)
+void TR_table::store(uint field_id, ulonglong val)
 {
   table->field[field_id]->store(val, true);
   table->field[field_id]->set_notnull();
+}
+
+void TR_table::store(uint field_id, timeval ts)
+{
+  table->field[field_id]->store_timestamp(ts.tv_sec, ts.tv_usec);
+  table->field[field_id]->set_notnull();
+}
+
+void TR_table::store_data(ulonglong trx_id, ulonglong commit_id, timeval &commit_ts)
+{
+  timeval start_time= {thd->start_time, thd->start_time_sec_part};
+  store(FLD_TRX_ID, trx_id);
+  store(FLD_COMMIT_ID, commit_id);
+  store(FLD_COMMIT_TS, commit_ts);
+  store(FLD_BEGIN_TS, start_time);
+  store(FLD_ISO_LEVEL, thd->tx_isolation);
 }
 
 bool TR_table::update()
