@@ -8554,6 +8554,7 @@ bool TR_table::query(ulonglong trx_id)
   int error;
   List<TABLE_LIST> dummy;
   SELECT_LEX &slex= thd->lex->select_lex;
+  Name_resolution_context_backup backup(slex.context, *this);
   const LEX_CSTRING &field_name= table->field[FLD_TRX_ID]->field_name;
   Item *field= newx Item_field(thd, &slex.context, db, alias, &field_name);
   Item *value= newx Item_int(thd, trx_id);

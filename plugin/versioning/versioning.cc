@@ -59,13 +59,13 @@ Create_func_vtq<VTQ_FIELD>::create_native(THD *thd, LEX_CSTRING *name,
     Item *param_1= item_list->pop();
     switch (VTQ_FIELD)
     {
-    case VTQ_BEGIN_TS:
-    case VTQ_COMMIT_TS:
+    case TR_table::FLD_BEGIN_TS:
+    case TR_table::FLD_COMMIT_TS:
       func= new (thd->mem_root) Item_func_vtq_ts(thd, param_1, VTQ_FIELD);
       break;
-    case VTQ_TRX_ID:
-    case VTQ_COMMIT_ID:
-    case VTQ_ISO_LEVEL:
+    case TR_table::FLD_TRX_ID:
+    case TR_table::FLD_COMMIT_ID:
+    case TR_table::FLD_ISO_LEVEL:
       func= new (thd->mem_root) Item_func_vtq_id(thd, param_1, VTQ_FIELD);
       break;
     default:
@@ -79,8 +79,8 @@ Create_func_vtq<VTQ_FIELD>::create_native(THD *thd, LEX_CSTRING *name,
     Item *param_2= item_list->pop();
     switch (VTQ_FIELD)
     {
-    case VTQ_TRX_ID:
-    case VTQ_COMMIT_ID:
+    case TR_table::FLD_TRX_ID:
+    case TR_table::FLD_COMMIT_ID:
       func= new (thd->mem_root) Item_func_vtq_id(thd, param_1, param_2, VTQ_FIELD);
       break;
     default:
