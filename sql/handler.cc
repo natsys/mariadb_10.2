@@ -1275,19 +1275,47 @@ ha_check_and_coalesce_trx_read_only(THD *thd, Ha_trx_info *ha_list,
   return rw_ha_count;
 }
 
-
-static
-bool update_transaction_registry(THD* thd)
+class TR_table: public TABLE_LIST
 {
-  static const LString table_name("transaction_registry");
-  TABLE_LIST tl;
-  tl.init_one_table(LEX_STRING_WITH_LEN(MYSQL_SCHEMA_NAME),
-                    XSTRING_WITH_LEN(table_name), table_name, TL_WRITE);
+  THD *thd;
 
+public:
+  enum {
+    FLD_TRX_ID= 0,
+    FLD_COMMIT_ID,
+    FLD_BEGIN_TS,
+    FLD_COMMIT_TS,
+    FLD_ISO_LEVEL,
+    FIELD_COUNT
+  };
+  TR_table(THD *_thd) : thd(_thd)
+  {
+    init_one_table(LEX_STRING_WITH_LEN(MYSQL_SCHEMA_NAME),
+      STRING_WITH_LEN("transaction_registry"), "transaction_registry", TL_WRITE);
+  }
+  void store(uint field_id, ulonglong val)
+  {
+    table->field[field_id]->store(val, true);
+    table->field[field_id]->set_notnull();
+  }
+  bool update();
+};
+
+
+bool TR_table::update()
+{
   Open_tables_backup open_tables_backup;
-  TABLE *res= open_log_table(thd, &tl, &open_tables_backup);
+  TABLE *res= open_log_table(thd, this, &open_tables_backup);
   if (!res)
     return true;
+
+  store(FLD_TRX_ID, 1);
+  store(FLD_COMMIT_ID, 1);
+  store(FLD_BEGIN_TS, 1);
+  store(FLD_COMMIT_TS, 1);
+  store(FLD_ISO_LEVEL, 1);
+
+  table->file->ha_write_row(table->record[0]);
 
   close_log_table(thd, &open_tables_backup);
   return false;
@@ -1432,8 +1460,12 @@ int ha_commit_trans(THD *thd, bool all)
     goto err;
   }
 
-  if (rw_trans && update_transaction_registry(thd))
-    goto err;
+  if (rw_trans)
+  {
+    TR_table trt(thd);
+    if (trt.update())
+      goto err;
+  }
 
   if (trans->no_2pc || (rw_ha_count <= 1))
   {
