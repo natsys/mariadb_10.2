@@ -1305,12 +1305,20 @@ public:
 bool TR_table::update()
 {
   Open_tables_backup open_tables_backup;
-  TABLE *res= open_log_table(thd, this, &open_tables_backup);
-  if (!res)
+  TABLE *table= open_log_table(thd, this, &open_tables_backup);
+  if (!table)
     return true;
 
-  store(FLD_TRX_ID, 1);
-  store(FLD_COMMIT_ID, 1);
+  DBUG_ASSERT(table->s);
+  handlerton *hton= table->s->db_type();
+  DBUG_ASSERT(hton);
+  DBUG_ASSERT(hton->flags & HTON_NATIVE_SYS_VERSIONING);
+
+  ulonglong trx_id;
+  ulonglong commit_id;
+  hton->vers_get_trt_data(trx_id, commit_id);
+  store(FLD_TRX_ID, trx_id);
+  store(FLD_COMMIT_ID, commit_id);
   store(FLD_BEGIN_TS, 1);
   store(FLD_COMMIT_TS, 1);
   store(FLD_ISO_LEVEL, 1);

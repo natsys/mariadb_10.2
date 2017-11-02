@@ -1390,6 +1390,8 @@ struct handlerton
    /*
      System Versioning
    */
+   bool (*vers_get_trt_data)(ulonglong &trx_id, ulonglong &commit_id);
+
   /**
     Query VTQ by TRX_ID.
     @param[in]   thd       MySQL thread

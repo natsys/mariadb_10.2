@@ -3626,6 +3626,13 @@ static const char* ha_innobase_exts[] = {
 	NullS
 };
 
+bool innodb_get_trt_data(ulonglong &trx_id, ulonglong &commit_id)
+{
+	trx_id = 2;
+	commit_id = 3;
+	return false;
+}
+
 /*********************************************************************//**
 Opens an InnoDB database.
 @return 0 on success, 1 on failure */
@@ -3694,6 +3701,7 @@ innobase_init(
 	innobase_hton->table_options = innodb_table_option_list;
 
 	/* System Versioning */
+	innobase_hton->vers_get_trt_data = innodb_get_trt_data;
 	innobase_hton->vers_query_trx_id = vtq_query_trx_id;
 	innobase_hton->vers_query_commit_ts = vtq_query_commit_ts;
 	innobase_hton->vers_trx_sees = vtq_trx_sees;
