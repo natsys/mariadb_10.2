@@ -2942,6 +2942,7 @@ public:
   void store(uint field_id, timeval ts);
   void store_data(ulonglong trx_id, ulonglong commit_id, timeval &commit_ts);
   bool update();
+  bool query();
 };
 
 #endif /* MYSQL_CLIENT */

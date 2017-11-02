@@ -8525,9 +8525,24 @@ bool TR_table::update()
   DBUG_ASSERT(hton->flags & HTON_NATIVE_SYS_VERSIONING);
 
   hton->vers_get_trt_data(*this);
-  table->file->ha_write_row(table->record[0]);
-
+  int error= table->file->ha_write_row(table->record[0]);
+  if (error)
+  {
+    table->file->print_error(error, MYF(0));
+  }
   close_log_table(thd, &open_tables_backup);
+  return error;
+}
+
+bool TR_table::query()
+{
+  SQL_SELECT_auto select;
+  COND *conds= NULL;
+  int error;
+  List<TABLE_LIST> dummy;
+  if ((error= setup_conds(thd, this, dummy, &conds)))
+    return true;
+  select= make_select(table, 0, 0, conds, NULL, 0, &error);
   return false;
 }
 
