@@ -8486,8 +8486,21 @@ LEX_CSTRING *fk_option_name(enum_fk_option opt)
 
 TR_table::TR_table(THD* _thd) : thd(_thd)
 {
+  static const LString table_name("transaction_registry");
   init_one_table(LEX_STRING_WITH_LEN(MYSQL_SCHEMA_NAME),
-    STRING_WITH_LEN("transaction_registry"), "transaction_registry", TL_WRITE);
+                 XSTRING_WITH_LEN(table_name), table_name, TL_WRITE);
+  open_tables_backup= new Open_tables_backup;
+  if (open_tables_backup)
+    open_log_table(thd, this, open_tables_backup);
+  else
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+}
+
+TR_table::~TR_table()
+{
+  if (table)
+    close_log_table(thd, open_tables_backup);
+  delete open_tables_backup;
 }
 
 void TR_table::store(uint field_id, ulonglong val)
@@ -8514,8 +8527,6 @@ void TR_table::store_data(ulonglong trx_id, ulonglong commit_id, timeval &commit
 
 bool TR_table::update()
 {
-  Open_tables_backup open_tables_backup;
-  TABLE *table= open_log_table(thd, this, &open_tables_backup);
   if (!table)
     return true;
 
@@ -8530,20 +8541,40 @@ bool TR_table::update()
   {
     table->file->print_error(error, MYF(0));
   }
-  close_log_table(thd, &open_tables_backup);
   return error;
 }
 
-bool TR_table::query()
+bool TR_table::query(ulonglong trx_id)
 {
+#define newx new (thd->mem_root)
+  if (!table)
+    return false;
   SQL_SELECT_auto select;
-  COND *conds= NULL;
+  READ_RECORD info;
   int error;
   List<TABLE_LIST> dummy;
+  SELECT_LEX &slex= thd->lex->select_lex;
+  const LEX_CSTRING &field_name= table->field[FLD_TRX_ID]->field_name;
+  Item *field= newx Item_field(thd, &slex.context, db, alias, &field_name);
+  Item *value= newx Item_int(thd, trx_id);
+  COND *conds= newx Item_func_eq(thd, field, value);
   if ((error= setup_conds(thd, this, dummy, &conds)))
-    return true;
+    return false;
   select= make_select(table, 0, 0, conds, NULL, 0, &error);
+  if (error || !select)
+    return false;
+  error= init_read_record(&info, thd, table, select, NULL,
+                          1 /* use_record_cache */, true /* print_error */,
+                          false /* disable_rr_cache */);
+  while (!(error= info.read_record()) && !thd->killed && !thd->is_error())
+  {
+    if (select->skip_record(thd) > 0)
+      return true;
+  }
+  if (error < 0)
+    my_error(ER_NO_SUCH_TABLE, MYF(0), db, alias);
   return false;
+#undef newx
 }
 
 void vers_select_conds_t::resolve_units(bool timestamps_only)

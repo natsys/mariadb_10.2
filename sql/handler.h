@@ -1393,15 +1393,6 @@ struct handlerton
    */
    bool (*vers_get_trt_data)(TR_table &trx_id);
 
-  /**
-    Query VTQ by TRX_ID.
-    @param[in]   thd       MySQL thread
-    @param[out]  out       field value or whole record returned by query (selected by `field`)
-    @param[in]   in_trx_id query parameter TRX_ID
-    @param[in]   field     field to get in `out` or VTQ_ALL for whole record (vtq_record_t)
-    @return                TRUE if record is found, FALSE otherwise */
-   bool (*vers_query_trx_id)(THD* thd, void *out, ulonglong trx_id, vtq_field_t field);
-
    /** Query VTQ by COMMIT_TS.
     @param[in]    thd       MySQL thread
     @param[out]   out       field value or whole record returned by query (selected by `field`)

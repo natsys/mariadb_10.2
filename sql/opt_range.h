@@ -1657,18 +1657,29 @@ class SQL_SELECT_auto: public SQL_SELECT
 public:
   SQL_SELECT_auto(): select(NULL)
   {}
-
   ~SQL_SELECT_auto()
   {
     if (select)
       delete select;
   }
-
   SQL_SELECT_auto&
   operator= (SQL_SELECT *_select)
   {
     select= _select;
     return *this;
+  }
+  operator SQL_SELECT * () const
+  {
+    return select;
+  }
+  SQL_SELECT *
+  operator-> () const
+  {
+    return select;
+  }
+  operator bool () const
+  {
+    return select;
   }
 };
 

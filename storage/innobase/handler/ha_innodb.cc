@@ -3711,7 +3711,6 @@ innobase_init(
 
 	/* System Versioning */
 	innobase_hton->vers_get_trt_data = innodb_get_trt_data;
-	innobase_hton->vers_query_trx_id = vtq_query_trx_id;
 	innobase_hton->vers_query_commit_ts = vtq_query_commit_ts;
 	innobase_hton->vers_trx_sees = vtq_trx_sees;
 

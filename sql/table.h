@@ -2923,12 +2923,14 @@ inline void mark_as_null_row(TABLE *table)
 
 bool is_simple_order(ORDER *order);
 
+class Open_tables_backup;
 class TR_table: public TABLE_LIST
 {
   THD *thd;
+  Open_tables_backup *open_tables_backup;
 
 public:
-  enum {
+  enum field_id_t {
     FLD_TRX_ID= 0,
     FLD_COMMIT_ID,
     FLD_BEGIN_TS,
@@ -2937,12 +2939,25 @@ public:
     FIELD_COUNT
   };
   TR_table(THD *_thd);
+  ~TR_table();
   THD *get_thd() const { return thd; }
   void store(uint field_id, ulonglong val);
   void store(uint field_id, timeval ts);
   void store_data(ulonglong trx_id, ulonglong commit_id, timeval &commit_ts);
   bool update();
-  bool query();
+  bool query(ulonglong trx_id);
+  TABLE * operator-> () const
+  {
+    return table;
+  }
+  Field * operator[] (uint field_id) const
+  {
+    return table->field[field_id];
+  }
+  operator bool () const
+  {
+    return table;
+  }
 };
 
 #endif /* MYSQL_CLIENT */

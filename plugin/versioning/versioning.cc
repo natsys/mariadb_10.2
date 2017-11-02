@@ -29,7 +29,7 @@ plugin_ref innodb_plugin= NULL;
 static handlerton* innodb_hton= NULL;
 
 /* System Versioning: VTQ_TRX_ID(), VTQ_COMMIT_ID(), VTQ_BEGIN_TS(), VTQ_COMMIT_TS(), VTQ_ISO_LEVEL() */
-template <vtq_field_t VTQ_FIELD>
+template <TR_table::field_id_t VTQ_FIELD>
 class Create_func_vtq : public Create_native_func
 {
 public:
@@ -42,10 +42,10 @@ protected:
   virtual ~Create_func_vtq<VTQ_FIELD>() {}
 };
 
-template<vtq_field_t VTQ_FIELD>
+template<TR_table::field_id_t VTQ_FIELD>
 Create_func_vtq<VTQ_FIELD> Create_func_vtq<VTQ_FIELD>::s_singleton;
 
-template <vtq_field_t VTQ_FIELD>
+template <TR_table::field_id_t VTQ_FIELD>
 Item*
 Create_func_vtq<VTQ_FIELD>::create_native(THD *thd, LEX_CSTRING *name,
   List<Item> *item_list)
@@ -144,11 +144,11 @@ Create_func_vtq_trx_sees<X> Create_func_vtq_trx_sees<X>::s_singleton;
 
 static Native_func_registry func_array[] =
 {
-  { { C_STRING_WITH_LEN("VTQ_BEGIN_TS") }, BUILDER(Create_func_vtq<VTQ_BEGIN_TS>)},
-  { { C_STRING_WITH_LEN("VTQ_COMMIT_ID") }, BUILDER(Create_func_vtq<VTQ_COMMIT_ID>)},
-  { { C_STRING_WITH_LEN("VTQ_COMMIT_TS") }, BUILDER(Create_func_vtq<VTQ_COMMIT_TS>)},
-  { { C_STRING_WITH_LEN("VTQ_ISO_LEVEL") }, BUILDER(Create_func_vtq<VTQ_ISO_LEVEL>)},
-  { { C_STRING_WITH_LEN("VTQ_TRX_ID") }, BUILDER(Create_func_vtq<VTQ_TRX_ID>)},
+  { { C_STRING_WITH_LEN("VTQ_BEGIN_TS") }, BUILDER(Create_func_vtq<TR_table::FLD_BEGIN_TS>)},
+  { { C_STRING_WITH_LEN("VTQ_COMMIT_ID") }, BUILDER(Create_func_vtq<TR_table::FLD_COMMIT_ID>)},
+  { { C_STRING_WITH_LEN("VTQ_COMMIT_TS") }, BUILDER(Create_func_vtq<TR_table::FLD_COMMIT_TS>)},
+  { { C_STRING_WITH_LEN("VTQ_ISO_LEVEL") }, BUILDER(Create_func_vtq<TR_table::FLD_ISO_LEVEL>)},
+  { { C_STRING_WITH_LEN("VTQ_TRX_ID") }, BUILDER(Create_func_vtq<TR_table::FLD_TRX_ID>)},
   { { C_STRING_WITH_LEN("VTQ_TRX_SEES") }, BUILDER(Create_func_vtq_trx_sees<Item_func_vtq_trx_sees>)},
   { { C_STRING_WITH_LEN("VTQ_TRX_SEES_EQ") }, BUILDER(Create_func_vtq_trx_sees<Item_func_vtq_trx_sees_eq>)},
   { {0, 0}, NULL}

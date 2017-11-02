@@ -27,7 +27,7 @@ Item_func_vtq_ts::Item_func_vtq_ts(
     THD *thd,
     handlerton* hton,
     Item* a,
-    vtq_field_t _vtq_field) :
+    TR_table::field_id_t _vtq_field) :
   VTQ_common<Item_datetimefunc>(thd, hton, a),
   vtq_field(_vtq_field)
 {
@@ -72,14 +72,16 @@ Item_func_vtq_ts::get_date(MYSQL_TIME *res, ulonglong fuzzy_date)
     return false;
   }
 
-  DBUG_ASSERT(hton && hton->vers_query_trx_id);
-  null_value= !hton->vers_query_trx_id(thd, res, trx_id, vtq_field);
+  TR_table trt(thd);
+
+  null_value= !trt.query(trx_id);
   if (null_value)
   {
     my_error(ER_VERS_NO_TRX_ID, MYF(0), trx_id);
+    return true;
   }
 
-  return null_value;
+  return trt[vtq_field]->get_date(res, fuzzy_date);
 }
 
 
@@ -87,7 +89,7 @@ Item_func_vtq_id::Item_func_vtq_id(
     THD *thd,
     handlerton *hton,
     Item* a,
-    vtq_field_t _vtq_field,
+    TR_table::field_id_t _vtq_field,
     bool _backwards) :
   VTQ_common<Item_longlong_func>(thd, hton, a),
   vtq_field(_vtq_field),
@@ -106,7 +108,7 @@ Item_func_vtq_id::Item_func_vtq_id(
     handlerton *hton,
     Item* a,
     Item* b,
-    vtq_field_t _vtq_field) :
+    TR_table::field_id_t _vtq_field) :
   VTQ_common<Item_longlong_func>(thd, hton, a, b),
   vtq_field(_vtq_field),
   backwards(false)
@@ -122,7 +124,6 @@ Item_func_vtq_id::Item_func_vtq_id(
 longlong
 Item_func_vtq_id::get_by_trx_id(ulonglong trx_id)
 {
-  ulonglong res;
   THD *thd= current_thd; // can it differ from constructor's?
   DBUG_ASSERT(thd);
 
@@ -132,9 +133,12 @@ Item_func_vtq_id::get_by_trx_id(ulonglong trx_id)
     return 0;
   }
 
-  DBUG_ASSERT(hton->vers_query_trx_id);
-  null_value= !hton->vers_query_trx_id(thd, &res, trx_id, vtq_field);
-  return res;
+  TR_table trt(thd);
+  null_value= !trt.query(trx_id);
+  if (null_value)
+    return 0;
+
+  return trt[vtq_field]->val_int();
 }
 
 longlong
@@ -152,11 +156,11 @@ Item_func_vtq_id::get_by_commit_ts(MYSQL_TIME &commit_ts, bool backwards)
 
   switch (vtq_field)
   {
-  case VTQ_COMMIT_ID:
+  case TR_table::FLD_COMMIT_ID:
     return cached_result.commit_id;
-  case VTQ_ISO_LEVEL:
+  case TR_table::FLD_ISO_LEVEL:
     return cached_result.iso_level;
-  case VTQ_TRX_ID:
+  case TR_table::FLD_TRX_ID:
     return cached_result.trx_id;
   default:
     DBUG_ASSERT(0);
@@ -177,7 +181,7 @@ Item_func_vtq_id::val_int()
 
   if (args[0]->is_null())
   {
-    if (arg_count < 2 || vtq_field == VTQ_TRX_ID)
+    if (arg_count < 2 || vtq_field == TR_table::FLD_TRX_ID)
     {
       null_value= true;
       return 0;

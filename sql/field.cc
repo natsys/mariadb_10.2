@@ -2008,12 +2008,11 @@ bool Field_vers_trx_id::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate, ulonglo
     *ltime= cache;
     return false;
   }
-  handlerton *hton= table->file->partition_ht();
-  DBUG_ASSERT(hton);
-  DBUG_ASSERT(hton->vers_query_trx_id);
-  bool found= hton->vers_query_trx_id(get_thd(), &cache, trx_id, VTQ_COMMIT_TS);
+  TR_table trt(get_thd());
+  bool found= trt.query(trx_id);
   if (found)
   {
+    trt[TR_table::FLD_COMMIT_TS]->get_date(&cache, fuzzydate);
     *ltime= cache;
     cached= trx_id;
     return false;
