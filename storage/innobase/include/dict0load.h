@@ -31,13 +31,14 @@ Created 4/24/1996 Heikki Tuuri
 #include "univ.i"
 #include "dict0types.h"
 #include "trx0types.h"
-#include "trx0vtq.h"
 #include "ut0byte.h"
 #include "mem0mem.h"
 #include "btr0types.h"
 #include "ut0new.h"
 
 #include <deque>
+
+struct vtq_record_t;
 
 /** A stack of table names related through foreign key constraints */
 typedef std::deque<const char*, ut_allocator<const char*> >	dict_names_t;
