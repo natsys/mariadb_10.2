@@ -1416,9 +1416,19 @@ int ha_commit_trans(THD *thd, bool all)
 
   if (rw_trans)
   {
-    TR_table trt(thd);
-    if (trt.update())
-      goto err;
+    for (Ha_trx_info *hi= ha_info; hi; hi= hi->next())
+    {
+      handlerton *ht= hi->ht();
+      if (! hi->is_trx_read_write())
+        continue;
+      if (ht->flags & HTON_NATIVE_SYS_VERSIONING)
+      {
+        TR_table trt(thd);
+        if (trt.update())
+          goto err;
+        break;
+      }
+    }
   }
 
   if (trans->no_2pc || (rw_ha_count <= 1))

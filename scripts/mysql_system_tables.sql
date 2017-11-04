@@ -138,9 +138,9 @@ SET @create_transaction_registry="CREATE TABLE IF NOT EXISTS transaction_registr
 	commit_timestamp		TIMESTAMP(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
 	isolation_level			TINYINT UNSIGNED NOT NULL,
 	PRIMARY KEY (transaction_id),
-	INDEX (commit_id),
+	UNIQUE KEY (commit_id),
 	INDEX (begin_timestamp),
-	INDEX (commit_timestamp)
+	INDEX (commit_timestamp, transaction_id)
 ) ENGINE=INNODB DEFAULT CHARSET=utf8 COLLATE=utf8_bin STATS_PERSISTENT=0";
 
 SET @create_vtmd_template="CREATE OR REPLACE TABLE vtmd_template (

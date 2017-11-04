@@ -1296,10 +1296,9 @@ struct trx_t {
 #endif /* WITH_WSREP */
 
 	/* System Versioning */
-	bool		vtq_notify_on_commit;
-					/*!< Notify VTQ for System Versioned update */
-	vtq_query_t	vtq_query;	/*!< Structure to query VTQ and store
-					one row result */
+	bool		vers_update_trt;
+					/*!< Notify TRT on System Versioned write */
+	vtq_query_t	vtq_query;
 	ulint		magic_n;
 
 	/** @return whether any persistent undo log has been generated */

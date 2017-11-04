@@ -1570,7 +1570,7 @@ error_exit:
 	node->duplicate = NULL;
 
 	if (node->table->with_versioning()) {
-		trx->vtq_notify_on_commit = true;
+		trx->vers_update_trt = true;
 	}
 
 	if (dict_table_has_fts_index(table)) {
@@ -2215,7 +2215,7 @@ run_again:
 	     // TODO: imrove this check (check if we touch only
 	     // unversioned fields in foreigh table)
 	     node->foreign)) {
-		trx->vtq_notify_on_commit = true;
+		trx->vers_update_trt = true;
 	}
 
 	trx->op_info = "";

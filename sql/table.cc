@@ -8535,18 +8535,21 @@ bool TR_table::update()
   DBUG_ASSERT(hton);
   DBUG_ASSERT(hton->flags & HTON_NATIVE_SYS_VERSIONING);
 
-  hton->vers_get_trt_data(*this);
-  int error= table->file->ha_write_row(table->record[0]);
-  if (error)
+  if (hton->vers_get_trt_data(*this))
   {
-    table->file->print_error(error, MYF(0));
+    int error= table->file->ha_write_row(table->record[0]);
+    if (error)
+    {
+      table->file->print_error(error, MYF(0));
+    }
+    return error;
   }
-  return error;
+  return false;
 }
 
+#define newx new (thd->mem_root)
 bool TR_table::query(ulonglong trx_id)
 {
-#define newx new (thd->mem_root)
   if (!table)
     return false;
   SQL_SELECT_auto select;
@@ -8575,8 +8578,41 @@ bool TR_table::query(ulonglong trx_id)
   if (error < 0)
     my_error(ER_NO_SUCH_TABLE, MYF(0), db, alias);
   return false;
-#undef newx
 }
+
+bool TR_table::query(MYSQL_TIME &commit_time)
+{
+  if (!table)
+    return false;
+  SQL_SELECT_auto select;
+  READ_RECORD info;
+  int error;
+  List<TABLE_LIST> dummy;
+  SELECT_LEX &slex= thd->lex->select_lex;
+  Name_resolution_context_backup backup(slex.context, *this);
+  const LEX_CSTRING &field_name= table->field[FLD_COMMIT_TS]->field_name;
+  Item *field= newx Item_field(thd, &slex.context, db, alias, &field_name);
+  Item *value= newx Item_datetime_literal(thd, &commit_time, 6);
+  COND *conds= newx Item_func_eq(thd, field, value);
+  if ((error= setup_conds(thd, this, dummy, &conds)))
+    return false;
+  select= make_select(table, 0, 0, conds, NULL, 0, &error);
+  if (error || !select)
+    return false;
+  error= init_read_record(&info, thd, table, select, NULL,
+                          1 /* use_record_cache */, true /* print_error */,
+                          false /* disable_rr_cache */);
+  while (!(error= info.read_record()) && !thd->killed && !thd->is_error())
+  {
+    if (select->skip_record(thd) > 0)
+      return true;
+  }
+  if (error < 0)
+    my_error(ER_NO_SUCH_TABLE, MYF(0), db, alias);
+  return false;
+  return false;
+}
+#undef newx
 
 void vers_select_conds_t::resolve_units(bool timestamps_only)
 {

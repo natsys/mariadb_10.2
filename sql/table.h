@@ -2946,6 +2946,7 @@ public:
   void store_data(ulonglong trx_id, ulonglong commit_id, timeval &commit_ts);
   bool update();
   bool query(ulonglong trx_id);
+  bool query(MYSQL_TIME &commit_time);
   TABLE * operator-> () const
   {
     return table;

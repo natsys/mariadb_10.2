@@ -3631,15 +3631,17 @@ bool innodb_get_trt_data(TR_table &trt)
 	THD *thd = trt.get_thd();
 	trx_t *trx = thd_to_trx(thd);
 	ut_a(trx);
-	timeval commit_ts;
+	if (trx->vers_update_trt)
+	{
+		timeval commit_ts;
+		mutex_enter(&trx_sys->mutex);
+		trx_id_t commit_id = trx_sys_get_new_trx_id();
+		ut_usectime((ulint *)&commit_ts.tv_sec, (ulint *)&commit_ts.tv_usec);
+		mutex_exit(&trx_sys->mutex);
 
-	mutex_enter(&trx_sys->mutex);
-	trx_id_t commit_id = trx_sys_get_new_trx_id();
-	ut_usectime((ulint *)&commit_ts.tv_sec, (ulint *)&commit_ts.tv_usec);
-	mutex_exit(&trx_sys->mutex);
-
-	trt.store_data(trx->id, commit_id, commit_ts);
-	return false;
+		trt.store_data(trx->id, commit_id, commit_ts);
+	}
+	return trx->vers_update_trt;
 }
 
 /*********************************************************************//**
@@ -4446,12 +4448,12 @@ innobase_commit_ordered_2(
 		trx->flush_log_later = true;
 
 		/* Notify VTQ on System Versioned tables update */
-		if (trx->vtq_notify_on_commit) {
+		if (trx->vers_update_trt) {
 			vers_notify_vtq(trx);
-			trx->vtq_notify_on_commit = false;
+			trx->vers_update_trt = false;
 		}
 	} else {
-		DBUG_ASSERT(!trx->vtq_notify_on_commit);
+		DBUG_ASSERT(!trx->vers_update_trt);
 	}
 
 	innobase_commit_low(trx);
@@ -4576,9 +4578,9 @@ innobase_commit(
 	if (commit_trx
 	    || (!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))) {
 		/* Notify VTQ on System Versioned tables update */
-		if (trx->vtq_notify_on_commit) {
+		if (trx->vers_update_trt) {
 			vers_notify_vtq(trx);
-			trx->vtq_notify_on_commit = false;
+			trx->vers_update_trt = false;
 		}
 
 		DBUG_EXECUTE_IF("crash_innodb_before_commit",
