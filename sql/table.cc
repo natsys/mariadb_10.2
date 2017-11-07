@@ -8484,11 +8484,11 @@ LEX_CSTRING *fk_option_name(enum_fk_option opt)
   return names + opt;
 }
 
-TR_table::TR_table(THD* _thd) : thd(_thd)
+TR_table::TR_table(THD* _thd, bool rw) : thd(_thd)
 {
   static const LString table_name("transaction_registry");
   init_one_table(LEX_STRING_WITH_LEN(MYSQL_SCHEMA_NAME),
-                 XSTRING_WITH_LEN(table_name), table_name, TL_WRITE);
+                 XSTRING_WITH_LEN(table_name), table_name, rw ? TL_WRITE : TL_READ);
   open_tables_backup= new Open_tables_backup;
   if (open_tables_backup)
     open_log_table(thd, this, open_tables_backup);
@@ -8575,12 +8575,10 @@ bool TR_table::query(ulonglong trx_id)
     if (select->skip_record(thd) > 0)
       return true;
   }
-  if (error < 0)
-    my_error(ER_NO_SUCH_TABLE, MYF(0), db, alias);
   return false;
 }
 
-bool TR_table::query(MYSQL_TIME &commit_time)
+bool TR_table::query(MYSQL_TIME &commit_time, bool backwards)
 {
   if (!table)
     return false;
@@ -8602,15 +8600,19 @@ bool TR_table::query(MYSQL_TIME &commit_time)
   error= init_read_record(&info, thd, table, select, NULL,
                           1 /* use_record_cache */, true /* print_error */,
                           false /* disable_rr_cache */);
+  ulonglong trx_id0= 0;
   while (!(error= info.read_record()) && !thd->killed && !thd->is_error())
   {
     if (select->skip_record(thd) > 0)
-      return true;
+    {
+      ulonglong trx_id1= (*this)[FLD_TRX_ID]->val_int();
+      DBUG_ASSERT(trx_id1 > trx_id0);
+      trx_id0= trx_id1;
+      if (backwards)
+        return true;
+    }
   }
-  if (error < 0)
-    my_error(ER_NO_SUCH_TABLE, MYF(0), db, alias);
-  return false;
-  return false;
+  return trx_id0;
 }
 #undef newx
 

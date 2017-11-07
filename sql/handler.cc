@@ -1423,7 +1423,7 @@ int ha_commit_trans(THD *thd, bool all)
         continue;
       if (ht->flags & HTON_NATIVE_SYS_VERSIONING)
       {
-        TR_table trt(thd);
+        TR_table trt(thd, true);
         if (trt.update())
           goto err;
         break;

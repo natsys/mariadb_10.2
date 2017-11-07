@@ -46,7 +46,6 @@ public:
 class Item_func_vtq_id : public Item_longlong_func
 {
   TR_table::field_id_t vtq_field;
-  vtq_record_t cached_result;
   bool backwards;
 
   longlong get_by_trx_id(ulonglong trx_id);
@@ -55,8 +54,6 @@ class Item_func_vtq_id : public Item_longlong_func
 public:
   Item_func_vtq_id(THD *thd, Item* a, TR_table::field_id_t _vtq_field, bool _backwards= false);
   Item_func_vtq_id(THD *thd, Item* a, Item* b, TR_table::field_id_t _vtq_field);
-
-  vtq_record_t *vtq_cached_result() { return &cached_result; }
 
   const char *func_name() const
   {

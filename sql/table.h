@@ -2938,7 +2938,7 @@ public:
     FLD_ISO_LEVEL,
     FIELD_COUNT
   };
-  TR_table(THD *_thd);
+  TR_table(THD *_thd, bool rw= false);
   ~TR_table();
   THD *get_thd() const { return thd; }
   void store(uint field_id, ulonglong val);
@@ -2946,13 +2946,14 @@ public:
   void store_data(ulonglong trx_id, ulonglong commit_id, timeval &commit_ts);
   bool update();
   bool query(ulonglong trx_id);
-  bool query(MYSQL_TIME &commit_time);
+  bool query(MYSQL_TIME &commit_time, bool backwards);
   TABLE * operator-> () const
   {
     return table;
   }
   Field * operator[] (uint field_id) const
   {
+    DBUG_ASSERT(field_id < FIELD_COUNT);
     return table->field[field_id];
   }
   operator bool () const

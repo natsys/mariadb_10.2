@@ -74,7 +74,6 @@ Item_func_vtq_id::Item_func_vtq_id(THD *thd, Item* a, TR_table::field_id_t _vtq_
   vtq_field(_vtq_field),
   backwards(_backwards)
 {
-  memset(&cached_result, 0, sizeof(cached_result));
   decimals= 0;
   unsigned_flag= 1;
   null_value= true;
@@ -86,7 +85,6 @@ Item_func_vtq_id::Item_func_vtq_id(THD *thd, Item* a, Item* b, TR_table::field_i
   vtq_field(_vtq_field),
   backwards(false)
 {
-  memset(&cached_result, 0, sizeof(cached_result));
   decimals= 0;
   unsigned_flag= 1;
   null_value= true;
@@ -96,7 +94,7 @@ Item_func_vtq_id::Item_func_vtq_id(THD *thd, Item* a, Item* b, TR_table::field_i
 longlong
 Item_func_vtq_id::get_by_trx_id(ulonglong trx_id)
 {
-  THD *thd= current_thd; // can it differ from constructor's?
+  THD *thd= current_thd;
   DBUG_ASSERT(thd);
 
   if (trx_id == ULONGLONG_MAX)
@@ -116,33 +114,15 @@ Item_func_vtq_id::get_by_trx_id(ulonglong trx_id)
 longlong
 Item_func_vtq_id::get_by_commit_ts(MYSQL_TIME &commit_ts, bool backwards)
 {
-  THD *thd= current_thd; // can it differ from constructor's?
+  THD *thd= current_thd;
   DBUG_ASSERT(thd);
 
-  // FIXME:
-#if 0
-  DBUG_ASSERT(hton->vers_query_commit_ts);
-  null_value= !hton->vers_query_commit_ts(thd, &cached_result, commit_ts, VTQ_ALL, backwards);
+  TR_table trt(thd);
+  null_value= !trt.query(commit_ts, backwards);
   if (null_value)
-  {
     return 0;
-  }
-#endif
 
-  switch (vtq_field)
-  {
-  case TR_table::FLD_COMMIT_ID:
-    return cached_result.commit_id;
-  case TR_table::FLD_ISO_LEVEL:
-    return cached_result.iso_level;
-  case TR_table::FLD_TRX_ID:
-    return cached_result.trx_id;
-  default:
-    DBUG_ASSERT(0);
-    null_value= true;
-  }
-
-  return 0;
+  return trt[vtq_field]->val_int();
 }
 
 longlong
@@ -197,6 +177,7 @@ Item_func_vtq_trx_sees::val_int()
   trx_id1= args[0]->val_uint();
   trx_id0= args[1]->val_uint();
 
+#if 0
   vtq_record_t *cached= args[0]->vtq_cached_result();
   if (cached && cached->commit_id)
   {
@@ -209,6 +190,7 @@ Item_func_vtq_trx_sees::val_int()
   {
     commit_id0= cached->commit_id;
   }
+#endif
 
   if (accept_eq && trx_id1 && trx_id1 == trx_id0)
   {

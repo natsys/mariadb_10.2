@@ -1962,9 +1962,6 @@ public:
   {
     marker &= ~EXTRACTION_MASK;
   }
-
-  /* System versioning */
-  virtual vtq_record_t *vtq_cached_result() { return NULL; }
 };
 
 template <class T>
