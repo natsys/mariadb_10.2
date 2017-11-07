@@ -1426,6 +1426,8 @@ int ha_commit_trans(THD *thd, bool all)
         TR_table trt(thd, true);
         if (trt.update())
           goto err;
+        if (all)
+          trans_commit_stmt(thd);
         break;
       }
     }
