@@ -168,41 +168,12 @@ Item_func_vtq_trx_sees::val_int()
   THD *thd= current_thd;
   DBUG_ASSERT(thd);
 
-  ulonglong trx_id1, trx_id0;
-  ulonglong commit_id1= 0;
-  ulonglong commit_id0= 0;
-  uchar iso_level1= 0;
-
   DBUG_ASSERT(arg_count > 1);
-  trx_id1= args[0]->val_uint();
-  trx_id0= args[1]->val_uint();
+  ulonglong trx_id1= args[0]->val_uint();
+  ulonglong trx_id0= args[1]->val_uint();
+  bool result= accept_eq;
 
-#if 0
-  vtq_record_t *cached= args[0]->vtq_cached_result();
-  if (cached && cached->commit_id)
-  {
-    commit_id1= cached->commit_id;
-    iso_level1= cached->iso_level;
-  }
-
-  cached= args[1]->vtq_cached_result();
-  if (cached && cached->commit_id)
-  {
-    commit_id0= cached->commit_id;
-  }
-#endif
-
-  if (accept_eq && trx_id1 && trx_id1 == trx_id0)
-  {
-    null_value= false;
-    return true;
-  }
-
-  bool result= false;
-  // FIXME
-#if 0
-  DBUG_ASSERT(hton->vers_trx_sees);
-  null_value= !hton->vers_trx_sees(thd, result, trx_id1, trx_id0, commit_id1, iso_level1, commit_id0);
-#endif
+  TR_table trt(thd);
+  null_value= trt.query_sees(result, trx_id1, trx_id0);
   return result;
 }

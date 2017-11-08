@@ -2945,8 +2945,14 @@ public:
   void store(uint field_id, timeval ts);
   void store_data(ulonglong trx_id, ulonglong commit_id, timeval &commit_ts);
   bool update();
+  // return true if found; false if not found or error
   bool query(ulonglong trx_id);
   bool query(MYSQL_TIME &commit_time, bool backwards);
+  // return true if error
+  bool query_sees(bool &result, ulonglong trx_id1, ulonglong trx_id0,
+                  ulonglong commit_id1= 0, enum_tx_isolation iso_level1= ISO_READ_UNCOMMITTED,
+                  ulonglong commit_id0= 0);
+
   TABLE * operator-> () const
   {
     return table;

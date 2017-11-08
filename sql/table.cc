@@ -8558,8 +8558,7 @@ bool TR_table::query(ulonglong trx_id)
   List<TABLE_LIST> dummy;
   SELECT_LEX &slex= thd->lex->select_lex;
   Name_resolution_context_backup backup(slex.context, *this);
-  const LEX_CSTRING &field_name= table->field[FLD_TRX_ID]->field_name;
-  Item *field= newx Item_field(thd, &slex.context, db, alias, &field_name);
+  Item *field= newx Item_field(thd, &slex.context, (*this)[FLD_TRX_ID]);
   Item *value= newx Item_int(thd, trx_id);
   COND *conds= newx Item_func_eq(thd, field, value);
   if ((error= setup_conds(thd, this, dummy, &conds)))
@@ -8567,6 +8566,7 @@ bool TR_table::query(ulonglong trx_id)
   select= make_select(table, 0, 0, conds, NULL, 0, &error);
   if (error || !select)
     return false;
+  // FIXME: (performance) force index 'transaction_id'
   error= init_read_record(&info, thd, table, select, NULL,
                           1 /* use_record_cache */, true /* print_error */,
                           false /* disable_rr_cache */);
@@ -8588,8 +8588,7 @@ bool TR_table::query(MYSQL_TIME &commit_time, bool backwards)
   List<TABLE_LIST> dummy;
   SELECT_LEX &slex= thd->lex->select_lex;
   Name_resolution_context_backup backup(slex.context, *this);
-  const LEX_CSTRING &field_name= table->field[FLD_COMMIT_TS]->field_name;
-  Item *field= newx Item_field(thd, &slex.context, db, alias, &field_name);
+  Item *field= newx Item_field(thd, &slex.context, (*this)[FLD_COMMIT_TS]);
   Item *value= newx Item_datetime_literal(thd, &commit_time, 6);
   COND *conds;
   if (backwards)
@@ -8598,12 +8597,15 @@ bool TR_table::query(MYSQL_TIME &commit_time, bool backwards)
     conds= newx Item_func_le(thd, field, value);
   if ((error= setup_conds(thd, this, dummy, &conds)))
     return false;
+  // FIXME: (performance) force index 'commit_timestamp'
   select= make_select(table, 0, 0, conds, NULL, 0, &error);
   if (error || !select)
     return false;
   error= init_read_record(&info, thd, table, select, NULL,
                           1 /* use_record_cache */, true /* print_error */,
                           false /* disable_rr_cache */);
+
+  // With PK by transaction_id the records are ordered by PK
   bool found= false;
   while (!(error= info.read_record()) && !thd->killed && !thd->is_error())
   {
@@ -8612,11 +8614,68 @@ bool TR_table::query(MYSQL_TIME &commit_time, bool backwards)
       if (backwards)
         return true;
       found= true;
+      // TODO: (performance) make ORDER DESC and break after first found.
+      // Otherwise it is O(n) scan (+copy)!
+      store_record(table, record[1]);
+    }
+    else
+    {
+      if (found)
+        restore_record(table, record[1]);
+      if (!backwards)
+        break;
     }
   }
   return found;
 }
 #undef newx
+
+bool TR_table::query_sees(bool &result, ulonglong trx_id1, ulonglong trx_id0,
+                          ulonglong commit_id1, enum_tx_isolation iso_level1,
+                          ulonglong commit_id0)
+{
+  if (trx_id1 == trx_id0)
+  {
+    return false;
+  }
+
+  if (trx_id1 == ULONGLONG_MAX || trx_id0 == 0)
+  {
+    result= true;
+    return false;
+  }
+
+  if (!commit_id1)
+  {
+    if (!query(trx_id1))
+      return true;
+
+    commit_id1= (*this)[FLD_COMMIT_ID]->val_int();
+    iso_level1= (enum_tx_isolation) (*this)[FLD_ISO_LEVEL]->val_int();
+  }
+
+  if (!commit_id0)
+  {
+    if (!query(trx_id0))
+      return true;
+
+    commit_id0= (*this)[FLD_COMMIT_ID]->val_int();
+  }
+
+  // Trivial case: TX1 started after TX0 committed
+  if (trx_id1 > commit_id0
+      // Concurrent transactions: TX1 committed after TX0 and TX1 is read (un)committed
+      || (commit_id1 > commit_id0 && iso_level1 < ISO_REPEATABLE_READ))
+  {
+    result= true;
+  }
+  else // All other cases: TX1 does not see TX0
+  {
+    result= false;
+  }
+
+  return false;
+}
 
 void vers_select_conds_t::resolve_units(bool timestamps_only)
 {
