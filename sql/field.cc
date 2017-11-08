@@ -1997,9 +1997,12 @@ bool Field_vers_trx_id::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate, ulonglo
     (table->versioned() && table->s->table_category == TABLE_CATEGORY_TEMPORARY));
   if (!trx_id)
     return true;
+
+  THD *thd= get_thd();
+  DBUG_ASSERT(thd);
   if (trx_id == ULONGLONG_MAX)
   {
-    get_thd()->variables.time_zone->gmt_sec_to_TIME(ltime, TIMESTAMP_MAX_VALUE);
+    thd->variables.time_zone->gmt_sec_to_TIME(ltime, TIMESTAMP_MAX_VALUE);
     ltime->second_part= TIME_MAX_SECOND_PART;
     return false;
   }
@@ -2008,7 +2011,8 @@ bool Field_vers_trx_id::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate, ulonglo
     *ltime= cache;
     return false;
   }
-  TR_table trt(get_thd());
+
+  TR_table trt(thd);
   bool found= trt.query(trx_id);
   if (found)
   {
@@ -2017,6 +2021,10 @@ bool Field_vers_trx_id::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate, ulonglo
     cached= trx_id;
     return false;
   }
+
+  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                      ER_VERS_NO_TRX_ID, ER_THD(thd, ER_VERS_NO_TRX_ID),
+                      trx_id);
   return true;
 }
 

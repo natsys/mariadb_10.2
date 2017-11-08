@@ -8591,7 +8591,11 @@ bool TR_table::query(MYSQL_TIME &commit_time, bool backwards)
   const LEX_CSTRING &field_name= table->field[FLD_COMMIT_TS]->field_name;
   Item *field= newx Item_field(thd, &slex.context, db, alias, &field_name);
   Item *value= newx Item_datetime_literal(thd, &commit_time, 6);
-  COND *conds= newx Item_func_eq(thd, field, value);
+  COND *conds;
+  if (backwards)
+    conds= newx Item_func_ge(thd, field, value);
+  else
+    conds= newx Item_func_le(thd, field, value);
   if ((error= setup_conds(thd, this, dummy, &conds)))
     return false;
   select= make_select(table, 0, 0, conds, NULL, 0, &error);
@@ -8600,19 +8604,17 @@ bool TR_table::query(MYSQL_TIME &commit_time, bool backwards)
   error= init_read_record(&info, thd, table, select, NULL,
                           1 /* use_record_cache */, true /* print_error */,
                           false /* disable_rr_cache */);
-  ulonglong trx_id0= 0;
+  bool found= false;
   while (!(error= info.read_record()) && !thd->killed && !thd->is_error())
   {
     if (select->skip_record(thd) > 0)
     {
-      ulonglong trx_id1= (*this)[FLD_TRX_ID]->val_int();
-      DBUG_ASSERT(trx_id1 > trx_id0);
-      trx_id0= trx_id1;
       if (backwards)
         return true;
+      found= true;
     }
   }
-  return trx_id0;
+  return found;
 }
 #undef newx
 
