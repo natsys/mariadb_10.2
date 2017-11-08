@@ -18,8 +18,6 @@
 
 /* System Versioning items */
 
-#include "vtq.h"
-
 #ifdef USE_PRAGMA_INTERFACE
 #pragma interface			/* gcc class implementation */
 #endif

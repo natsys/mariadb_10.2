@@ -34,7 +34,6 @@
 #include "structs.h"                            /* SHOW_COMP_OPTION */
 #include "sql_array.h"          /* Dynamic_array<> */
 #include "mdl.h"
-#include "vtq.h"
 #include "vers_string.h"
 
 #include "sql_analyze_stmt.h" // for Exec_time_tracker 
@@ -1391,29 +1390,11 @@ struct handlerton
    /*
      System Versioning
    */
-   bool (*vers_get_trt_data)(TR_table &trx_id);
-
-   /** Query VTQ by COMMIT_TS.
-    @param[in]    thd       MySQL thread
-    @param[out]   out       field value or whole record returned by query (selected by `field`)
-    @param[in]    commit_ts query parameter COMMIT_TS
-    @param[in]    field     field to get in `out` or VTQ_ALL for whole record (vtq_record_t)
-    @param[in]    backwards direction of VTQ search
-    @return                 TRUE if record is found, FALSE otherwise */
-   bool (*vers_query_commit_ts)(THD* thd, void *out, const MYSQL_TIME &commit_ts,
-                                vtq_field_t field, bool backwards);
-
-  /** Check if transaction TX1 sees transaction TX0.
-    @param[in]    thd         MySQL thread
-    @param[out]   result      true if TX1 sees TX0
-    @param[in]    trx_id1     TX1 TRX_ID
-    @param[in]    trx_id0     TX0 TRX_ID
-    @param[in]    commit_id1  TX1 COMMIT_ID
-    @param[in]    iso_level1  TX1 isolation level
-    @param[in]    commit_id0  TX0 COMMIT_ID
-    @return                   FALSE if there is no trx_id1 in VTQ, otherwise TRUE */
-   bool (*vers_trx_sees)(THD *thd, bool &result, ulonglong trx_id1, ulonglong trx_id0,
-                         ulonglong commit_id1, uchar iso_level1, ulonglong commit_id0);
+   /** Fill TRT record for update.
+    @param[out]   trt       TRT table which record[0] will be filled with
+                            transaction data.
+    @return                 TRUE if update of TRT is required, FALSE otherwise */
+   bool (*vers_get_trt_data)(TR_table &trt);
 };
 
 

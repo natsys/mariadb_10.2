@@ -22,7 +22,6 @@
 #include "sql_plugin.h"                         // st_plugin_int
 #include "sql_class.h"
 #include "item.h"
-#include "vtq.h"
 #include "vers_utils.h"
 
 /* System Versioning: VTQ_TRX_ID(), VTQ_COMMIT_ID(), VTQ_BEGIN_TS(), VTQ_COMMIT_TS(), VTQ_ISO_LEVEL() */

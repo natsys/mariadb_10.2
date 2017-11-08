@@ -117,7 +117,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "trx0xa.h"
 #include "ut0mem.h"
 #include "row0ext.h"
-#include "vers0vtq.h"
 
 #define thd_get_trx_isolation(X) ((enum_tx_isolation)thd_tx_isolation(X))
 
@@ -3713,8 +3712,6 @@ innobase_init(
 
 	/* System Versioning */
 	innobase_hton->vers_get_trt_data = innodb_get_trt_data;
-	innobase_hton->vers_query_commit_ts = vtq_query_commit_ts;
-	innobase_hton->vers_trx_sees = vtq_trx_sees;
 
 	innodb_remember_check_sysvar_funcs();
 
@@ -4446,14 +4443,6 @@ innobase_commit_ordered_2(
 		/* Don't do write + flush right now. For group commit
 		to work we want to do the flush later. */
 		trx->flush_log_later = true;
-
-		/* Notify VTQ on System Versioned tables update */
-		if (trx->vers_update_trt) {
-			vers_notify_vtq(trx);
-			trx->vers_update_trt = false;
-		}
-	} else {
-		DBUG_ASSERT(!trx->vers_update_trt);
 	}
 
 	innobase_commit_low(trx);
@@ -4577,11 +4566,6 @@ innobase_commit(
 
 	if (commit_trx
 	    || (!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))) {
-		/* Notify VTQ on System Versioned tables update */
-		if (trx->vers_update_trt) {
-			vers_notify_vtq(trx);
-			trx->vers_update_trt = false;
-		}
 
 		DBUG_EXECUTE_IF("crash_innodb_before_commit",
 				DBUG_SUICIDE(););
@@ -21308,8 +21292,7 @@ i_s_innodb_sys_virtual,
 i_s_innodb_mutexes,
 i_s_innodb_sys_semaphore_waits,
 i_s_innodb_tablespaces_encryption,
-i_s_innodb_tablespaces_scrubbing,
-i_s_innodb_vtq
+i_s_innodb_tablespaces_scrubbing
 maria_declare_plugin_end;
 
 /** @brief Initialize the default value of innodb_commit_concurrency.
