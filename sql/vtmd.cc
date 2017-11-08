@@ -255,6 +255,12 @@ err:
   }
 
 quit:
+  if (!result)
+  {
+    TR_table trt(thd, true);
+    result= trt.update();
+  }
+
   close_log_table(thd, &open_tables_backup);
 
 open_error:
