@@ -2923,6 +2923,13 @@ inline void mark_as_null_row(TABLE *table)
 
 bool is_simple_order(ORDER *order);
 
+/** Transaction Registry Table (TRT)
+
+    This table holds transaction IDs, their corresponding times and other
+    transaction-related data which is used for transaction order resolution.
+    When versioned table marks its records lifetime with transaction IDs,
+    TRT is used to get their actual timestamps. */
+
 class Open_tables_backup;
 class TR_table: public TABLE_LIST
 {
@@ -2943,7 +2950,7 @@ public:
   THD *get_thd() const { return thd; }
   void store(uint field_id, ulonglong val);
   void store(uint field_id, timeval ts);
-  void store_data(ulonglong trx_id, ulonglong commit_id, timeval &commit_ts);
+  void store_data(ulonglong trx_id, ulonglong commit_id, timeval commit_ts);
   bool update();
   // return true if found; false if not found or error
   bool query(ulonglong trx_id);
@@ -2965,6 +2972,12 @@ public:
   operator bool () const
   {
     return table;
+  }
+  enum_tx_isolation iso_level() const;
+  void store_iso_level(enum_tx_isolation iso_level)
+  {
+    DBUG_ASSERT(iso_level <= ISO_SERIALIZABLE);
+    store(FLD_ISO_LEVEL, iso_level + 1);
   }
 };
 

@@ -8515,14 +8515,21 @@ void TR_table::store(uint field_id, timeval ts)
   table->field[field_id]->set_notnull();
 }
 
-void TR_table::store_data(ulonglong trx_id, ulonglong commit_id, timeval &commit_ts)
+void TR_table::store_data(ulonglong trx_id, ulonglong commit_id, timeval commit_ts)
 {
   timeval start_time= {thd->start_time, thd->start_time_sec_part};
   store(FLD_TRX_ID, trx_id);
   store(FLD_COMMIT_ID, commit_id);
   store(FLD_COMMIT_TS, commit_ts);
   store(FLD_BEGIN_TS, start_time);
-  store(FLD_ISO_LEVEL, thd->tx_isolation);
+  store_iso_level(thd->tx_isolation);
+}
+
+enum_tx_isolation TR_table::iso_level() const
+{
+  enum_tx_isolation res= (enum_tx_isolation) ((*this)[FLD_ISO_LEVEL]->val_int() - 1);
+  DBUG_ASSERT(res <= ISO_SERIALIZABLE);
+  return res;
 }
 
 bool TR_table::update()
@@ -8651,7 +8658,7 @@ bool TR_table::query_sees(bool &result, ulonglong trx_id1, ulonglong trx_id0,
       return true;
 
     commit_id1= (*this)[FLD_COMMIT_ID]->val_int();
-    iso_level1= (enum_tx_isolation) (*this)[FLD_ISO_LEVEL]->val_int();
+    iso_level1= iso_level();
   }
 
   if (!commit_id0)
