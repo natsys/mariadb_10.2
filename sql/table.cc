@@ -8684,6 +8684,43 @@ bool TR_table::query_sees(bool &result, ulonglong trx_id1, ulonglong trx_id0,
   return false;
 }
 
+bool TR_table::check() const
+{
+  // Sometimes INNODB isn't loaded.
+  if (!table)
+    return false;
+
+  if (table->file->ht->db_type != DB_TYPE_INNODB)
+    return true;
+
+  if (table->s->fields != 5)
+    return true;
+
+  if (table->field[0]->type() != MYSQL_TYPE_LONGLONG)
+    return true;
+
+  if (table->field[1]->type() != MYSQL_TYPE_LONGLONG)
+    return true;
+
+  if (table->field[2]->type() != MYSQL_TYPE_TIMESTAMP)
+    return true;
+
+  if (table->field[3]->type() != MYSQL_TYPE_TIMESTAMP)
+    return true;
+
+  if (table->field[4]->type() != MYSQL_TYPE_STRING)
+    return true;
+
+  if (!table->key_info || !table->key_info->key_part)
+    return true;
+
+  if (strcmp(table->key_info->key_part->field->field_name.str,
+             "transaction_id"))
+    return true;
+
+  return false;
+}
+
 void vers_select_conds_t::resolve_units(bool timestamps_only)
 {
   DBUG_ASSERT(type != FOR_SYSTEM_TIME_UNSPECIFIED);
