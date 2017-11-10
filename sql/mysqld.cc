@@ -6034,7 +6034,8 @@ int mysqld_main(int argc, char **argv)
       if (trt.check())
       {
         sql_print_error("%s schema is incorrect", trt.table_name);
-        exit(1);
+        delete thd;
+        unireg_abort(1);
       }
     }
 

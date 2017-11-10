@@ -8696,20 +8696,35 @@ bool TR_table::check() const
   if (table->s->fields != 5)
     return true;
 
-  if (table->field[0]->type() != MYSQL_TYPE_LONGLONG)
+  if (table->field[FLD_TRX_ID]->type() != MYSQL_TYPE_LONGLONG)
     return true;
 
-  if (table->field[1]->type() != MYSQL_TYPE_LONGLONG)
+  if (table->field[FLD_COMMIT_ID]->type() != MYSQL_TYPE_LONGLONG)
     return true;
 
-  if (table->field[2]->type() != MYSQL_TYPE_TIMESTAMP)
+  if (table->field[FLD_BEGIN_TS]->type() != MYSQL_TYPE_TIMESTAMP)
     return true;
 
-  if (table->field[3]->type() != MYSQL_TYPE_TIMESTAMP)
+  if (table->field[FLD_COMMIT_TS]->type() != MYSQL_TYPE_TIMESTAMP)
     return true;
 
-  if (table->field[4]->type() != MYSQL_TYPE_STRING)
+  if (table->field[FLD_ISO_LEVEL]->type() != MYSQL_TYPE_STRING ||
+      !(table->field[FLD_ISO_LEVEL]->flags & ENUM_FLAG))
     return true;
+
+  Field_enum *iso_level= static_cast<Field_enum *>(table->field[FLD_ISO_LEVEL]);
+  st_typelib *typelib= iso_level->typelib;
+
+  if (typelib->count != 4)
+    return true;
+
+  if (strcmp(typelib->type_names[0], "READ-UNCOMMITTED") ||
+      strcmp(typelib->type_names[1], "READ-COMMITTED") ||
+      strcmp(typelib->type_names[2], "REPEATABLE-READ") ||
+      strcmp(typelib->type_names[3], "SERIALIZABLE"))
+  {
+    return true;
+  }
 
   if (!table->key_info || !table->key_info->key_part)
     return true;
