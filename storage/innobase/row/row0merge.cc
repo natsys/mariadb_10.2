@@ -2241,7 +2241,7 @@ end_of_index:
 			      < dict_table_get_n_user_cols(new_table));
 
 			bool historical_row = false;
-			if (new_table->with_versioning()) {
+			if (new_table->versioned()) {
 				const dfield_t *dfield = dtuple_get_nth_field(
 					row, new_table->vers_end);
 				const byte *data = static_cast<const byte *>(
@@ -2303,8 +2303,8 @@ end_of_index:
 			}
 		}
 
-		if (old_table->with_versioning()) {
-			if (new_table->with_versioning() && !drop_historical) {
+		if (old_table->versioned()) {
+			if (new_table->versioned() && !drop_historical) {
 				dfield_t *end = dtuple_get_nth_field(
 					row, new_table->vers_end);
 				byte *data = static_cast<byte *>(
@@ -2330,7 +2330,7 @@ end_of_index:
 				if (mach_read_from_8(sys_trx_end) != TRX_ID_MAX)
 					continue;
 			}
-		} else if (new_table->with_versioning()) {
+		} else if (new_table->versioned()) {
 			void *sys_trx_start = mem_heap_alloc(row_heap, 8);
 			void *sys_trx_end = mem_heap_alloc(row_heap, 8);
 			mach_write_to_8(sys_trx_start, trx->id);

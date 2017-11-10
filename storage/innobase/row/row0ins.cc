@@ -1705,7 +1705,7 @@ row_ins_check_foreign_constraint(
 		}
 		/* System Versioning: if sys_trx_end != Inf, we
 		suppress the foreign key check */
-		if (table->with_versioning() &&
+		if (table->versioned() &&
 		    dfield_get_type(field)->prtype & DATA_VERS_END) {
 			byte* data = static_cast<byte*>(dfield_get_data(field));
 			ut_ad(data);
@@ -1841,7 +1841,7 @@ row_ins_check_foreign_constraint(
 		cmp = cmp_dtuple_rec(entry, rec, offsets);
 
 		if (cmp == 0) {
-			if (check_table->with_versioning()) {
+			if (check_table->versioned()) {
 				trx_id_t end_trx_id = 0;
 
 				if (dict_index_is_clust(check_index)) {

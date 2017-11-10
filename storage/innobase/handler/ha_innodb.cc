@@ -8872,7 +8872,7 @@ calc_row_difference(
 			n_changed++;
 
 			if (!prebuilt->upd_node->versioned &&
-			    prebuilt->table->with_versioning() &&
+			    prebuilt->table->versioned() &&
 			    !(field->flags & VERS_OPTIMIZED_UPDATE_FLAG)) {
 				prebuilt->upd_node->versioned = true;
 			}
@@ -8983,7 +8983,7 @@ calc_row_difference(
 		++n_changed;
 
 		if (!prebuilt->upd_node->versioned &&
-		    prebuilt->table->with_versioning() &&
+		    prebuilt->table->versioned() &&
 		    !(field->flags & VERS_OPTIMIZED_UPDATE_FLAG)) {
 			prebuilt->upd_node->versioned = true;
 		}
