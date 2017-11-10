@@ -1425,9 +1425,10 @@ int ha_commit_trans(THD *thd, bool all)
         hi->is_trx_read_write())
       {
         TR_table trt(thd, true);
-        if (trt.update())
+        bool updated;
+        if (trt.update(updated))
           goto err;
-        if (all)
+        if (updated && all)
           trans_commit_stmt(thd);
         break;
       }
@@ -4299,6 +4300,14 @@ bool handler::ha_commit_inplace_alter_table(TABLE *altered_table,
                                                    table->s->table_name.str,
                                                    MDL_EXCLUSIVE) ||
                !commit);
+
+  if (commit)
+  {
+    TR_table trt(ha_thd(), true);
+    bool updated;
+    if (trt.update(updated))
+      return true;
+  }
 
    return commit_inplace_alter_table(altered_table, ha_alter_info, commit);
 }

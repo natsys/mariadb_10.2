@@ -2951,7 +2951,7 @@ public:
   void store(uint field_id, ulonglong val);
   void store(uint field_id, timeval ts);
   void store_data(ulonglong trx_id, ulonglong commit_id, timeval commit_ts);
-  bool update();
+  bool update(bool &updated);
   // return true if found; false if not found or error
   bool query(ulonglong trx_id);
   bool query(MYSQL_TIME &commit_time, bool backwards);

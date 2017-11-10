@@ -335,11 +335,16 @@ add column trx_end timestamp(6) generated always as row end,
 add period for system_time(trx_start, trx_end),
 with system versioning;
 ERROR HY000: `trx_start` must be of type `BIGINT(20) UNSIGNED` for versioned table `t`
+call verify_vtq;
+No	A	B	C	D
 alter table t
 add column trx_start bigint(20) unsigned generated always as row start,
 add column trx_end bigint(20) unsigned generated always as row end,
 add period for system_time(trx_start, trx_end),
 with system versioning;
+call verify_vtq;
+No	A	B	C	D
+1	1	1	1	1
 show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
@@ -349,8 +354,15 @@ t	CREATE TABLE `t` (
   PERIOD FOR SYSTEM_TIME (`trx_start`, `trx_end`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 alter table t drop column trx_start, drop column trx_end;
-alter table t without system versioning;
+call verify_vtq;
+No	A	B	C	D
+alter table t without system versioning, algorithm=copy;
+call verify_vtq;
+No	A	B	C	D
 alter table t with system versioning, algorithm=copy;
+call verify_vtq;
+No	A	B	C	D
+1	1	1	1	1
 show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
@@ -359,10 +371,7 @@ t	CREATE TABLE `t` (
   `sys_trx_end` bigint(20) unsigned GENERATED ALWAYS AS ROW END,
   PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
-call verify_vtq;
-No	A	B	C	D
-1	1	1	1	1
-update t set a=2;
+update t set a= 2;
 select * from t for system_time all;
 a
 2
@@ -400,6 +409,29 @@ a
 1
 call verify_vtq;
 No	A	B	C	D
+alter table t without system versioning, algorithm=inplace;
+call verify_vtq;
+No	A	B	C	D
+alter table t with system versioning, algorithm=inplace;
+call verify_vtq;
+No	A	B	C	D
+1	1	1	1	1
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL,
+  `sys_trx_start` bigint(20) unsigned GENERATED ALWAYS AS ROW START,
+  `sys_trx_end` bigint(20) unsigned GENERATED ALWAYS AS ROW END,
+  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+update t set a= 1;
+select * from t for system_time all;
+a
+1
+2
+call verify_vtq;
+No	A	B	C	D
+1	1	1	1	1
 alter table t add column b int, algorithm=inplace;
 show create table t;
 Table	Create Table
@@ -412,7 +444,9 @@ t	CREATE TABLE `t` (
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 select * from t;
 a	b
-2	NULL
+1	NULL
+call verify_vtq;
+No	A	B	C	D
 alter table t drop column b, algorithm=inplace;
 show create table t;
 Table	Create Table
@@ -424,8 +458,8 @@ t	CREATE TABLE `t` (
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 select * from t for system_time all;
 a
-2
 1
+2
 alter table t without system versioning, algorithm=copy;
 show create table t;
 Table	Create Table
@@ -496,26 +530,6 @@ a	b
 2	-2
 3	1
 4	2
-create or replace table t (a int) engine innodb;
-insert into t values (1);
-alter table t with system versioning, algorithm=inplace;
-select * from t for system_time all;
-a
-1
-update t set a=2;
-select * from t for system_time all;
-a
-2
-1
-alter table t add column b int, algorithm=inplace;
-select * from t for system_time all;
-a	b
-2	NULL
-1	NULL
-alter table t without system versioning, algorithm=inplace;
-select * from t;
-a	b
-2	NULL
 create or replace table t (
 a int,
 sys_trx_start bigint(20) unsigned generated always as row start,
@@ -590,6 +604,8 @@ No	A	B	C	D
 7	1	1	1	1
 8	1	1	1	1
 9	1	1	1	1
+10	1	1	1	1
+11	1	1	1	1
 drop table t;
 drop procedure verify_vtq;
 drop procedure innodb_verify_vtq;

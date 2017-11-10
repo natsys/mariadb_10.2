@@ -3639,8 +3639,10 @@ bool innodb_get_trt_data(TR_table &trt)
 		mutex_exit(&trx_sys->mutex);
 
 		trt.store_data(trx->id, commit_id, commit_ts);
+		trx->vers_update_trt = false;
+		return true;
 	}
-	return trx->vers_update_trt;
+	return false;
 }
 
 /*********************************************************************//**

@@ -8532,7 +8532,7 @@ enum_tx_isolation TR_table::iso_level() const
   return res;
 }
 
-bool TR_table::update()
+bool TR_table::update(bool &updated)
 {
   if (!table)
     return true;
@@ -8542,7 +8542,7 @@ bool TR_table::update()
   DBUG_ASSERT(hton);
   DBUG_ASSERT(hton->flags & HTON_NATIVE_SYS_VERSIONING);
 
-  if (hton->vers_get_trt_data(*this))
+  if ((updated= hton->vers_get_trt_data(*this)))
   {
     int error= table->file->ha_write_row(table->record[0]);
     if (error)

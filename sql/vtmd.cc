@@ -258,7 +258,7 @@ quit:
   if (!result)
   {
     TR_table trt(thd, true);
-    result= trt.update();
+    result= trt.update(result);
   }
 
   close_log_table(thd, &open_tables_backup);
