@@ -152,17 +152,21 @@ alter table t without system versioning;
 
 alter table t with system versioning, algorithm=copy;
 show create table t;
+call verify_vtq;
 
 update t set a=2;
 select * from t for system_time all;
+call verify_vtq;
 
 alter table t add column b int, algorithm=copy;
 show create table t;
 select * from t;
+call verify_vtq;
 
 alter table t drop column b, algorithm=copy;
 show create table t;
 select * from t for system_time all;
+call verify_vtq;
 
 alter table t add column b int, algorithm=inplace;
 show create table t;

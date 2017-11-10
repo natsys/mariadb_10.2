@@ -1582,10 +1582,20 @@ public:
     DBUG_ASSERT(is_started());
     m_flags|= (int) TRX_READ_WRITE;
   }
+  void set_trx_tmp_read_write()
+  {
+    DBUG_ASSERT(is_started());
+    m_flags|= (int) TRX_TMP_READ_WRITE;
+  }
   bool is_trx_read_write() const
   {
     DBUG_ASSERT(is_started());
     return m_flags & (int) TRX_READ_WRITE;
+  }
+  bool is_trx_tmp_read_write() const
+  {
+    DBUG_ASSERT(is_started());
+    return m_flags & (int) (TRX_READ_WRITE | TRX_TMP_READ_WRITE);
   }
   bool is_started() const { return m_ht != NULL; }
   /** Mark this transaction read-write if the argument is read-write. */
@@ -1611,7 +1621,7 @@ public:
     return m_ht;
   }
 private:
-  enum { TRX_READ_ONLY= 0, TRX_READ_WRITE= 1 };
+  enum { TRX_READ_ONLY= 0, TRX_READ_WRITE= 1, TRX_TMP_READ_WRITE= 2 };
   /** Auxiliary, used for ha_list management */
   Ha_trx_info *m_next;
   /**
