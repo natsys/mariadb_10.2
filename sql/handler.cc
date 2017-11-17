@@ -6951,7 +6951,7 @@ bool Vers_parse_info::check_and_fix_alter(THD *thd, Alter_info *alter_info,
     return false;
   }
 
-  if (0 < table->file->stats.records)
+  if (0 < table->file->records())
   {
     List_iterator_fast<Create_field> it(alter_info->create_list);
     while (Create_field *f= it++)
