@@ -6952,6 +6952,10 @@ bool Vers_parse_info::check_and_fix_alter(THD *thd, Alter_info *alter_info,
   }
 
   {
+    if (thd->mdl_context.upgrade_shared_lock(table->mdl_ticket, MDL_EXCLUSIVE,
+                                             thd->variables.lock_wait_timeout))
+      return true;
+
     List_iterator_fast<Create_field> it(alter_info->create_list);
     while (Create_field *f= it++)
     {
@@ -6965,14 +6969,7 @@ bool Vers_parse_info::check_and_fix_alter(THD *thd, Alter_info *alter_info,
           my_error(ER_VERS_GENERATED_ALWAYS_NOT_EMPTY, MYF(0), f->change.str);
           return true;
         }
-        // Table may have strange data if someone will change its data while
-        // we're executing this query.
-        if (thd->mdl_context.upgrade_shared_lock(
-                table->mdl_ticket, MDL_EXCLUSIVE,
-                thd->variables.lock_wait_timeout))
-        {
-          return true;
-        }
+        break;
       }
     }
   }
