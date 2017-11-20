@@ -6951,6 +6951,8 @@ bool Vers_parse_info::check_and_fix_alter(THD *thd, Alter_info *alter_info,
     return false;
   }
 
+  if (table->file->info(HA_STATUS_VARIABLE | HA_STATUS_TIME))
+    return true;
   if (0 < table->file->records())
   {
     List_iterator_fast<Create_field> it(alter_info->create_list);
