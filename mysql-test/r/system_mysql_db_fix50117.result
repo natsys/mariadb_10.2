@@ -316,3 +316,4 @@ index_stats	CREATE TABLE `index_stats` (
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='Statistics on Indexes'
 show tables;
 Tables_in_test
+transaction_registry
