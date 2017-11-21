@@ -1455,6 +1455,11 @@ public:
     return flags & (VERS_SYS_START_FLAG | VERS_SYS_END_FLAG);
   }
 
+  bool vers_optimized() const
+  {
+    return flags & VERS_OPTIMIZED_UPDATE_FLAG;
+  }
+
   virtual bool vers_trx_id() const
   {
     return false;

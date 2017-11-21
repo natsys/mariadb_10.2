@@ -8880,9 +8880,9 @@ calc_row_difference(
 			}
 			n_changed++;
 
-			if (!prebuilt->upd_node->versioned &&
-			    prebuilt->table->versioned() &&
-			    !(field->flags & VERS_OPTIMIZED_UPDATE_FLAG)) {
+			if (!prebuilt->upd_node->versioned
+			    && prebuilt->table->versioned()
+			    && !field->vers_optimized()) {
 				prebuilt->upd_node->versioned = true;
 			}
 
@@ -8991,9 +8991,9 @@ calc_row_difference(
 
 		++n_changed;
 
-		if (!prebuilt->upd_node->versioned &&
-		    prebuilt->table->versioned() &&
-		    !(field->flags & VERS_OPTIMIZED_UPDATE_FLAG)) {
+		if (!prebuilt->upd_node->versioned
+		    && prebuilt->table->versioned()
+		    && !field->vers_optimized()) {
 			prebuilt->upd_node->versioned = true;
 		}
 	} else {

@@ -3050,7 +3050,6 @@ public:
    */
   bool check();
 
-public:
   TABLE * operator-> () const
   {
     return table;
@@ -3064,13 +3063,13 @@ public:
   {
     return table;
   }
-  bool operator== (TABLE_LIST &subj) const
+  bool operator== (const TABLE_LIST &subj) const
   {
     if (0 != strcmp(db, subj.db))
       return false;
     return (0 == strcmp(table_name, subj.table_name));
   }
-  bool operator!= (TABLE_LIST &subj) const
+  bool operator!= (const TABLE_LIST &subj) const
   {
     return !(*this == subj);
   }
