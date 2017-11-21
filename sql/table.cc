@@ -8669,7 +8669,6 @@ bool TR_table::query_sees(bool &result, ulonglong trx_id1, ulonglong trx_id0,
 {
   if (trx_id1 == trx_id0)
   {
-    result= true;
     return false;
   }
 
