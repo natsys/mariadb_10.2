@@ -1847,7 +1847,7 @@ row_ins_check_foreign_constraint(
 			if (check_table->versioned()) {
 				trx_id_t end_trx_id = 0;
 
-				if (dict_index_is_clust(check_index)) {
+				if (check_index->is_clust()) {
 					end_trx_id =
 						row_ins_get_sys_trx_end(
 						rec, offsets, check_index);
