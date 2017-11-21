@@ -3017,12 +3017,14 @@ public:
   /**
      Checks whether transaction1 sees transaction0.
 
-     @param[out] true if transaction1 sees transaction0, undefined on error
+     @param[out] true if transaction1 sees transaction0, undefined on error and
+       when transaction1=transaction0 and false otherwise
      @param[in] transaction_id of transaction1
      @param[in] transaction_id of transaction0
      @param[in] commit time of transaction1 or 0 if we want it to be queried
      @param[in] isolation level (from handler.h) of transaction1
      @param[in] commit time of transaction0 or 0 if we want it to be queried
+     @retval true on error, false otherwise
    */
   bool query_sees(bool &result, ulonglong trx_id1, ulonglong trx_id0,
                   ulonglong commit_id1= 0,
