@@ -631,9 +631,11 @@ instant_alter_column_possible(
 	const Alter_inplace_info*	ha_alter_info,
 	const TABLE*			table)
 {
-	if (ha_alter_info->create_info->vers_info.with_system_versioning)
+	// Making table a system versioned table instantly is not implemented
+	// yet.
+	if (ha_alter_info->create_info->vers_info.with_system_versioning) {
 		return false;
-
+	}
 
 	if (~ha_alter_info->handler_flags
 	    & Alter_inplace_info::ADD_STORED_BASE_COLUMN) {
