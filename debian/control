@@ -694,3 +694,11 @@ Description: MariaDB database regression test suite - data files
  ease of use.
  .
  This package has the architecture independent data files for the test suite.
+
+Package: mariadb-plugin-versioning
+Section: database
+Architecture: any
+Depends: mariadb-server-10.3,
+         ${misc:Depends},
+         ${shlibs:Depends}
+Description: AS OF testing functions.
