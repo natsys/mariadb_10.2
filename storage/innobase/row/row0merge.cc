@@ -2242,13 +2242,13 @@ end_of_index:
 
 			bool historical_row = false;
 			if (new_table->versioned()) {
-				const dfield_t *dfield = dtuple_get_nth_field(
-					row, new_table->vers_end);
-				const byte *data = static_cast<const byte *>(
-					dfield_get_data(dfield));
+				const dfield_t* dfield = dtuple_get_nth_field(
+				    row, new_table->vers_end);
+				const byte* data = static_cast<const byte*>(
+				    dfield_get_data(dfield));
 				ut_ad(dfield_get_len(dfield) == 8);
 				historical_row =
-					mach_read_from_8(data) != TRX_ID_MAX;
+				    mach_read_from_8(data) != TRX_ID_MAX;
 			}
 
 			const dfield_t*	dfield;
@@ -2272,10 +2272,11 @@ end_of_index:
 			}
 
 			ulonglong value;
-			if (likely(!historical_row))
+			if (likely(!historical_row)) {
 				value = sequence++;
-                        else
+			} else {
 				value = historic_auto_decrement--;
+			}
 
 			switch (dtype_get_mtype(dtype)) {
 			case DATA_INT: {
@@ -2305,30 +2306,31 @@ end_of_index:
 
 		if (old_table->versioned()) {
 			if (!new_table->versioned() || drop_historical) {
-				const dict_col_t *col =
-					&old_table->cols
-						 [old_table->vers_end];
-				const ulint nfield = dict_col_get_clust_pos(
-					col, clust_index);
+				const dict_col_t* col =
+				    &old_table->cols[old_table->vers_end];
+				const ulint nfield =
+				    dict_col_get_clust_pos(col, clust_index);
 				ulint len = 0;
-				const rec_t *sys_trx_end = rec_get_nth_field(
-					rec, offsets, nfield, &len);
+				const rec_t* sys_trx_end = rec_get_nth_field(
+				    rec, offsets, nfield, &len);
 				ut_ad(len == 8);
-				if (mach_read_from_8(sys_trx_end) != TRX_ID_MAX)
+				if (mach_read_from_8(sys_trx_end)
+				    != TRX_ID_MAX) {
 					continue;
+				}
 			}
 		} else if (new_table->versioned()) {
-			void *sys_trx_start = mem_heap_alloc(row_heap, 8);
-			void *sys_trx_end = mem_heap_alloc(row_heap, 8);
+			void* sys_trx_start = mem_heap_alloc(row_heap, 8);
+			void* sys_trx_end = mem_heap_alloc(row_heap, 8);
 			mach_write_to_8(sys_trx_start, trx->id);
 			mach_write_to_8(sys_trx_end, TRX_ID_MAX);
-			dfield_t *start = dtuple_get_nth_field(
-				row, new_table->vers_start);
-			dfield_t *end = dtuple_get_nth_field(
-				row, new_table->vers_end);
+			dfield_t* start =
+			    dtuple_get_nth_field(row, new_table->vers_start);
+			dfield_t* end =
+			    dtuple_get_nth_field(row, new_table->vers_end);
 			dfield_set_data(start, sys_trx_start, 8);
 			dfield_set_data(end, sys_trx_end, 8);
-			trx->vers_update_trt= true;
+			trx->vers_update_trt = true;
 		}
 
 write_buffers:

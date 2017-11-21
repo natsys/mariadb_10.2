@@ -429,8 +429,8 @@ row_ins_cascade_ancestor_updates_table(
 
 		upd_node = static_cast<upd_node_t*>(parent);
 
-		if (upd_node->table == table && upd_node->is_delete == FALSE
-			&& !upd_node->vers_delete) {
+		if (upd_node->table == table && !upd_node->is_delete
+		    && !upd_node->vers_delete) {
 
 			return(TRUE);
 		}
@@ -1573,18 +1573,20 @@ private:
 	ulint&		counter;
 };
 
-/*********************************************************************//**
+/**
 Reads sys_trx_end field from clustered index row.
+@param[in]	rec	clustered row
+@param[in]	offsets	offsets
+@param[in]	index	clustered index
 @return trx_id_t */
 static
 trx_id_t
 row_ins_get_sys_trx_end(
-/*===================================*/
-			const rec_t *rec,	/*!< in: clustered row */
-			ulint *offsets,		/*!< in: offsets */
-			dict_index_t *index)	/*!< in: clustered index */
+	const rec_t*	rec,
+	ulint*		offsets,
+	dict_index_t*	index)
 {
-	ut_a(dict_index_is_clust(index));
+	ut_a(index->is_clust());
 
 	ulint len;
 	ulint nfield = dict_col_get_clust_pos(
@@ -1603,9 +1605,9 @@ Performs search at clustered index and returns sys_trx_end if row was found.
 static
 dberr_t
 row_ins_search_sys_trx_end(
-	dict_index_t *index,
-	const rec_t *rec,
-	trx_id_t *end_trx_id)
+	dict_index_t*	index,
+	const rec_t*	rec,
+	trx_id_t*	end_trx_id)
 {
 	ut_ad(!index->is_clust());
 
@@ -1617,11 +1619,11 @@ row_ins_search_sys_trx_end(
 	rec_offs_init(offsets_);
 
 	mtr_t mtr;
-	mtr_start(&mtr);
+	mtr.start();
 
 	rec_t *clust_rec =
 	    row_get_clust_rec(BTR_SEARCH_LEAF, rec, index, &clust_index, &mtr);
-        if (!clust_rec)
+	if (!clust_rec)
 		goto not_found;
 
 	offsets = rec_get_offsets(clust_rec, clust_index, offsets, true,
@@ -1630,7 +1632,7 @@ row_ins_search_sys_trx_end(
 	*end_trx_id = row_ins_get_sys_trx_end(clust_rec, offsets, clust_index);
 	found = true;
 not_found:
-	mtr_commit(&mtr);
+	mtr.commit();
 	mem_heap_free(heap);
 	if (!found) {
 		ib::error() << "foreign constraints: secondary index is out of "
@@ -1710,8 +1712,9 @@ row_ins_check_foreign_constraint(
 			byte* data = static_cast<byte*>(dfield_get_data(field));
 			ut_ad(data);
 			trx_id_t end_trx_id = mach_read_from_8(data);
-			if (end_trx_id != TRX_ID_MAX)
+			if (end_trx_id != TRX_ID_MAX) {
 				goto exit_func;
+			}
 		}
 	}
 
@@ -1854,8 +1857,9 @@ row_ins_check_foreign_constraint(
 					break;
 				}
 
-				if (end_trx_id != TRX_ID_MAX)
+				if (end_trx_id != TRX_ID_MAX) {
 					continue;
+				}
 			}
 
 			if (rec_get_deleted_flag(rec,

@@ -7081,8 +7081,9 @@ ok_exit:
 		ctx->m_stage, add_v, eval_table,
 		ha_alter_info->handler_flags & Alter_inplace_info::ALTER_DROP_HISTORICAL);
 
-	if (m_prebuilt->trx->vers_update_trt)
+	if (m_prebuilt->trx->vers_update_trt) {
 		thd_vers_update_trt(m_user_thd, true);
+	}
 
 #ifndef DBUG_OFF
 oom:
@@ -9747,7 +9748,6 @@ foreign_fail:
 	MONITOR_ATOMIC_DEC(MONITOR_PENDING_ALTER_TABLE);
 	DBUG_RETURN(false);
 }
-
 
 /**
 @param thd the session

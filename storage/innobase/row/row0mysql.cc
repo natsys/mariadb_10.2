@@ -2129,8 +2129,8 @@ run_again:
 		node->cascade_upd_nodes = cascade_upd_nodes;
 		cascade_upd_nodes->pop_front();
 		thr->fk_cascade_depth++;
-		vers_set_fields = node->table->versioned() &&
-				  (node->is_delete || node->versioned);
+		vers_set_fields = node->table->versioned()
+				  && (node->is_delete || node->versioned);
 
 		goto run_again;
 	}
@@ -2210,11 +2210,12 @@ run_again:
 		prebuilt->table->stat_modified_counter++;
 	}
 
-	if (node->table->versioned() &&
-	    (node->versioned || node->vers_delete ||
-	     // TODO: improve this check (check if we touch only
-	     // unversioned fields in foreigh table)
-	     node->foreign)) {
+	if (node->table->versioned()
+	    && (node->versioned
+		|| node->vers_delete
+		// TODO: improve this check (check if we touch only
+		// unversioned fields in foreigh table)
+		|| node->foreign)) {
 		trx->vers_update_trt = true;
 	}
 

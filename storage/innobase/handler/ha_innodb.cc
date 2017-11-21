@@ -3627,10 +3627,9 @@ static const char* ha_innobase_exts[] = {
 	NullS
 };
 
-void innodb_get_trt_data(TR_table &trt)
-{
-	THD *thd = trt.get_thd();
-	trx_t *trx = thd_to_trx(thd);
+void innodb_get_trt_data(TR_table& trt) {
+	THD* thd = trt.get_thd();
+	trx_t* trx = thd_to_trx(thd);
 	ut_a(trx);
 	ut_a(trx->vers_update_trt);
 	mutex_enter(&trx_sys->mutex);
@@ -3641,8 +3640,7 @@ void innodb_get_trt_data(TR_table &trt)
 	mutex_exit(&trx_sys->mutex);
 
 	// silent downgrade cast warning on win64
-	timeval commit_ts = {static_cast<int>(sec),
-				static_cast<int>(usec)};
+	timeval commit_ts = {static_cast<int>(sec), static_cast<int>(usec)};
 	trt.store_data(trx->id, commit_id, commit_ts);
 	trx->vers_update_trt = false;
 }
@@ -8369,17 +8367,18 @@ no_commit:
 
 	innobase_srv_conc_enter_innodb(m_prebuilt);
 
-	vers_set_fields = (table->versioned_write() &&
-		(sql_command != SQLCOM_CREATE_TABLE || table->s->vtmd))
-		?
-		ROW_INS_VERSIONED :
-		ROW_INS_NORMAL;
+	vers_set_fields =
+	    (table->versioned_write()
+	     && (sql_command != SQLCOM_CREATE_TABLE || table->s->vtmd))
+		? ROW_INS_VERSIONED
+		: ROW_INS_NORMAL;
 
 	/* Step-5: Execute insert graph that will result in actual insert. */
 	error = row_insert_for_mysql((byte*) record, m_prebuilt, vers_set_fields);
 
-	if (m_prebuilt->trx->vers_update_trt)
+	if (m_prebuilt->trx->vers_update_trt) {
 		thd_vers_update_trt(m_user_thd, true);
+        }
 
 	DEBUG_SYNC(m_user_thd, "ib_after_row_insert");
 
@@ -9181,11 +9180,12 @@ ha_innobase::update_row(
 
 	if (!table->versioned_write())
 		m_prebuilt->upd_node->versioned = false;
+        }
 
 	if (m_prebuilt->upd_node->versioned) {
 		vers_set_fields = true;
-		if (thd_sql_command(m_user_thd) == SQLCOM_ALTER_TABLE && !table->s->vtmd)
-		{
+		if (thd_sql_command(m_user_thd) == SQLCOM_ALTER_TABLE
+		    && !table->s->vtmd) {
 			m_prebuilt->upd_node->vers_delete = true;
 		} else {
 			m_prebuilt->upd_node->vers_delete = false;
@@ -9196,12 +9196,14 @@ ha_innobase::update_row(
 	error = row_update_for_mysql(m_prebuilt, vers_set_fields);
 
 	if (error == DB_SUCCESS && vers_ins_row) {
-		if (trx->id != static_cast<trx_id_t>(table->vers_start_field()->val_int()))
+		if (trx->id != static_cast<trx_id_t>(table->vers_start_field()->val_int())) {
 			error = row_insert_for_mysql((byte*) old_row, m_prebuilt, ROW_INS_HISTORICAL);
+		}
 	}
 
-	if (m_prebuilt->trx->vers_update_trt)
+	if (m_prebuilt->trx->vers_update_trt) {
 		thd_vers_update_trt(m_user_thd, true);
+        }
 
 	if (error == DB_SUCCESS && autoinc) {
 		/* A value for an AUTO_INCREMENT column
@@ -9317,13 +9319,13 @@ ha_innobase::delete_row(
 	innobase_srv_conc_enter_innodb(m_prebuilt);
 
 	bool vers_set_fields =
-		table->versioned_write() &&
-		table->vers_end_field()->is_max();
+	    table->versioned_write() && table->vers_end_field()->is_max();
 
 	error = row_update_for_mysql(m_prebuilt, vers_set_fields);
 
-	if (m_prebuilt->trx->vers_update_trt)
+	if (m_prebuilt->trx->vers_update_trt) {
 		thd_vers_update_trt(m_user_thd, true);
+	}
 
 	innobase_srv_conc_exit_innodb(m_prebuilt);
 

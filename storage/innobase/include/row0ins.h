@@ -232,10 +232,10 @@ struct ins_node_t{
 
 UNIV_INLINE
 void row_ins_set_tuple_col_8(
-	dtuple_t* tuple,
-	int col,
-	ib_uint64_t data,
-	byte* buf)
+	dtuple_t*	tuple,
+	int		col,
+	uint64_t	data,
+	byte*		buf)
 {
 	static const ulint fsize = sizeof(data);
 	dfield_t* dfield = dtuple_get_nth_field(tuple, col);
@@ -249,10 +249,10 @@ void row_ins_set_tuple_col_8(
 
 UNIV_INLINE
 void row_ins_set_tuple_col_8(
-	dtuple_t* tuple,
-	int col,
-	timeval& data,
-	byte* buf)
+	dtuple_t*	tuple,
+	int		col,
+	timeval&	data,
+	byte*		buf)
 {
 	dfield_t* dfield = dtuple_get_nth_field(tuple, col);
 	ut_ad(dfield->type.len == 8);
