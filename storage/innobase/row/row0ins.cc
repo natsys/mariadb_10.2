@@ -1582,9 +1582,9 @@ Reads sys_trx_end field from clustered index row.
 static
 trx_id_t
 row_ins_get_sys_trx_end(
-	const rec_t*	rec,
-	ulint*		offsets,
-	dict_index_t*	index)
+	const rec_t*		rec,
+	const ulint*		offsets,
+	const dict_index_t*	index)
 {
 	ut_a(index->is_clust());
 
