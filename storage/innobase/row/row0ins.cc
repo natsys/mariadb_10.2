@@ -1603,37 +1603,35 @@ static
 trx_id_t
 row_ins_search_sys_trx_end(
 	dict_index_t*	index,
-	const rec_t*	rec)
+	const rec_t* rec)
 {
 	ut_ad(!index->is_clust());
 
 	trx_id_t result = 0;
-	mem_heap_t *heap = mem_heap_create(256);
-	dict_index_t *clust_index = NULL;
+	mem_heap_t* heap = mem_heap_create(256);
+	dict_index_t* clust_index = NULL;
 	ulint offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint *offsets = offsets_;
+	ulint* offsets = offsets_;
 	rec_offs_init(offsets_);
 
 	mtr_t mtr;
 	mtr.start();
 
-	rec_t *clust_rec =
+	rec_t* clust_rec =
 	    row_get_clust_rec(BTR_SEARCH_LEAF, rec, index, &clust_index, &mtr);
-	if (!clust_rec)
-		goto not_found;
+	if (clust_rec) {
+		offsets = rec_get_offsets(clust_rec, clust_index, offsets, true,
+					  ULINT_UNDEFINED, &heap);
 
-	offsets = rec_get_offsets(clust_rec, clust_index, offsets, true,
-				  ULINT_UNDEFINED, &heap);
-
-	result = row_ins_get_sys_trx_end(clust_rec, offsets, clust_index);
-not_found:
-	mtr.commit();
-	mem_heap_free(heap);
-	if (!result) {
+		result =
+		    row_ins_get_sys_trx_end(clust_rec, offsets, clust_index);
+        } else {
 		ib::error() << "foreign constraints: secondary index is out of "
 			       "sync";
 		ut_ad(false && "secondary index is out of sync");
 	}
+	mtr.commit();
+	mem_heap_free(heap);
 	return(result);
 }
 
