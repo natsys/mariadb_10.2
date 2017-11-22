@@ -8485,7 +8485,7 @@ LEX_CSTRING *fk_option_name(enum_fk_option opt)
 }
 
 TR_table::TR_table(THD* _thd, bool rw) :
-  thd(_thd), open_tables_backup(NULL)
+  thd(_thd), open_tables_backup(NULL), updated(false)
 {
   init_one_table(LEX_STRING_WITH_LEN(MYSQL_SCHEMA_NAME),
                  LEX_STRING_WITH_LEN(TRANSACTION_REG_NAME),
@@ -8533,6 +8533,7 @@ void TR_table::store(uint field_id, timeval ts)
 
 void TR_table::store_data(ulonglong trx_id, ulonglong commit_id, timeval commit_ts)
 {
+  updated= true;
   timeval start_time= {thd->start_time, thd->start_time_sec_part};
   store(FLD_TRX_ID, trx_id);
   store(FLD_COMMIT_ID, commit_id);
@@ -8556,16 +8557,16 @@ bool TR_table::update()
   DBUG_ASSERT(table->s);
   handlerton *hton= table->s->db_type();
   DBUG_ASSERT(hton);
-  DBUG_ASSERT(hton->flags & HTON_NATIVE_SYS_VERSIONING);
-  DBUG_ASSERT(thd->vers_update_trt);
+  DBUG_ASSERT(!(hton->flags & HTON_NATIVE_SYS_VERSIONING)
+	      == !hton->update_at_commit);
+  if (hton->update_at_commit)
+    hton->update_at_commit(*this);
+  if (!was_updated())
+    return false;
 
-  hton->vers_get_trt_data(*this);
   int error= table->file->ha_write_row(table->record[0]);
   if (error)
-  {
     table->file->print_error(error, MYF(0));
-  }
-  thd->vers_update_trt= false;
   return error;
 }
 

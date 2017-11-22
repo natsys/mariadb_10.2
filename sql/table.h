@@ -2935,6 +2935,7 @@ class TR_table: public TABLE_LIST
 {
   THD *thd;
   Open_tables_backup *open_tables_backup;
+  bool updated;
 
 public:
   enum field_id_t {
@@ -2952,7 +2953,16 @@ public:
   void store(uint field_id, ulonglong val);
   void store(uint field_id, timeval ts);
   void store_data(ulonglong trx_id, ulonglong commit_id, timeval commit_ts);
+  /**
+    Update the transaction metadata right before commit.
+
+    @param all	whether to commit the transaction; @see ha_commit_trans
+    @retval	false	on success
+    @retval	true	on error (the transaction must be rolled back)
+  */
   bool update();
+  /** @return whether update() affected the table */
+  bool was_updated() const { return updated; }
   // return true if found; false if not found or error
   bool query(ulonglong trx_id);
   bool query(MYSQL_TIME &commit_time, bool backwards);

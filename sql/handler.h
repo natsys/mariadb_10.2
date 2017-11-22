@@ -1390,10 +1390,9 @@ struct handlerton
    /*
      System Versioning
    */
-   /** Fill TRT record for update.
-    @param[out]   trt       TRT table which record[0] will be filled with
-                            transaction data. */
-   void (*vers_get_trt_data)(TR_table &trt);
+   /** Fill versioning information right before transaction commit.
+    @param[out]   trt       object to invoke trt.store_data() */
+   void (*update_at_commit)(TR_table &trt);
 };
 
 

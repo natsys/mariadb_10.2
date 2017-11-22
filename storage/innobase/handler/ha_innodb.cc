@@ -3627,12 +3627,29 @@ static const char* ha_innobase_exts[] = {
 	NullS
 };
 
-void innodb_get_trt_data(TR_table &trt)
+/** Update the versioning data at commit, in case
+any system-versioned tables were modified by the transaction.
+
+@param[out]	 trt	transaction metadata */
+static void innodb_update_at_commit(TR_table& trt)
 {
-	THD *thd = trt.get_thd();
-	trx_t *trx = thd_to_trx(thd);
-	ut_a(trx);
-	ut_a(trx->vers_update_trt);
+	trx_t *trx = thd_to_trx(trt.get_thd());
+	ut_ad(trx);
+	if (UNIV_UNLIKELY(!trx) || !trx->undo_no
+#if 0 // TODO: disable versioning on temporary tables, and enable this
+	    || !trx->rsegs.m_redo.rseg
+#endif
+	    ) {
+		return;
+	}
+	for (trx_mod_tables_t::const_iterator t = trx->mod_tables.begin();
+	     t != trx->mod_tables.end(); t++) {
+		if ((*t)->versioned()) {
+			goto versioned;
+		}
+	}
+	return;
+versioned:
 	mutex_enter(&trx_sys->mutex);
 	trx_id_t commit_id = trx_sys_get_new_trx_id();
 	ulint sec = 0;
@@ -3644,7 +3661,6 @@ void innodb_get_trt_data(TR_table &trt)
 	timeval commit_ts = {static_cast<int>(sec),
 				static_cast<int>(usec)};
 	trt.store_data(trx->id, commit_id, commit_ts);
-	trx->vers_update_trt = false;
 }
 
 /*********************************************************************//**
@@ -3715,7 +3731,7 @@ innobase_init(
 	innobase_hton->table_options = innodb_table_option_list;
 
 	/* System Versioning */
-	innobase_hton->vers_get_trt_data = innodb_get_trt_data;
+	innobase_hton->update_at_commit = innodb_update_at_commit;
 
 	innodb_remember_check_sysvar_funcs();
 
@@ -4899,8 +4915,6 @@ innobase_rollback_to_savepoint(
 
 	dberr_t	error = trx_rollback_to_savepoint_for_mysql(
 		trx, name, &mysql_binlog_cache_pos);
-
-	thd_vers_update_trt(thd, trx->vers_update_trt);
 
 	if (error == DB_SUCCESS && trx->fts_trx != NULL) {
 		fts_savepoint_rollback(trx, name);
@@ -8378,9 +8392,6 @@ no_commit:
 	/* Step-5: Execute insert graph that will result in actual insert. */
 	error = row_insert_for_mysql((byte*) record, m_prebuilt, vers_set_fields);
 
-	if (m_prebuilt->trx->vers_update_trt)
-		thd_vers_update_trt(m_user_thd, true);
-
 	DEBUG_SYNC(m_user_thd, "ib_after_row_insert");
 
 	/* Step-6: Handling of errors related to auto-increment. */
@@ -9200,9 +9211,6 @@ ha_innobase::update_row(
 			error = row_insert_for_mysql((byte*) old_row, m_prebuilt, ROW_INS_HISTORICAL);
 	}
 
-	if (m_prebuilt->trx->vers_update_trt)
-		thd_vers_update_trt(m_user_thd, true);
-
 	if (error == DB_SUCCESS && autoinc) {
 		/* A value for an AUTO_INCREMENT column
 		was specified in the UPDATE statement. */
@@ -9321,9 +9329,6 @@ ha_innobase::delete_row(
 		table->vers_end_field()->is_max();
 
 	error = row_update_for_mysql(m_prebuilt, vers_set_fields);
-
-	if (m_prebuilt->trx->vers_update_trt)
-		thd_vers_update_trt(m_user_thd, true);
 
 	innobase_srv_conc_exit_innodb(m_prebuilt);
 

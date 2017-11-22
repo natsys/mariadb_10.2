@@ -257,7 +257,6 @@ err:
 quit:
   if (!result && opt_transaction_registry)
   {
-    DBUG_ASSERT(thd->vers_update_trt);
     TR_table trt(thd, true);
     result= trt.update();
   }

@@ -1268,9 +1268,6 @@ struct trx_t {
 	os_event_t	wsrep_event;	/* event waited for in srv_conc_slot */
 #endif /* WITH_WSREP */
 
-	/* System Versioning */
-	bool		vers_update_trt;
-					/*!< Notify TRT on System Versioned write */
 	ulint		magic_n;
 
 	/** @return whether any persistent undo log has been generated */

@@ -1416,12 +1416,12 @@ int ha_commit_trans(THD *thd, bool all)
 
   if (rw_trans || thd->lex->sql_command == SQLCOM_ALTER_TABLE)
   {
-    if (opt_transaction_registry && thd->vers_update_trt)
+    if (opt_transaction_registry)
     {
       TR_table trt(thd, true);
       if (trt.update())
         goto err;
-      if (all)
+      if (all && trt.was_updated()) // FIXME: (why) do we need this?
         commit_one_phase_2(thd, false, &thd->transaction.stmt, false);
     }
   }
