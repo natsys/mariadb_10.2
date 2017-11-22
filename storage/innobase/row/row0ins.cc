@@ -1628,7 +1628,7 @@ row_ins_search_sys_trx_end(
         } else {
 		ib::error() << "foreign constraints: secondary index is out of "
 			       "sync";
-		ut_ad(false && "secondary index is out of sync");
+		ut_ad(!"secondary index is out of sync");
 	}
 	mtr.commit();
 	if (heap) {
