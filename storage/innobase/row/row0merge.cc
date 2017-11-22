@@ -2244,11 +2244,8 @@ end_of_index:
 			if (new_table->versioned()) {
 				const dfield_t* dfield = dtuple_get_nth_field(
 				    row, new_table->vers_end);
-				const byte* data = static_cast<const byte*>(
-				    dfield_get_data(dfield));
-				ut_ad(dfield_get_len(dfield) == 8);
 				historical_row =
-				    mach_read_from_8(data) != TRX_ID_MAX;
+				    dfield_is_historical_sys_trx_end(dfield);
 			}
 
 			const dfield_t*	dfield;
