@@ -1608,7 +1608,7 @@ row_ins_search_sys_trx_end(
 	ut_ad(!index->is_clust());
 
 	trx_id_t result = 0;
-	mem_heap_t* heap = mem_heap_create(256);
+	mem_heap_t* heap = NULL;
 	dict_index_t* clust_index = NULL;
 	ulint offsets_[REC_OFFS_NORMAL_SIZE];
 	ulint* offsets = offsets_;
@@ -1631,7 +1631,9 @@ row_ins_search_sys_trx_end(
 		ut_ad(false && "secondary index is out of sync");
 	}
 	mtr.commit();
-	mem_heap_free(heap);
+	if (heap) {
+		mem_heap_free(heap);
+	}
 	return(result);
 }
 
