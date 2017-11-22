@@ -3044,6 +3044,11 @@ public:
     store(FLD_ISO_LEVEL, iso_level + 1);
   }
 
+  /**
+     Writes a message to MariaDB log about incorrect transaction_registry schema.
+
+     @param[in] a message explained what's incorrect in schema
+   */
   void warn_schema_incorrect(const char *reason);
   /**
      Checks whether transaction_registry table has a correct schema.

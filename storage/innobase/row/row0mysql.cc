@@ -2147,7 +2147,7 @@ run_again:
 		cascade_upd_nodes->pop_front();
 		thr->fk_cascade_depth++;
 		vers_set_fields = node->table->versioned()
-				  && (node->is_delete || node->versioned);
+			&& (node->is_delete || node->versioned);
 
 		goto run_again;
 	}
