@@ -1705,13 +1705,8 @@ row_ins_check_foreign_constraint(
 		}
 		/* System Versioning: if sys_trx_end != Inf, we
 		suppress the foreign key check */
-		if (table->versioned() &&
-		    dfield_get_type(field)->prtype & DATA_VERS_END) {
-			byte* data = static_cast<byte*>(dfield_get_data(field));
-			ut_ad(data);
-			trx_id_t end_trx_id = mach_read_from_8(data);
-			if (end_trx_id != TRX_ID_MAX)
-				goto exit_func;
+		if (field->is_version_historical_end()) {
+			goto exit_func;
 		}
 	}
 
