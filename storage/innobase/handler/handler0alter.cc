@@ -631,8 +631,7 @@ instant_alter_column_possible(
 	const Alter_inplace_info*	ha_alter_info,
 	const TABLE*			table)
 {
-	// Making table a system versioned table instantly is not implemented
-	// yet.
+	// Making table system-versioned instantly is not implemented yet.
 	if (ha_alter_info->create_info->vers_info.with_system_versioning) {
 		return false;
 	}

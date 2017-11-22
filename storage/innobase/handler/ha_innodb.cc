@@ -8378,7 +8378,7 @@ no_commit:
 
 	if (m_prebuilt->trx->vers_update_trt) {
 		thd_vers_update_trt(m_user_thd, true);
-        }
+	}
 
 	DEBUG_SYNC(m_user_thd, "ib_after_row_insert");
 
@@ -9180,7 +9180,7 @@ ha_innobase::update_row(
 
 	if (!table->versioned_write())
 		m_prebuilt->upd_node->versioned = false;
-        }
+	}
 
 	if (m_prebuilt->upd_node->versioned) {
 		vers_set_fields = true;
@@ -9203,7 +9203,7 @@ ha_innobase::update_row(
 
 	if (m_prebuilt->trx->vers_update_trt) {
 		thd_vers_update_trt(m_user_thd, true);
-        }
+	}
 
 	if (error == DB_SUCCESS && autoinc) {
 		/* A value for an AUTO_INCREMENT column
@@ -11413,6 +11413,7 @@ create_table_info_t::create_table_def()
 	for (i = 0; i < n_cols; i++) {
 		ulint	is_virtual;
 		bool	is_stored = false;
+
 		Field*	field = m_form->field[i];
 		ulint vers_row_start = 0;
 		ulint vers_row_end = 0;
