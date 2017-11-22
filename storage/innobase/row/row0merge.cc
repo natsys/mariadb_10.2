@@ -1743,6 +1743,8 @@ row_merge_read_clustered_index(
 	ib_uint64_t		read_rows = 0;
 	ib_uint64_t		table_total_rows = 0;
 	ulonglong		historic_auto_decrement = 0xffffffffffffffff;
+	char			new_sys_trx_start[8];
+	char			new_sys_trx_end[8];
 
 	DBUG_ENTER("row_merge_read_clustered_index");
 
@@ -1916,6 +1918,9 @@ row_merge_read_clustered_index(
 	} else {
 		prev_fields = NULL;
 	}
+
+	mach_write_to_8(new_sys_trx_start, trx->id);
+	mach_write_to_8(new_sys_trx_end, TRX_ID_MAX);
 
 	/* Scan the clustered index. */
 	for (;;) {
@@ -2317,16 +2322,12 @@ end_of_index:
 				}
 			}
 		} else if (new_table->versioned()) {
-			void* sys_trx_start = mem_heap_alloc(row_heap, 8);
-			void* sys_trx_end = mem_heap_alloc(row_heap, 8);
-			mach_write_to_8(sys_trx_start, trx->id);
-			mach_write_to_8(sys_trx_end, TRX_ID_MAX);
 			dfield_t* start =
 			    dtuple_get_nth_field(row, new_table->vers_start);
 			dfield_t* end =
 			    dtuple_get_nth_field(row, new_table->vers_end);
-			dfield_set_data(start, sys_trx_start, 8);
-			dfield_set_data(end, sys_trx_end, 8);
+			dfield_set_data(start, new_sys_trx_start, 8);
+			dfield_set_data(end, new_sys_trx_end, 8);
 			trx->vers_update_trt = true;
 		}
 
