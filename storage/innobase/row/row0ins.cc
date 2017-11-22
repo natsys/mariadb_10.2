@@ -1573,8 +1573,7 @@ private:
 	ulint&		counter;
 };
 
-/**
-Reads sys_trx_end field from clustered index row.
+/** Reads sys_trx_end field from clustered index row.
 @param[in]	rec	clustered row
 @param[in]	offsets	offsets
 @param[in]	index	clustered index
@@ -1596,22 +1595,19 @@ row_ins_get_sys_trx_end(
 	return(mach_read_from_8(field));
 }
 
-/**
-Performs search at clustered index and returns sys_trx_end if row was found.
+/** Performs search at clustered index and returns sys_trx_end if row was found.
 @param[in]	index	secondary index of record
 @param[in]	rec	record in a secondary index
-@param[out]	end_trx_id	value from clustered index
-@return DB_SUCCESS, DB_NO_REFERENCED_ROW */
+@return sys_trx_end on success or 0 at failure */
 static
-dberr_t
+trx_id_t
 row_ins_search_sys_trx_end(
 	dict_index_t*	index,
-	const rec_t*	rec,
-	trx_id_t*	end_trx_id)
+	const rec_t*	rec)
 {
 	ut_ad(!index->is_clust());
 
-	bool found = false;
+	trx_id_t result = 0;
 	mem_heap_t *heap = mem_heap_create(256);
 	dict_index_t *clust_index = NULL;
 	ulint offsets_[REC_OFFS_NORMAL_SIZE];
@@ -1629,18 +1625,16 @@ row_ins_search_sys_trx_end(
 	offsets = rec_get_offsets(clust_rec, clust_index, offsets, true,
 				  ULINT_UNDEFINED, &heap);
 
-	*end_trx_id = row_ins_get_sys_trx_end(clust_rec, offsets, clust_index);
-	found = true;
+	result = row_ins_get_sys_trx_end(clust_rec, offsets, clust_index);
 not_found:
 	mtr.commit();
 	mem_heap_free(heap);
-	if (!found) {
+	if (!result) {
 		ib::error() << "foreign constraints: secondary index is out of "
 			       "sync";
 		ut_ad(false && "secondary index is out of sync");
-		return(DB_NO_REFERENCED_ROW);
 	}
-	return(DB_SUCCESS);
+	return(result);
 }
 
 /***************************************************************//**
@@ -1851,9 +1845,9 @@ row_ins_check_foreign_constraint(
 					end_trx_id =
 						row_ins_get_sys_trx_end(
 						rec, offsets, check_index);
-				} else if (row_ins_search_sys_trx_end(
-						check_index, rec, &end_trx_id) !=
-						DB_SUCCESS) {
+				} else if (!(end_trx_id =
+						 row_ins_search_sys_trx_end(
+						     check_index, rec))) {
 					break;
 				}
 
