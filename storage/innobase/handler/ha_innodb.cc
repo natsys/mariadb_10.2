@@ -9180,7 +9180,7 @@ ha_innobase::update_row(
 
 	innobase_srv_conc_enter_innodb(m_prebuilt);
 
-	if (!table->versioned_write())
+	if (!table->versioned_write()) {
 		m_prebuilt->upd_node->versioned = false;
 	}
 
