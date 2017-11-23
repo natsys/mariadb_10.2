@@ -8884,7 +8884,8 @@ calc_row_difference(
 			}
 			n_changed++;
 
-			if (table_versioned && !field->vers_optimized()) {
+			if (table_versioned
+			    && !field->vers_update_unversioned()) {
 				prebuilt->upd_node->versioned = true;
 			}
 
@@ -8993,9 +8994,7 @@ calc_row_difference(
 
 		++n_changed;
 
-		if (!prebuilt->upd_node->versioned
-		    && prebuilt->table->versioned()
-		    && !field->vers_optimized()) {
+		if (table_versioned && !field->vers_update_unversioned()) {
 			prebuilt->upd_node->versioned = true;
 		}
 	} else {

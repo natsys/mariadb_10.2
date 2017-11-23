@@ -2056,7 +2056,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     {
       uchar flags= *extra2_field_flags++;
       if (flags & VERS_OPTIMIZED_UPDATE)
-        reg_field->flags|= VERS_OPTIMIZED_UPDATE_FLAG;
+        reg_field->flags|= VERS_UPDATE_UNVERSIONED_FLAG;
       if (flags & HIDDEN)
         reg_field->flags|= HIDDEN_FLAG;
     }
