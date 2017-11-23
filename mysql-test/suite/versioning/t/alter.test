@@ -219,7 +219,13 @@ create or replace table t (a int) with system versioning engine=innodb;
 insert into t values (1), (2), (3);
 delete from t where a<3;
 call verify_vtq;
+--disable_query_log
+set global versioning_asof_timestamp= all;
+--enable_query_log
 alter table t add b tinyint auto_increment unique;
+--disable_query_log
+set global versioning_asof_timestamp= current;
+--enable_query_log
 call verify_vtq;
 select * from t for system_time all;
 insert into t values (4, NULL);
@@ -229,7 +235,13 @@ call verify_vtq;
 create or replace table t (a int) with system versioning;
 insert into t values (1), (2), (3);
 delete from t where a<3;
+--disable_query_log
+set global versioning_asof_timestamp= all;
+--enable_query_log
 alter table t add b tinyint auto_increment unique;
+--disable_query_log
+set global versioning_asof_timestamp= current;
+--enable_query_log
 select * from t for system_time all;
 insert into t values (4, NULL);
 select * from t for system_time all;

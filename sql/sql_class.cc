@@ -7720,3 +7720,11 @@ Query_arena_stmt::~Query_arena_stmt()
   if (arena)
     thd->restore_active_arena(arena, &backup);
 }
+
+void super_assert(uint nr)
+{
+  if (global_system_variables.vers_asof_timestamp.type > 0)
+  {
+    DBUG_ASSERT(nr != ER_WARN_DATA_OUT_OF_RANGE);
+  }
+}
