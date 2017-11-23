@@ -6523,6 +6523,10 @@ no_such_table:
 		}
 	}
 
+	if (table && m_prebuilt->table) {
+		ut_ad(table->versioned() == m_prebuilt->table->versioned());
+	}
+
 	info(HA_STATUS_NO_LOCK | HA_STATUS_VARIABLE | HA_STATUS_CONST);
 	DBUG_RETURN(0);
 }
