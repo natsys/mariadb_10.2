@@ -8633,6 +8633,7 @@ calc_row_difference(
 	doc_id_t	doc_id = FTS_NULL_DOC_ID;
 	ulint		num_v = 0;
 	uint		n_fields = mysql_fields(table);
+	bool		table_versioned = prebuilt->table->versioned();
 
 	ut_ad(!srv_read_only_mode);
 
@@ -8883,9 +8884,7 @@ calc_row_difference(
 			}
 			n_changed++;
 
-			if (!prebuilt->upd_node->versioned
-			    && prebuilt->table->versioned()
-			    && !field->vers_optimized()) {
+			if (table_versioned && !field->vers_optimized()) {
 				prebuilt->upd_node->versioned = true;
 			}
 
