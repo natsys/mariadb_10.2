@@ -2328,7 +2328,6 @@ end_of_index:
 				row, new_table->vers_end);
 			dfield_set_data(start, sys_trx_start, 8);
 			dfield_set_data(end, sys_trx_end, 8);
-			trx->vers_update_trt= true;
 		}
 
 write_buffers:

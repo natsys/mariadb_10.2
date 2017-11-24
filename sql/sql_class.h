@@ -4564,8 +4564,6 @@ public:
   /* Handling of timeouts for commands */
   thr_timer_t query_timer;
 
-  bool vers_update_trt;
-
 public:
   void set_query_timer()
   {

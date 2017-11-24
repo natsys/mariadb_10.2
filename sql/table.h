@@ -2958,8 +2958,15 @@ public:
   THD *get_thd() const { return thd; }
   void store(uint field_id, ulonglong val);
   void store(uint field_id, timeval ts);
-  void store_data(ulonglong trx_id, ulonglong commit_id, timeval commit_ts);
-  bool update();
+  /**
+    Update the transaction metadata right before commit.
+    @param start_id    transaction identifier at start
+    @param end_id      transaction identifier at commit
+
+    @retval false      on success
+    @retval true       on error (the transaction must be rolled back)
+  */
+  bool update(ulonglong start_id, ulonglong end_id);
   // return true if found; false if not found or error
   bool query(ulonglong trx_id);
   bool query(MYSQL_TIME &commit_time, bool backwards);
