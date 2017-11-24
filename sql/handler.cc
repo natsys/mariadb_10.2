@@ -6987,8 +6987,8 @@ bool Vers_parse_info::check_and_fix_alter(THD *thd, Alter_info *alter_info,
         add_field_to_drop_list(thd, alter_info, share->vers_end_field()))
       return true;
 
-    if (share->primary_key != MAX_KEY && !is_dropping_primary_key(alter_info) &&
-        !is_adding_primary_key(alter_info))
+    if (share->primary_key != MAX_KEY && !is_adding_primary_key(alter_info) &&
+        !is_dropping_primary_key(alter_info))
     {
       alter_info->flags|= Alter_info::ALTER_DROP_INDEX;
       Alter_drop *ad= new (thd->mem_root)
@@ -7010,8 +7010,7 @@ bool Vers_parse_info::check_and_fix_alter(THD *thd, Alter_info *alter_info,
                             *end= it + key.user_defined_key_parts;
            it != end; ++it)
       {
-        if (it->field == table->vers_start_field() ||
-            it->field == table->vers_end_field())
+        if (it->field->vers_sys_field())
           continue;
 
         Key_part_spec *key_part_spec= new (thd->mem_root)
