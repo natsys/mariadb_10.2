@@ -508,6 +508,7 @@ ulong slave_ddl_exec_mode_options= SLAVE_EXEC_MODE_IDEMPOTENT;
 ulonglong slave_type_conversions_options;
 ulong thread_cache_size=0;
 ulonglong binlog_cache_size=0;
+ulonglong binlog_file_cache_size=0;
 ulonglong max_binlog_cache_size=0;
 ulong slave_max_allowed_packet= 0;
 ulonglong binlog_stmt_cache_size=0;
@@ -5711,6 +5712,9 @@ static void test_lc_time_sz()
 #endif//DBUG_OFF
 
 
+extern void super_assert(uint nr);
+extern void (*mega_assert)(uint);
+
 #ifdef __WIN__
 int win_main(int argc, char **argv)
 #else
@@ -6057,6 +6061,8 @@ int mysqld_main(int argc, char **argv)
 
   if (opt_transaction_registry && !use_transaction_registry)
     sql_print_information("Disabled transaction registry.");
+
+  mega_assert= super_assert;
 
   if (WSREP_ON)
   {

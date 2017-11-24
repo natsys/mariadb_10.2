@@ -126,9 +126,17 @@ trx_rollback_to_savepoint_low(
 		trx_rollback_finish(trx);
 		MONITOR_INC(MONITOR_TRX_ROLLBACK);
 	} else {
+		const undo_no_t limit = savept->least_undo_no;
+		for (trx_mod_tables_t::iterator i = trx->mod_tables.begin();
+		     i != trx->mod_tables.end(); ) {
+			trx_mod_tables_t::iterator j = i++;
+			ut_ad(j->second.valid());
+			if (j->second.rollback(limit)) {
+				trx->mod_tables.erase(j);
+			}
+		}
 		trx->lock.que_state = TRX_QUE_RUNNING;
 		MONITOR_INC(MONITOR_TRX_ROLLBACK_SAVEPOINT);
-		trx->vers_update_trt = savept->vers_update_trt;
 	}
 
 	ut_a(trx->error_state == DB_SUCCESS);
@@ -618,7 +626,6 @@ trx_savept_take(
 	trx_savept_t	savept;
 
 	savept.least_undo_no = trx->undo_no;
-	savept.vers_update_trt = trx->vers_update_trt;
 
 	return(savept);
 }
@@ -1156,10 +1163,8 @@ trx_rollback_finish(
 /*================*/
 	trx_t*		trx)	/*!< in: transaction */
 {
-	trx_commit(trx);
-
 	trx->mod_tables.clear();
-
+	trx_commit(trx);
 	trx->lock.que_state = TRX_QUE_RUNNING;
 }
 

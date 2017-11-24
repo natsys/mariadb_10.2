@@ -70,10 +70,15 @@ static struct my_err_head *my_errmsgs_list= &my_errmsgs_globerrs;
   @retval str   C-string
 */
 
+void (*mega_assert)(uint)= 0;
+
 const char *my_get_err_msg(uint nr)
 {
   const char *format;
   struct my_err_head *meh_p;
+
+  if (mega_assert)
+    mega_assert(nr);
 
   /* Search for the range this error is in. */
   for (meh_p= my_errmsgs_list; meh_p; meh_p= meh_p->meh_next)

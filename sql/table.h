@@ -2884,7 +2884,7 @@ ulong get_form_pos(File file, uchar *head, TYPELIB *save_names);
 void append_unescaped(String *res, const char *pos, uint length);
 void prepare_frm_header(THD *thd, uint reclength, uchar *fileinfo,
                         HA_CREATE_INFO *create_info, uint keys, KEY *key_info);
-char *fn_rext(char *name);
+const char *fn_frm_ext(const char *name);
 
 /* Check that the integer is in the internal */
 static inline int set_zone(int nr,int min_zone,int max_zone)
@@ -2958,8 +2958,15 @@ public:
   THD *get_thd() const { return thd; }
   void store(uint field_id, ulonglong val);
   void store(uint field_id, timeval ts);
-  void store_data(ulonglong trx_id, ulonglong commit_id, timeval commit_ts);
-  bool update();
+  /**
+    Update the transaction metadata right before commit.
+    @param start_id    transaction identifier at start
+    @param end_id      transaction identifier at commit
+
+    @retval false      on success
+    @retval true       on error (the transaction must be rolled back)
+  */
+  bool update(ulonglong start_id, ulonglong end_id);
   // return true if found; false if not found or error
   bool query(ulonglong trx_id);
   bool query(MYSQL_TIME &commit_time, bool backwards);

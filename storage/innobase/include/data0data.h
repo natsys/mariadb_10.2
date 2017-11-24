@@ -591,6 +591,19 @@ struct dfield_t{
 	@param[in,out]	heap	memory heap in which the clone will be created
 	@return	the cloned object */
 	dfield_t* clone(mem_heap_t* heap) const;
+
+	/** @return whether this column is the end of the system
+	version history and points to the past, that is, this record
+	does not exist in the current time */
+	bool is_version_historical_end() const
+	{
+		if (!type.is_version_end()) {
+			return false;
+		}
+
+		ut_ad(len == sizeof trx_id_max_bytes);
+		return memcmp(data, trx_id_max_bytes, sizeof trx_id_max_bytes);
+	}
 };
 
 /** Structure for an SQL data tuple of fields (logical record) */

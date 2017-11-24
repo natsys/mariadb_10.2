@@ -219,30 +219,25 @@ static uchar *get_field_name(Field **buff, size_t *length,
   Returns pointer to '.frm' extension of the file name.
 
   SYNOPSIS
-    fn_rext()
+    fn_frm_ext()
     name       file name
 
   DESCRIPTION
     Checks file name part starting with the rightmost '.' character,
     and returns it if it is equal to '.frm'. 
 
-  TODO
-    It is a good idea to get rid of this function modifying the code
-    to garantee that the functions presently calling fn_rext() always
-    get arguments in the same format: either with '.frm' or without '.frm'.
-
   RETURN VALUES
-    Pointer to the '.frm' extension. If there is no extension,
-    or extension is not '.frm', pointer at the end of file name.
+    Pointer to the '.frm' extension or NULL if not a .frm file
 */
 
-char *fn_rext(char *name)
+const char *fn_frm_ext(const char *name)
 {
-  char *res= strrchr(name, '.');
+  const char *res= strrchr(name, '.');
   if (res && !strcmp(res, reg_ext))
     return res;
-  return name + strlen(name);
+  return 0;
 }
+
 
 TABLE_CATEGORY get_table_category(const LEX_CSTRING *db,
                                   const LEX_CSTRING *name)
@@ -6421,11 +6416,6 @@ void TABLE::mark_columns_needed_for_delete()
       need_signal= true;
     }
   }
-  if (check_constraints)
-  {
-    mark_check_constraint_columns_for_read();
-    need_signal= true;
-  }
 
   if (need_signal)
     file->column_bitmaps_signal();
@@ -8439,8 +8429,8 @@ Item* TABLE_LIST::build_pushable_cond_for_table(THD *thd, Item *cond)
       if (!(item->used_tables() == tab_map))
 	continue;
       Item_func_eq *eq= 0;
-      Item *left_item_clone= left_item->build_clone(thd, thd->mem_root);
-      Item *right_item_clone= item->build_clone(thd, thd->mem_root);
+      Item *left_item_clone= left_item->build_clone(thd);
+      Item *right_item_clone= item->build_clone(thd);
       if (left_item_clone && right_item_clone)
       {
         left_item_clone->set_item_equal(NULL);
@@ -8470,7 +8460,7 @@ Item* TABLE_LIST::build_pushable_cond_for_table(THD *thd, Item *cond)
     return new_cond;
   }
   else if (cond->get_extraction_flag() != NO_EXTRACTION_FL)
-    return cond->build_clone(thd, thd->mem_root);
+    return cond->build_clone(thd);
   return 0;
 }
 
@@ -8535,22 +8525,6 @@ void TR_table::store(uint field_id, timeval ts)
   table->field[field_id]->set_notnull();
 }
 
-void TR_table::store_data(ulonglong trx_id, ulonglong commit_id, timeval commit_ts)
-{
-  timeval start_time= {thd->start_time, thd->start_time_sec_part};
-  store(FLD_TRX_ID, trx_id);
-  store(FLD_COMMIT_ID, commit_id);
-  store(FLD_BEGIN_TS, start_time);
-  if (thd->start_time_ge(commit_ts.tv_sec, commit_ts.tv_usec))
-  {
-    thd->start_time_inc();
-    commit_ts.tv_sec= thd->start_time;
-    commit_ts.tv_usec= thd->start_time_sec_part;
-  }
-  store(FLD_COMMIT_TS, commit_ts);
-  store_iso_level(thd->tx_isolation);
-}
-
 enum_tx_isolation TR_table::iso_level() const
 {
   enum_tx_isolation res= (enum_tx_isolation) ((*this)[FLD_ISO_LEVEL]->val_int() - 1);
@@ -8558,24 +8532,23 @@ enum_tx_isolation TR_table::iso_level() const
   return res;
 }
 
-bool TR_table::update()
+bool TR_table::update(ulonglong start_id, ulonglong end_id)
 {
   if (!table && open())
     return true;
 
-  DBUG_ASSERT(table->s);
-  handlerton *hton= table->s->db_type();
-  DBUG_ASSERT(hton);
-  DBUG_ASSERT(hton->flags & HTON_NATIVE_SYS_VERSIONING);
-  DBUG_ASSERT(thd->vers_update_trt);
+  timeval start_time= {thd->start_time, long(thd->start_time_sec_part)};
+  thd->set_current_time();
+  timeval end_time= {thd->start_time, long(thd->start_time_sec_part)};
+  store(FLD_TRX_ID, start_id);
+  store(FLD_COMMIT_ID, end_id);
+  store(FLD_BEGIN_TS, start_time);
+  store(FLD_COMMIT_TS, end_time);
+  store_iso_level(thd->tx_isolation);
 
-  hton->vers_get_trt_data(*this);
   int error= table->file->ha_write_row(table->record[0]);
   if (error)
-  {
     table->file->print_error(error, MYF(0));
-  }
-  thd->vers_update_trt= false;
   return error;
 }
 
