@@ -974,8 +974,6 @@ row_ins_foreign_fill_virtual(
 		innobase_init_vc_templ(index->table);
 	}
 
-	bool is_delete = node->is_delete;
-
 	for (ulint i = 0; i < n_v_fld; i++) {
 
 		dict_v_col_t*     col = dict_table_get_nth_v_col(
@@ -1007,14 +1005,14 @@ row_ins_foreign_fill_virtual(
 
 		upd_field_set_v_field_no(upd_field, i, index);
 
-		if (is_delete
+		if (node->is_delete
 		    ? (foreign->type & DICT_FOREIGN_ON_DELETE_SET_NULL)
 		    : (foreign->type & DICT_FOREIGN_ON_UPDATE_SET_NULL)) {
 
 			dfield_set_null(&upd_field->new_val);
 		}
 
-		if (!is_delete
+		if (!node->is_delete
 		    && (foreign->type & DICT_FOREIGN_ON_UPDATE_CASCADE)) {
 
 			dfield_t* new_vfield = innobase_get_computed_value(
@@ -1107,9 +1105,8 @@ row_ins_foreign_check_on_constraint(
 
 	node = static_cast<upd_node_t*>(thr->run_node);
 
-	bool is_delete = node->is_delete;
 
-	if (is_delete && 0 == (foreign->type
+	if (node->is_delete && 0 == (foreign->type
 				     & (DICT_FOREIGN_ON_DELETE_CASCADE
 					| DICT_FOREIGN_ON_DELETE_SET_NULL))) {
 
@@ -1120,7 +1117,7 @@ row_ins_foreign_check_on_constraint(
 		DBUG_RETURN(DB_ROW_IS_REFERENCED);
 	}
 
-	if (!is_delete && 0 == (foreign->type
+	if (!node->is_delete && 0 == (foreign->type
 				      & (DICT_FOREIGN_ON_UPDATE_CASCADE
 					 | DICT_FOREIGN_ON_UPDATE_SET_NULL))) {
 
@@ -1149,7 +1146,7 @@ row_ins_foreign_check_on_constraint(
 
 	cascade->foreign = foreign;
 
-	if (is_delete
+	if (node->is_delete
 	    && (foreign->type & DICT_FOREIGN_ON_DELETE_CASCADE)) {
 		cascade->is_delete = PLAIN_DELETE;
 	} else {
@@ -1288,7 +1285,7 @@ row_ins_foreign_check_on_constraint(
 						 clust_index, tmp_heap);
 	}
 
-	if (is_delete
+	if (node->is_delete
 	    ? (foreign->type & DICT_FOREIGN_ON_DELETE_SET_NULL)
 	    : (foreign->type & DICT_FOREIGN_ON_UPDATE_SET_NULL)) {
 
@@ -1368,7 +1365,7 @@ row_ins_foreign_check_on_constraint(
 		}
 	}
 
-	if (!is_delete
+	if (!node->is_delete
 	    && (foreign->type & DICT_FOREIGN_ON_UPDATE_CASCADE)) {
 
 		/* Build the appropriate update vector which sets changing
