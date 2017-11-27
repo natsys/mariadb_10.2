@@ -511,7 +511,7 @@ struct upd_t{
 
 };
 
-/** Kinds of delete operation */
+/** Kinds of update operation */
 enum delete_mode_t {
 	NO_DELETE = 0,		/*!< this operation does not delete */
 	PLAIN_DELETE,		/*!< ordinary delete */
@@ -591,6 +591,7 @@ struct upd_node_t{
 				compilation; speeds up execution:
 				UPD_NODE_NO_ORD_CHANGE and
 				UPD_NODE_NO_SIZE_CHANGE, ORed */
+	/*----------------------*/
 	/* Local storage for this graph node */
 	ulint		state;	/*!< node execution state */
 	dict_index_t*	index;	/*!< NULL, or the next index whose record should

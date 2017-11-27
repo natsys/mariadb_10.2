@@ -1174,7 +1174,7 @@ row_ins_foreign_check_on_constraint(
 	table may still be incomplete, and we must avoid seeing the indexes
 	of the parent table in an inconsistent state! */
 
-	if (cascade->is_delete == NO_DELETE
+	if (!cascade->is_delete
 	    && row_ins_cascade_ancestor_updates_table(cascade, table)) {
 
 		/* We do not know if this would break foreign key
@@ -1710,8 +1710,7 @@ row_ins_check_foreign_constraint(
 	if (que_node_get_type(thr->run_node) == QUE_NODE_UPDATE) {
 		upd_node = static_cast<upd_node_t*>(thr->run_node);
 
-		if (upd_node->is_delete == NO_DELETE
-		    && upd_node->foreign == foreign) {
+		if (!upd_node->is_delete && upd_node->foreign == foreign) {
 			/* If a cascaded update is done as defined by a
 			foreign key constraint, do not check that
 			constraint for the child row. In ON UPDATE CASCADE

@@ -1249,9 +1249,8 @@ pars_update_statement(
 
 	node->select = sel_node;
 
-	ut_a(node->is_delete == NO_DELETE || (node->col_assign_list == NULL));
-	ut_a(node->is_delete == PLAIN_DELETE
-	     || (node->col_assign_list != NULL));
+	ut_a(!node->is_delete || (node->col_assign_list == NULL));
+	ut_a(node->is_delete == PLAIN_DELETE || node->col_assign_list != NULL);
 
 	if (node->is_delete == PLAIN_DELETE) {
 		node->cmpl_info = 0;
