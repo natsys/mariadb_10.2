@@ -1705,7 +1705,7 @@ row_ins_check_foreign_constraint(
 	if (que_node_get_type(thr->run_node) == QUE_NODE_UPDATE) {
 		upd_node = static_cast<upd_node_t*>(thr->run_node);
 
-		if (!upd_node->is_delete && upd_node->foreign == foreign) {
+		if (!(upd_node->is_delete) && upd_node->foreign == foreign) {
 			/* If a cascaded update is done as defined by a
 			foreign key constraint, do not check that
 			constraint for the child row. In ON UPDATE CASCADE
