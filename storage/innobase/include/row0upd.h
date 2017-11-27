@@ -511,12 +511,22 @@ struct upd_t{
 
 };
 
+/** Kinds of delete operation */
+enum delete_mode_t {
+	/* this operation no not deletes */
+	NO_DELETE,
+	/* ordinary delete */
+	PLAIN_DELETE,
+	/* this is update old and insert a new row */
+	VERSIONED_DELETE
+};
+
 /* Update node structure which also implements the delete operation
 of a row */
 
 struct upd_node_t{
 	que_common_t	common;	/*!< node type: QUE_NODE_UPDATE */
-	ibool		is_delete;/* TRUE if delete, FALSE if update */
+	delete_mode_t	delete_mode;	/*!< kind of DELETE */
 	ibool		searched_update;
 				/* TRUE if searched update, FALSE if
 				positioned */
@@ -584,9 +594,6 @@ struct upd_node_t{
 				compilation; speeds up execution:
 				UPD_NODE_NO_ORD_CHANGE and
 				UPD_NODE_NO_SIZE_CHANGE, ORed */
-	/** set sys_trx_end = CUR_TRX_ID */
-	bool		vers_delete;
-	/*----------------------*/
 	/* Local storage for this graph node */
 	ulint		state;	/*!< node execution state */
 	dict_index_t*	index;	/*!< NULL, or the next index whose record should
