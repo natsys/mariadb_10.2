@@ -974,8 +974,7 @@ row_ins_foreign_fill_virtual(
 		innobase_init_vc_templ(index->table);
 	}
 
-	bool is_delete = node->is_delete == PLAIN_DELETE
-			 || node->is_delete == VERSIONED_DELETE;
+	bool is_delete = node->is_delete;
 
 	for (ulint i = 0; i < n_v_fld; i++) {
 
@@ -1108,8 +1107,7 @@ row_ins_foreign_check_on_constraint(
 
 	node = static_cast<upd_node_t*>(thr->run_node);
 
-	bool is_delete = node->is_delete == PLAIN_DELETE
-			 || node->is_delete == VERSIONED_DELETE;
+	bool is_delete = node->is_delete;
 
 	if (is_delete && 0 == (foreign->type
 				     & (DICT_FOREIGN_ON_DELETE_CASCADE
