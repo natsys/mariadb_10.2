@@ -9168,7 +9168,7 @@ ha_innobase::update_row(
 	}
 
 	/* This is not a delete */
-	m_prebuilt->upd_node->delete_mode = NO_DELETE;
+	m_prebuilt->upd_node->is_delete = NO_DELETE;
 
 	{
 		const bool	vers_set_fields

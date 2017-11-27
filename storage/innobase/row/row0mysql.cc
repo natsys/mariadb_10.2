@@ -1711,7 +1711,7 @@ row_create_update_node_for_mysql(
 	node = upd_node_create(heap);
 
 	node->in_mysql_interface = TRUE;
-	node->delete_mode = NO_DELETE;
+	node->is_delete = NO_DELETE;
 	node->searched_update = FALSE;
 	node->select = NULL;
 	node->pcur = btr_pcur_create_for_mysql();
@@ -1806,7 +1806,7 @@ row_fts_update_or_delete(
 	ut_a(dict_table_has_fts_index(node->table));
 
 	/* Deletes are simple; get them out of the way first. */
-	if (node->delete_mode == PLAIN_DELETE) {
+	if (node->is_delete == PLAIN_DELETE) {
 		/* A delete affects all FTS indexes, so we pass NULL */
 		fts_trx_add_op(trx, table, old_doc_id, FTS_DELETE, NULL);
 	} else {
@@ -1893,7 +1893,6 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 	upd_cascade_t*	new_upd_nodes;
 	upd_cascade_t*	processed_cascades;
 	bool		got_s_lock	= false;
-	const delete_mode_t	vers_delete	= prebuilt->upd_node->is_delete;
 
 	DBUG_ENTER("row_update_for_mysql");
 
@@ -1936,7 +1935,7 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 	}
 
 	node = prebuilt->upd_node;
-	const bool is_delete = node->delete_mode == PLAIN_DELETE;
+	const bool is_delete = node->is_delete == PLAIN_DELETE;
 	ut_ad(node->table == table);
 
 	if (node->cascade_heap) {
@@ -2019,10 +2018,10 @@ run_again:
 		upd_field_t* ufield;
 		dict_col_t* col;
 		unsigned col_idx;
-		if (node->delete_mode != NO_DELETE) {
+		if (node->is_delete) {
 			ufield = &uvect->fields[0];
 			uvect->n_fields = 0;
-			node->delete_mode = VERSIONED_DELETE;
+			node->is_delete = VERSIONED_DELETE;
 			col_idx = table->vers_end;
 		} else {
 			ut_ad(uvect->n_fields < table->n_cols);
@@ -2144,7 +2143,7 @@ run_again:
 		cascade_upd_nodes->pop_front();
 		thr->fk_cascade_depth++;
 		vers_set_fields = node->table->versioned()
-				  && (node->delete_mode == PLAIN_DELETE
+				  && (node->is_delete == PLAIN_DELETE
 				      || node->update->affects_versioned());
 
 		goto run_again;
@@ -2168,7 +2167,7 @@ run_again:
 
 		node = *i;
 
-		if (node->delete_mode == PLAIN_DELETE) {
+		if (node->is_delete == PLAIN_DELETE) {
 			/* Not protected by dict_table_stats_lock() for
 			performance reasons, we would rather get garbage
 			in stat_n_rows (which is just an estimate anyway)

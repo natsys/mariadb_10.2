@@ -429,8 +429,7 @@ row_ins_cascade_ancestor_updates_table(
 
 		upd_node = static_cast<upd_node_t*>(parent);
 
-		if (upd_node->table == table
-		    && upd_node->delete_mode == NO_DELETE) {
+		if (upd_node->table == table && !upd_node->is_delete) {
 
 			return(TRUE);
 		}
@@ -975,8 +974,8 @@ row_ins_foreign_fill_virtual(
 		innobase_init_vc_templ(index->table);
 	}
 
-	bool is_delete = node->delete_mode == PLAIN_DELETE
-			 || node->delete_mode == VERSIONED_DELETE;
+	bool is_delete = node->is_delete == PLAIN_DELETE
+			 || node->is_delete == VERSIONED_DELETE;
 
 	for (ulint i = 0; i < n_v_fld; i++) {
 
@@ -1109,8 +1108,8 @@ row_ins_foreign_check_on_constraint(
 
 	node = static_cast<upd_node_t*>(thr->run_node);
 
-	bool is_delete = node->delete_mode == PLAIN_DELETE
-			 || node->delete_mode == VERSIONED_DELETE;
+	bool is_delete = node->is_delete == PLAIN_DELETE
+			 || node->is_delete == VERSIONED_DELETE;
 
 	if (is_delete && 0 == (foreign->type
 				     & (DICT_FOREIGN_ON_DELETE_CASCADE
@@ -1154,9 +1153,9 @@ row_ins_foreign_check_on_constraint(
 
 	if (is_delete
 	    && (foreign->type & DICT_FOREIGN_ON_DELETE_CASCADE)) {
-		cascade->delete_mode = PLAIN_DELETE;
+		cascade->is_delete = PLAIN_DELETE;
 	} else {
-		cascade->delete_mode = NO_DELETE;
+		cascade->is_delete = NO_DELETE;
 
 		if (foreign->n_fields > cascade->update_n_fields) {
 			/* We have to make the update vector longer */
@@ -1175,7 +1174,7 @@ row_ins_foreign_check_on_constraint(
 	table may still be incomplete, and we must avoid seeing the indexes
 	of the parent table in an inconsistent state! */
 
-	if (cascade->delete_mode == NO_DELETE
+	if (cascade->is_delete == NO_DELETE
 	    && row_ins_cascade_ancestor_updates_table(cascade, table)) {
 
 		/* We do not know if this would break foreign key
@@ -1353,7 +1352,7 @@ row_ins_foreign_check_on_constraint(
 				goto nonstandard_exit_func;
 			}
 		}
-	} else if (table->fts && cascade->delete_mode == PLAIN_DELETE) {
+	} else if (table->fts && cascade->is_delete == PLAIN_DELETE) {
 		/* DICT_FOREIGN_ON_DELETE_CASCADE case */
 		for (i = 0; i < foreign->n_fields; i++) {
 			if (table->fts && dict_table_is_fts_column(
@@ -1711,7 +1710,7 @@ row_ins_check_foreign_constraint(
 	if (que_node_get_type(thr->run_node) == QUE_NODE_UPDATE) {
 		upd_node = static_cast<upd_node_t*>(thr->run_node);
 
-		if (upd_node->delete_mode == NO_DELETE
+		if (upd_node->is_delete == NO_DELETE
 		    && upd_node->foreign == foreign) {
 			/* If a cascaded update is done as defined by a
 			foreign key constraint, do not check that

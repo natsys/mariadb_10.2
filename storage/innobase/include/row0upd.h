@@ -513,12 +513,9 @@ struct upd_t{
 
 /** Kinds of delete operation */
 enum delete_mode_t {
-	/* this operation no not deletes */
-	NO_DELETE,
-	/* ordinary delete */
-	PLAIN_DELETE,
-	/* this is update old and insert a new row */
-	VERSIONED_DELETE
+	NO_DELETE = 0,		/*!< this operation does not delete */
+	PLAIN_DELETE,		/*!< ordinary delete */
+	VERSIONED_DELETE	/*!< update old and insert a new row */
 };
 
 /* Update node structure which also implements the delete operation
@@ -526,7 +523,7 @@ of a row */
 
 struct upd_node_t{
 	que_common_t	common;	/*!< node type: QUE_NODE_UPDATE */
-	delete_mode_t	delete_mode;	/*!< kind of DELETE */
+	delete_mode_t	is_delete;	/*!< kind of DELETE */
 	ibool		searched_update;
 				/* TRUE if searched update, FALSE if
 				positioned */
