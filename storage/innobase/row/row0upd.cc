@@ -2342,7 +2342,7 @@ row_upd_sec_index_entry(
 			/* Log a DELETE and optionally INSERT. */
 			row_log_online_op(index, entry, 0);
 
-			if (node->is_delete == NO_DELETE) {
+			if (!node->is_delete) {
 				mem_heap_empty(heap);
 				entry = row_build_index_entry(
 					node->upd_row, node->upd_ext,

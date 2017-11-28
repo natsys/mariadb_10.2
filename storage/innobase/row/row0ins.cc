@@ -1105,7 +1105,6 @@ row_ins_foreign_check_on_constraint(
 
 	node = static_cast<upd_node_t*>(thr->run_node);
 
-
 	if (node->is_delete && 0 == (foreign->type
 				     & (DICT_FOREIGN_ON_DELETE_CASCADE
 					| DICT_FOREIGN_ON_DELETE_SET_NULL))) {
