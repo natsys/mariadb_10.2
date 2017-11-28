@@ -2005,7 +2005,7 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 
 	bool vers_set_fields = prebuilt->versioned_write
 		&& node->table->versioned()
-		&& (node->is_delete ? node->vers_delete
+		&& (node->is_delete ? node->is_delete == VERSIONED_DELETE
 		    : node->update->affects_versioned());
 run_again:
 	if (vers_set_fields) {
