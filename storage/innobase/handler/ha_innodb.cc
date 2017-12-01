@@ -9185,14 +9185,16 @@ ha_innobase::update_row(
 
 		innobase_srv_conc_enter_innodb(m_prebuilt);
 
-		error = row_update_for_mysql(m_prebuilt);
-
-		if (error == DB_SUCCESS && vers_ins_row
-		    && trx->id != static_cast<trx_id_t>(
-			    table->vers_start_field()->val_int())) {
-			error = row_insert_for_mysql((byte*) old_row,
-						     m_prebuilt,
+		if (vers_ins_row
+		    && trx->id
+			   != static_cast<trx_id_t>(
+				  table->vers_start_field()->val_int())) {
+			error = row_insert_for_mysql((byte*)old_row, m_prebuilt,
 						     ROW_INS_HISTORICAL);
+		}
+
+		if (error == DB_SUCCESS) {
+			error = row_update_for_mysql(m_prebuilt);
 		}
 	}
 
