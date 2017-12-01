@@ -1,0 +1,30 @@
+--source include/innodb_page_size.inc
+
+set versioning_alter_history=keep;
+
+CREATE TABLE t2
+(id INT primary key,
+ c1 VARCHAR(4000),
+ p GEOMETRY NOT NULL DEFAULT ST_GeomFromText('LINESTRING(0 0,0 1,1 1)'))
+ engine=innodb row_format=redundant with system versioning;
+
+BEGIN;
+INSERT INTO t2 SET id=1, c1=REPEAT('a', 4000);
+INSERT INTO t2 SET id=2, c1=REPEAT('a', 4000);
+COMMIT;
+
+--enable_info
+ALTER TABLE t2 ADD COLUMN d1 VARCHAR(2000) DEFAULT REPEAT('asdf',500);
+--disable_info
+
+# inplace update, rollback
+BEGIN;
+UPDATE t2 SET c1 = repeat(id, 4000);
+ROLLBACK;
+
+# non-inplace update. Rollback MUST NOT materialize off-page columns.
+BEGIN;
+UPDATE t2 SET d1 = repeat(id, 200);
+
+drop database test;
+create database test;
