@@ -8854,10 +8854,10 @@ bool mysql_alter_table(THD *thd, const char *new_db, const char *new_name,
 
   if (versioned)
   {
-    if (create_info->db_type &&
-      table->s->db_type() != create_info->db_type && (
-      table->file->native_versioned() ||
-      create_info->db_type->flags & HTON_NATIVE_SYS_VERSIONING))
+    if (create_info->db_type && table->s->db_type() != create_info->db_type &&
+        (table->file->native_versioned() ||
+         ha_check_storage_engine_flag(create_info->db_type,
+                                      HTON_NATIVE_SYS_VERSIONING)))
     {
       my_error(ER_VERS_ALTER_ENGINE_PROHIBITED, MYF(0), table_list->db, table_list->table_name);
       DBUG_RETURN(true);
