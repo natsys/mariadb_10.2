@@ -306,6 +306,6 @@ Sys_start timestamp(6) generated always as row start,
 Sys_end timestamp(6) generated always as row end,
 period for system_time (Sys_start, Sys_end)
 ) with system versioning;
-ERROR HY000: Duplicate ROW START column 'Sys_start'
+ERROR HY000: Duplicate ROW START column `Sys_start`
 drop database test;
 create database test;
