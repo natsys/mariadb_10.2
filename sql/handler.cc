@@ -6883,10 +6883,10 @@ bool Vers_parse_info::check_and_fix_implicit(
     {
       partition_element *element=
           static_cast<partition_element *>(info->partitions.elem(0));
-      if (handlerton *hton= element->engine_type)
+      handlerton *hton= element->engine_type;
+      if (hton && ha_check_storage_engine_flag(hton, HTON_NATIVE_SYS_VERSIONING))
       {
-        if (ha_check_storage_engine_flag(hton, HTON_NATIVE_SYS_VERSIONING))
-          integer_fields= true;
+        integer_fields= true;
       }
     }
   }
