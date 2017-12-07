@@ -2257,17 +2257,20 @@ end_of_index:
 
 			dfield = dtuple_get_nth_field(row, add_autoinc);
 
-			if (unlikely(historical_row)) {
-				if (dfield_get_type(dfield)->prtype & DATA_NOT_NULL) {
-					err = DB_UNSUPPORTED;
-					my_error(ER_UNSUPPORTED_EXTENSION, MYF(0), old_table->name);
-					goto func_exit;
+			if (new_table->versioned()) {
+				if (historical_row) {
+					if (dfield_get_type(dfield)->prtype & DATA_NOT_NULL) {
+						err = DB_UNSUPPORTED;
+						my_error(ER_UNSUPPORTED_EXTENSION, MYF(0),
+							 old_table->name);
+						goto func_exit;
+					}
+					dfield_set_null(dfield);
+				} else {
+					// set not null
+					ulint len = dfield_get_type(dfield)->len;
+					dfield_set_data(dfield, any_autoinc_data, len);
 				}
-				dfield_set_null(dfield);
-			} else {
-				// set not null
-				ulint len = dfield_get_type(dfield)->len;
-				dfield_set_data(dfield, any_autoinc_data, len);
 			}
 
 			if (dfield_is_null(dfield)) {
