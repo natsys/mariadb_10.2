@@ -217,7 +217,7 @@ alter table t add b int auto_increment unique;
 alter table t add b int auto_increment null unique;
 call verify_vtq;
 select * from t for system_time all;
-insert into t values (4, NULL);
+insert into t values (4, 0);
 select * from t for system_time all;
 call verify_vtq;
 

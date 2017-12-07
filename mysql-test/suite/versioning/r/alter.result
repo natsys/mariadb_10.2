@@ -416,13 +416,13 @@ select * from t for system_time all;
 a	b
 1	NULL
 2	NULL
-3	NULL
+3	1
 insert into t values (4, NULL);
 select * from t for system_time all;
 a	b
 1	NULL
 2	NULL
-3	NULL
+3	1
 4	NULL
 call verify_vtq;
 No	A	B	C	D
