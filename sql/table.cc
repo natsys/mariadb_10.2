@@ -7691,11 +7691,15 @@ void TABLE::vers_update_fields()
 {
   DBUG_ENTER("vers_update_fields");
 
+  bitmap_set_bit(write_set, vers_start_field()->field_index);
   if (versioned_by_sql())
   {
-    bitmap_set_bit(write_set, vers_start_field()->field_index);
     if (vers_start_field()->set_time())
       DBUG_ASSERT(0);
+  }
+  else
+  {
+    vers_start_field()->set_notnull();
   }
 
   bitmap_set_bit(write_set, vers_end_field()->field_index);
