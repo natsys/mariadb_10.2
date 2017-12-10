@@ -4203,7 +4203,7 @@ TABLE *select_create::create_table_from_items(THD *thd,
     alter_info->create_list.push_back(cr_field, thd->mem_root);
   }
 
-  if (create_info->vers_fix_system_fields(thd, alter_info, *create_table, select_tables))
+  if (create_info->vers_fix_system_fields(thd, alter_info, *create_table, select_tables, items))
   {
     DBUG_RETURN(NULL);
   }

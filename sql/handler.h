@@ -1692,9 +1692,6 @@ class Create_field;
 
 struct Vers_parse_info
 {
-  static const LString default_start;
-  static const LString default_end;
-
   Vers_parse_info() :
     with_system_versioning(false),
     without_system_versioning(false),
@@ -1738,7 +1735,7 @@ protected:
   bool is_end(const char *name) const;
   bool is_start(const Create_field &f) const;
   bool is_end(const Create_field &f) const;
-  bool fix_implicit(THD *thd, Alter_info *alter_info, bool integer_fields);
+  bool fix_implicit(THD *thd, Alter_info *alter_info, bool integer_fields, int *added= NULL);
   bool any_sys_field_declared() const
   {
     return as_row.start || as_row.end || system_time.start || system_time.end;
@@ -1757,6 +1754,9 @@ protected:
                             bool integer_fields) const;
 
 public:
+  static const LString default_start;
+  static const LString default_end;
+
   bool fix_alter_info(THD *thd, Alter_info *alter_info,
                        HA_CREATE_INFO *create_info, TABLE *table);
   bool fix_create_like(Alter_info &alter_info, HA_CREATE_INFO &create_info,
@@ -1852,7 +1852,8 @@ struct Table_scope_and_contents_source_st
 
   bool vers_fix_system_fields(THD *thd, Alter_info *alter_info,
                          const TABLE_LIST &create_table,
-                         const TABLE_LIST *select_table= NULL);
+                         const TABLE_LIST *select_table= NULL,
+                         List<Item> *items= NULL);
 
   bool vers_native(THD *thd) const;
 

@@ -6747,7 +6747,7 @@ const LString Vers_parse_info::default_start= "sys_trx_start";
 const LString Vers_parse_info::default_end= "sys_trx_end";
 
 bool Vers_parse_info::fix_implicit(THD *thd, Alter_info *alter_info,
-                                   bool integer_fields)
+                                   bool integer_fields, int *added)
 {
   // If user specified some of these he must specify the others too. Do nothing.
   if (any_sys_field_declared())
@@ -6758,12 +6758,14 @@ bool Vers_parse_info::fix_implicit(THD *thd, Alter_info *alter_info,
   system_time= start_end_t(default_start, default_end);
   as_row= system_time;
 
-  return vers_create_sys_field(thd, default_start, alter_info,
-                              VERS_SYS_START_FLAG,
-                              integer_fields) ||
-         vers_create_sys_field(thd, default_end, alter_info,
-                              VERS_SYS_END_FLAG,
-                              integer_fields);
+  if (vers_create_sys_field(thd, default_start, alter_info, VERS_SYS_START_FLAG, integer_fields) ||
+      vers_create_sys_field(thd, default_end, alter_info, VERS_SYS_END_FLAG, integer_fields))
+  {
+    return true;
+  }
+  if (added)
+    *added+= 2;
+  return false;
 }
 
 bool Table_scope_and_contents_source_st::vers_native(THD *thd) const
@@ -6793,7 +6795,8 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
   THD *thd,
   Alter_info *alter_info,
   const TABLE_LIST &create_table,
-  const TABLE_LIST *select_tables)
+  const TABLE_LIST *select_tables,
+  List<Item> *items)
 {
   DBUG_ASSERT(!vers_info.without_system_versioning);
   int vers_tables= 0;
@@ -6849,37 +6852,35 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
     return true;
   }
 
-  TABLE *orig_table= NULL;
   List_iterator<Create_field> it(alter_info->create_list);
+  int added= 0;
   while (Create_field *f= it++)
   {
-    if (vers_info.is_start(*f))
+    if (vers_info.is_start(*f) && !vers_info.as_row.start)
     {
-      if (!vers_info.as_row.start) // not inited in CREATE ... SELECT
+      DBUG_ASSERT(vers_tables > 0);
+      if (vers_info.default_start == f->field_name)
       {
-        DBUG_ASSERT(vers_tables > 0);
-        if (orig_table && orig_table != f->field->orig_table)
-        {
-          err_different_tables:
-          my_error(ER_VERS_DIFFERENT_TABLES, MYF(0), create_table.table_name);
-          return true;
-        }
-        orig_table= f->field->orig_table;
-        vers_info.set_start(f->field_name);
+        --added;
+        it.remove();
+      }
+      else
+      {
+        f->flags-= VERS_SYS_START_FLAG;
       }
       continue;
     }
-    if (vers_info.is_end(*f))
+    if (vers_info.is_end(*f) && !vers_info.as_row.end)
     {
-      if (!vers_info.as_row.end)
+      DBUG_ASSERT(vers_tables > 0);
+      if (vers_info.default_end == f->field_name)
       {
-        DBUG_ASSERT(vers_tables > 0);
-        if (orig_table && orig_table != f->field->orig_table)
-        {
-          goto err_different_tables;
-        }
-        orig_table= f->field->orig_table;
-        vers_info.set_end(f->field_name);
+        --added;
+        it.remove();
+      }
+      else
+      {
+        f->flags-= VERS_SYS_END_FLAG;
       }
       continue;
     }
@@ -6893,11 +6894,19 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
   }
 
   bool integer_fields= vers_native(thd);
-  if (vers_info.fix_implicit(thd, alter_info, integer_fields))
+  if (vers_info.fix_implicit(thd, alter_info, integer_fields, &added))
     return true;
 
-  int plain_cols= 0; // column doesn't have WITH or WITHOUT SYSTEM VERSIONING
-  int vers_cols= 0; // column has WITH SYSTEM VERSIONING
+  DBUG_ASSERT(added >= 0);
+  while (added--)
+  {
+    items->push_back(
+      new (thd->mem_root) Item_default_value(thd, thd->lex->current_context()),
+      thd->mem_root);
+  }
+
+  int plain_cols= 0; // columns don't have WITH or WITHOUT SYSTEM VERSIONING
+  int vers_cols= 0; // columns have WITH SYSTEM VERSIONING
   it.rewind();
   while (const Create_field *f= it++)
   {

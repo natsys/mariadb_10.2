@@ -238,6 +238,7 @@ show create table t2;
 # implicit system fields are hidden
 select * from t2;
 
+select * from t0;
 create or replace table t3 with system versioning as select * from t0;
 --replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
 show create table t3;
@@ -253,11 +254,27 @@ create or replace table t3 with system versioning select * from t1 for system_ti
 --replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
 show create table t3;
 
-create or replace table t2 with system versioning as select * from t0;
---error ER_VERS_DIFFERENT_TABLES
-create or replace table t3 with system versioning select x, y, t1.sys_trx_start, t2.en from t1, t2;
+--echo ### versioned implicit from versioned explicit
+create or replace table t2 with system versioning
+as select * from t0;
+--replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
+show create table t2;
 
-insert into t2 values (1), (2);
+--echo ### proper way to create from versioned explicit
+eval create or replace table t2(
+  st $sys_datatype generated always as row start,
+  en $sys_datatype generated always as row end,
+  period for system_time (st, en)
+) with system versioning
+as select * from t0;
+--replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
+show create table t2;
+
+--exit
+create or replace table t3 with system versioning select x, y, t1.sys_trx_start, t2.en from t1, t2;
+show create table t3;
+
+insert into t2 (x) values (1), (2);
 delete from t2 where y = 2;
 
 create or replace table t3 select * from t2 for system_time all;
@@ -336,12 +353,6 @@ eval create or replace table t3 (
 ) with system versioning
 as select x, y, sys_trx_start, sys_trx_end, st, en from t1, t2;
 --replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE $sys_datatype_null SYS_DATATYPE $sys_datatype_not_null SYS_DATATYPE $sys_datatype_default_null SYS_DATATYPE
-show create table t3;
-
---echo ### versioned implicit from versioned explicit
-create or replace table t3 with system versioning
-as select * from t2;
---replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
 show create table t3;
 
 drop database test;
