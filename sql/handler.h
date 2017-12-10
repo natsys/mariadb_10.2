@@ -1692,6 +1692,9 @@ class Create_field;
 
 struct Vers_parse_info
 {
+  static const LString default_start;
+  static const LString default_end;
+
   Vers_parse_info() :
     with_system_versioning(false),
     without_system_versioning(false),

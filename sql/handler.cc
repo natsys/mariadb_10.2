@@ -6743,6 +6743,9 @@ static bool vers_change_sys_field(THD *thd, const char *field_name,
   return false;
 }
 
+const LString Vers_parse_info::default_start= "sys_trx_start";
+const LString Vers_parse_info::default_end= "sys_trx_end";
+
 bool Vers_parse_info::fix_implicit(THD *thd, Alter_info *alter_info,
                                    bool integer_fields)
 {
@@ -6752,16 +6755,13 @@ bool Vers_parse_info::fix_implicit(THD *thd, Alter_info *alter_info,
 
   alter_info->flags|= Alter_info::ALTER_ADD_COLUMN;
 
-  static const LString sys_trx_start= "sys_trx_start";
-  static const LString sys_trx_end= "sys_trx_end";
-
-  system_time= start_end_t(sys_trx_start, sys_trx_end);
+  system_time= start_end_t(default_start, default_end);
   as_row= system_time;
 
-  return vers_create_sys_field(thd, sys_trx_start, alter_info,
+  return vers_create_sys_field(thd, default_start, alter_info,
                               VERS_SYS_START_FLAG,
                               integer_fields) ||
-         vers_create_sys_field(thd, sys_trx_end, alter_info,
+         vers_create_sys_field(thd, default_end, alter_info,
                               VERS_SYS_END_FLAG,
                               integer_fields);
 }
