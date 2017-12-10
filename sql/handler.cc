@@ -6747,7 +6747,7 @@ bool Vers_parse_info::fix_implicit(THD *thd, Alter_info *alter_info,
                                    bool integer_fields)
 {
   // If user specified some of these he must specify the others too. Do nothing.
-  if (as_row.start || as_row.end || system_time.start || system_time.end)
+  if (any_sys_field_declared())
     return false;
 
   alter_info->flags|= Alter_info::ALTER_ADD_COLUMN;
@@ -6764,6 +6764,29 @@ bool Vers_parse_info::fix_implicit(THD *thd, Alter_info *alter_info,
          vers_create_sys_field(thd, sys_trx_end, alter_info,
                               VERS_SYS_END_FLAG,
                               integer_fields);
+}
+
+bool Table_scope_and_contents_source_st::vers_native(THD *thd) const
+{
+  bool integer_fields= ha_check_storage_engine_flag(db_type,
+                                                    HTON_NATIVE_SYS_VERSIONING);
+
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+  if (partition_info *info= thd->work_part_info)
+  {
+    if (!(used_fields & HA_CREATE_USED_ENGINE) && info->partitions.elements)
+    {
+      partition_element *element=
+          static_cast<partition_element *>(info->partitions.elem(0));
+      handlerton *hton= element->engine_type;
+      if (hton && ha_check_storage_engine_flag(hton, HTON_NATIVE_SYS_VERSIONING))
+      {
+        integer_fields= true;
+      }
+    }
+  }
+#endif
+  return integer_fields;
 }
 
 bool Table_scope_and_contents_source_st::vers_fix_system_fields(
@@ -6869,25 +6892,7 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
     }
   }
 
-  bool integer_fields= ha_check_storage_engine_flag(db_type,
-                                                    HTON_NATIVE_SYS_VERSIONING);
-
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-  if (partition_info *info= thd->work_part_info)
-  {
-    if (!(used_fields & HA_CREATE_USED_ENGINE) && info->partitions.elements)
-    {
-      partition_element *element=
-          static_cast<partition_element *>(info->partitions.elem(0));
-      handlerton *hton= element->engine_type;
-      if (hton && ha_check_storage_engine_flag(hton, HTON_NATIVE_SYS_VERSIONING))
-      {
-        integer_fields= true;
-      }
-    }
-  }
-#endif
-
+  bool integer_fields= vers_native(thd);
   if (vers_info.fix_implicit(thd, alter_info, integer_fields))
     return true;
 
@@ -6958,8 +6963,7 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
                                           TABLE *table)
 {
   TABLE_SHARE *share= table->s;
-  bool integer_fields= ha_check_storage_engine_flag(create_info->db_type,
-                                                    HTON_NATIVE_SYS_VERSIONING);
+  bool integer_fields= create_info->vers_native(thd);
   const char *table_name= share->table_name.str;
 
   if (!need_check() && !share->versioned)

@@ -1851,6 +1851,8 @@ struct Table_scope_and_contents_source_st
                          const TABLE_LIST &create_table,
                          const TABLE_LIST *select_table= NULL);
 
+  bool vers_native(THD *thd) const;
+
   void init()
   {
     bzero(this, sizeof(*this));

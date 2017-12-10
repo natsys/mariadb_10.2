@@ -338,5 +338,11 @@ as select x, y, sys_trx_start, sys_trx_end, st, en from t1, t2;
 --replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE $sys_datatype_null SYS_DATATYPE $sys_datatype_not_null SYS_DATATYPE $sys_datatype_default_null SYS_DATATYPE
 show create table t3;
 
+--echo ### versioned implicit from versioned explicit
+create or replace table t3 with system versioning
+as select * from t2;
+--replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
+show create table t3;
+
 drop database test;
 create database test;
