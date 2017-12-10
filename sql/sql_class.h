@@ -5122,6 +5122,12 @@ public:
   const THD *get_thd(void) { return thd; }
   const HA_CREATE_INFO *get_create_info() { return create_info; };
   int prepare2(void) { return 0; }
+
+private:
+  TABLE *create_table_from_items(THD *thd,
+                                  List<Item> *items,
+                                  MYSQL_LOCK **lock,
+                                  TABLEOP_HOOKS *hooks);
 };
 
 #include <myisam.h>

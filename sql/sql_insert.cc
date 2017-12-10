@@ -4142,10 +4142,7 @@ Field *Item::create_field_for_create_select(TABLE *table)
   @retval 0         Error
 */
 
-static TABLE *create_table_from_items(THD *thd,
-                                      Table_specification_st *create_info,
-                                      TABLE_LIST *create_table,
-                                      Alter_info *alter_info,
+TABLE *select_create::create_table_from_items(THD *thd,
                                       List<Item> *items,
                                       MYSQL_LOCK **lock,
                                       TABLEOP_HOOKS *hooks)
@@ -4206,8 +4203,7 @@ static TABLE *create_table_from_items(THD *thd,
     alter_info->create_list.push_back(cr_field, thd->mem_root);
   }
 
-  if (create_info->vers_info.check_and_fix_implicit(
-        thd, alter_info, create_info, create_table->table_name))
+  if (create_info->vers_fix_system_fields(thd, alter_info, *create_table, select_tables))
   {
     DBUG_RETURN(NULL);
   }
@@ -4418,10 +4414,7 @@ select_create::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
 
   DEBUG_SYNC(thd,"create_table_select_before_check_if_exists");
 
-  if (!(table= create_table_from_items(thd, create_info,
-                                       create_table,
-                                       alter_info, &values,
-                                       &extra_lock, hook_ptr)))
+  if (!(table= create_table_from_items(thd, &values, &extra_lock, hook_ptr)))
     /* abort() deletes table */
     DBUG_RETURN(-1);
 
