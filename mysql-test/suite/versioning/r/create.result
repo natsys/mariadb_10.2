@@ -292,5 +292,25 @@ t3	CREATE TABLE `t3` (
 select y from t3 where st = @st;
 y
 2
+delete from t1;
+select sys_trx_end from t1 for system_time all into @sys_trx_end;
+delete from t0;
+select en from t0 for system_time all into @en;
+## Combinations of versioned + non-versioned
+create or replace table t2 (y int);
+insert into t2 values (3);
+create or replace table t3 with system versioning select * from t1 for system_time all, t2;
+show create table t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `x` int(11) DEFAULT NULL,
+  `sys_trx_start` SYS_DATATYPE GENERATED ALWAYS AS ROW START,
+  `sys_trx_end` SYS_DATATYPE GENERATED ALWAYS AS ROW END,
+  `y` int(11) DEFAULT NULL,
+  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+select * from t3 for system_time all where sys_trx_start = @sys_trx_start and sys_trx_end = @sys_trx_end;
+x	y
+1	3
 drop database test;
 create database test;

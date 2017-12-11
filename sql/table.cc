@@ -7702,6 +7702,8 @@ void TABLE::vers_update_fields()
   else
   {
     vers_start_field()->set_notnull();
+    if (!vers_write)
+      return;
   }
 
   vers_end_field()->set_max();

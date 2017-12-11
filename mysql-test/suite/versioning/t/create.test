@@ -259,20 +259,26 @@ eval create or replace table t3 (
 show create table t3;
 select y from t3 where st = @st;
 
-drop database test;
-create database test;
---exit
-
+delete from t1;
+select sys_trx_end from t1 for system_time all into @sys_trx_end;
 delete from t0;
+select en from t0 for system_time all into @en;
 
 --echo ## Combinations of versioned + non-versioned
-create or replace table t1 (x int) with system versioning;
 create or replace table t2 (y int);
+insert into t2 values (3);
 create or replace table t3 with system versioning select * from t1 for system_time all, t2;
 --replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
 show create table t3;
+select * from t3 for system_time all where sys_trx_start = @sys_trx_start and sys_trx_end = @sys_trx_end;
 
+drop database test;
+create database test;
 --exit
+set versioning_hide= never;
+select *, @sys_trx_start, @sys_trx_end from t1 for system_time all;
+select * from t3 for system_time all;
+
 create or replace table t3 with system versioning select x, y, t1.sys_trx_start, t2.en from t1, t2;
 show create table t3;
 
