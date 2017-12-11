@@ -1853,7 +1853,8 @@ struct Table_scope_and_contents_source_st
   bool vers_fix_system_fields(THD *thd, Alter_info *alter_info,
                          const TABLE_LIST &create_table,
                          const TABLE_LIST *select_table= NULL,
-                         List<Item> *items= NULL);
+                         List<Item> *items= NULL,
+                         bool *versioned_write= NULL);
 
   bool vers_native(THD *thd) const;
 

@@ -205,7 +205,7 @@ create temporary table tt1 like t1;
 --replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
 show create table tt1;
 
-# CREATE TABLE ... SELECT
+--echo # CREATE TABLE ... SELECT
 create or replace table t1 (x int) with system versioning;
 --replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
 eval create or replace table t0(
@@ -215,50 +215,42 @@ eval create or replace table t0(
   period for system_time (st, en)
 ) with system versioning;
 
-## For non-versioned table:
-### 1. system fields are not inherited (hidden and not hidden)
+--echo ## For non-versioned table:
+--echo ### 1. implicit system fields are not included
 create or replace table t2 as select * from t1;
 --replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
 show create table t2;
 
+--echo ### 2. explicit system fields are included
 create or replace table t3 as select * from t0;
---replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
+select * from t0;
+--replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE $sys_datatype_null SYS_DATATYPE $sys_datatype_not_null SYS_DATATYPE $sys_datatype_default_null SYS_DATATYPE
 show create table t3;
 
-### 2. hidden fields are inherited as hidden
-### TODO: non-system hidden fields
-
-## For versioned table system fields are inherited as is.
+--echo ## For versioned table
 insert into t1 values (1);
+select sys_trx_start from t1 into @sys_trx_start;
 insert into t0 values (2);
+select st from t0 into @st;
 
+--echo ### 1. implicit system fields are included as implicit
 create or replace table t2 with system versioning as select * from t1;
 --replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
 show create table t2;
-# implicit system fields are hidden
-select * from t2;
+--echo #### sys_trx_start, sys_trx_end are copied; wildcard not expanded
+select * from t2 where sys_trx_start = @sys_trx_start;
 
-select * from t0;
+--echo ### 2. explicit system fields are included as non-system
 create or replace table t3 with system versioning as select * from t0;
---replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
+--replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE $sys_datatype_null SYS_DATATYPE $sys_datatype_not_null SYS_DATATYPE $sys_datatype_default_null SYS_DATATYPE
 show create table t3;
-# explicit system fields are not hidden
+--echo #### st, en are plain fields now
 select * from t3 where y > 2;
+select y from t3 where st = @st and sys_trx_start > @st;
 
-delete from t0;
-
-## Combinations of versioned + non-versioned
-create or replace table t1 (x int) with system versioning;
-create or replace table t2 (y int);
-create or replace table t3 with system versioning select * from t1 for system_time all, t2;
---replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
-show create table t3;
-
---echo ### versioned implicit from versioned explicit
-create or replace table t2 with system versioning
-as select * from t0;
---replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
-show create table t2;
+drop database test;
+create database test;
+--exit
 
 --echo ### proper way to create from versioned explicit
 eval create or replace table t2(
@@ -269,6 +261,16 @@ eval create or replace table t2(
 as select * from t0;
 --replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
 show create table t2;
+
+
+delete from t0;
+
+--echo ## Combinations of versioned + non-versioned
+create or replace table t1 (x int) with system versioning;
+create or replace table t2 (y int);
+create or replace table t3 with system versioning select * from t1 for system_time all, t2;
+--replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
+show create table t3;
 
 --exit
 create or replace table t3 with system versioning select x, y, t1.sys_trx_start, t2.en from t1, t2;

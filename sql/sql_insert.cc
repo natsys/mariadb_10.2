@@ -3609,7 +3609,8 @@ select_insert::select_insert(THD *thd_arg, TABLE_LIST *table_list_par,
   select_result_interceptor(thd_arg),
   table_list(table_list_par), table(table_par), fields(fields_par),
   autoinc_value_of_last_inserted_row(0),
-  insert_into_view(table_list_par && table_list_par->view != 0)
+  insert_into_view(table_list_par && table_list_par->view != 0),
+  versioned_write(false)
 {
   bzero((char*) &info,sizeof(info));
   info.handle_duplicates= duplic;
@@ -3643,6 +3644,8 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
                      values, MARK_COLUMNS_READ, 0, NULL, 0) ||
         check_insert_fields(thd, table_list, *fields, values,
                             !insert_into_view, 1, &map));
+
+  versioned_write= table_list->table->versioned();
 
   if (!res && fields->elements)
   {
@@ -3847,8 +3850,6 @@ int select_insert::send_data(List<Item> &values)
     DBUG_RETURN(0);
 
   thd->count_cuted_fields= CHECK_FIELD_WARN;	// Calculate cuted fields
-  if (table->versioned())
-    table->vers_update_fields();
   store_values(values);
   if (table->default_field && table->update_default_fields(0, info.ignore))
     DBUG_RETURN(1);
@@ -3858,6 +3859,9 @@ int select_insert::send_data(List<Item> &values)
     table->auto_increment_field_not_null= FALSE;
     DBUG_RETURN(1);
   }
+  table->vers_write= versioned_write;
+  if (table->versioned())
+    table->vers_update_fields();
   if (table_list)                               // Not CREATE ... SELECT
   {
     switch (table_list->view_check_option(thd, info.ignore)) {
@@ -3869,6 +3873,7 @@ int select_insert::send_data(List<Item> &values)
   }
 
   error= write_record(thd, table, &info);
+  table->vers_write= table->versioned();
   table->auto_increment_field_not_null= FALSE;
   
   if (!error)
@@ -4203,7 +4208,8 @@ TABLE *select_create::create_table_from_items(THD *thd,
     alter_info->create_list.push_back(cr_field, thd->mem_root);
   }
 
-  if (create_info->vers_fix_system_fields(thd, alter_info, *create_table, select_tables, items))
+  if (create_info->vers_fix_system_fields(thd, alter_info, *create_table,
+    select_tables, items, &versioned_write))
   {
     DBUG_RETURN(NULL);
   }

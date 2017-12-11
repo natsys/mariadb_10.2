@@ -6796,7 +6796,8 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
   Alter_info *alter_info,
   const TABLE_LIST &create_table,
   const TABLE_LIST *select_tables,
-  List<Item> *items)
+  List<Item> *items,
+  bool *versioned_write)
 {
   DBUG_ASSERT(!vers_info.without_system_versioning);
   int vers_tables= 0;
@@ -6808,6 +6809,9 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
       if (table->table && table->table->versioned())
         vers_tables++;
     }
+    DBUG_ASSERT(versioned_write);
+    if (vers_tables)
+      *versioned_write= true;
   }
 
   // CREATE ... SELECT: if at least one table in SELECT is versioned,
@@ -6819,7 +6823,7 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
   }
 
   // Possibly override default storage engine to match one used in source table.
-  if (select_tables && vers_info.with_system_versioning &&
+  if (vers_tables && vers_info.with_system_versioning &&
     !(used_fields & HA_CREATE_USED_ENGINE))
   {
     List_iterator_fast<Create_field> it(alter_info->create_list);
@@ -6856,34 +6860,46 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
   int added= 0;
   while (Create_field *f= it++)
   {
-    if (vers_info.is_start(*f) && !vers_info.as_row.start)
+    if (vers_tables)
     {
-      DBUG_ASSERT(vers_tables > 0);
-      if (vers_info.default_start == f->field_name)
+      DBUG_ASSERT(versioned_write);
+      if (vers_info.is_start(*f))
       {
-        --added;
-        it.remove();
+        if (vers_info.default_start == f->field_name)
+        {
+          if (vers_info.as_row.start)
+            it.remove();
+          else
+          {
+            vers_info.set_start(f->field_name);
+            *versioned_write= false;
+          }
+        }
+        else
+        {
+          f->flags-= VERS_SYS_START_FLAG;
+        }
+        continue;
       }
-      else
+      if (vers_info.is_end(*f))
       {
-        f->flags-= VERS_SYS_START_FLAG;
+        if (vers_info.default_end == f->field_name)
+        {
+          if (vers_info.as_row.end)
+            it.remove();
+          else
+          {
+            vers_info.set_end(f->field_name);
+            *versioned_write= false;
+          }
+        }
+        else
+        {
+          f->flags-= VERS_SYS_END_FLAG;
+        }
+        continue;
       }
-      continue;
-    }
-    if (vers_info.is_end(*f) && !vers_info.as_row.end)
-    {
-      DBUG_ASSERT(vers_tables > 0);
-      if (vers_info.default_end == f->field_name)
-      {
-        --added;
-        it.remove();
-      }
-      else
-      {
-        f->flags-= VERS_SYS_END_FLAG;
-      }
-      continue;
-    }
+    } // if (select_tables)
 
     if ((f->versioning == Column_definition::VERSIONING_NOT_SET &&
          !vers_info.with_system_versioning) ||
@@ -6898,7 +6914,7 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
     return true;
 
   DBUG_ASSERT(added >= 0);
-  if (select_tables)
+  if (vers_tables)
   {
     DBUG_ASSERT(items);
     while (added--)

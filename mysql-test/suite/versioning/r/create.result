@@ -212,6 +212,7 @@ Table	Create Table
 tt1	CREATE TEMPORARY TABLE `tt1` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1
+# CREATE TABLE ... SELECT
 create or replace table t1 (x int) with system versioning;
 create or replace table t0(
 y int,
@@ -219,20 +220,31 @@ st SYS_DATATYPE generated always as row start,
 en SYS_DATATYPE generated always as row end,
 period for system_time (st, en)
 ) with system versioning;
+## For non-versioned table:
+### 1. implicit system fields are not included
 create or replace table t2 as select * from t1;
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `x` int(11) DEFAULT NULL
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1
+### 2. explicit system fields are included
 create or replace table t3 as select * from t0;
+select * from t0;
+y	st	en
 show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
-  `y` int(11) DEFAULT NULL
+  `y` int(11) DEFAULT NULL,
+  `st` SYS_DATATYPE,
+  `en` SYS_DATATYPE
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1
+## For versioned table
 insert into t1 values (1);
+select sys_trx_start from t1 into @sys_trx_start;
 insert into t0 values (2);
+select st from t0 into @st;
+### 1. implicit system fields are included as implicit
 create or replace table t2 with system versioning as select * from t1;
 show create table t2;
 Table	Create Table
@@ -242,60 +254,27 @@ t2	CREATE TABLE `t2` (
   `sys_trx_end` SYS_DATATYPE GENERATED ALWAYS AS ROW END,
   PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
-select * from t2;
+#### sys_trx_start, sys_trx_end are copied; wildcard not expanded
+select * from t2 where sys_trx_start = @sys_trx_start;
 x
 1
+### 2. explicit system fields are included as non-system
 create or replace table t3 with system versioning as select * from t0;
 show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
   `y` int(11) DEFAULT NULL,
-  `st` SYS_DATATYPE DEFAULT NULL,
-  `en` SYS_DATATYPE DEFAULT NULL,
+  `st` SYS_DATATYPE,
+  `en` SYS_DATATYPE,
   `sys_trx_start` SYS_DATATYPE GENERATED ALWAYS AS ROW START,
   `sys_trx_end` SYS_DATATYPE GENERATED ALWAYS AS ROW END,
   PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+#### st, en are plain fields now
 select * from t3 where y > 2;
 y	st	en
-delete from t0;
-create or replace table t1 (x int) with system versioning;
-create or replace table t2 (y int);
-create or replace table t3 with system versioning select * from t1 for system_time all, t2;
-show create table t3;
-Table	Create Table
-t3	CREATE TABLE `t3` (
-  `x` int(11) DEFAULT NULL,
-  `y` int(11) DEFAULT NULL,
-  `sys_trx_start` SYS_DATATYPE GENERATED ALWAYS AS ROW START,
-  `sys_trx_end` SYS_DATATYPE GENERATED ALWAYS AS ROW END,
-  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
-### versioned implicit from versioned explicit
-create or replace table t2 with system versioning
-as select * from t0;
-show create table t2;
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `y` int(11) DEFAULT NULL,
-  `st` SYS_DATATYPE DEFAULT NULL,
-  `en` SYS_DATATYPE DEFAULT NULL,
-  `sys_trx_start` SYS_DATATYPE GENERATED ALWAYS AS ROW START,
-  `sys_trx_end` SYS_DATATYPE GENERATED ALWAYS AS ROW END,
-  PERIOD FOR SYSTEM_TIME (`sys_trx_start`, `sys_trx_end`)
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
-### proper way to create from versioned explicit
-create or replace table t2(
-st bigint(20) unsigned generated always as row start,
-en bigint(20) unsigned generated always as row end,
-period for system_time (st, en)
-) with system versioning
-as select * from t0;
-show create table t2;
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `y` int(11) DEFAULT NULL,
-  `st` SYS_DATATYPE GENERATED ALWAYS AS ROW START,
-  `en` SYS_DATATYPE GENERATED ALWAYS AS ROW END,
-  PERIOD FOR SYSTEM_TIME (`st`, `en`)
-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+select y from t3 where st = @st and sys_trx_start > @st;
+y
+2
+drop database test;
+create database test;
