@@ -6809,9 +6809,6 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
       if (table->table && table->table->versioned())
         vers_tables++;
     }
-    DBUG_ASSERT(versioned_write);
-    if (vers_tables)
-      *versioned_write= true;
   }
 
   // CREATE ... SELECT: if at least one table in SELECT is versioned,
@@ -6856,6 +6853,13 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
   {
     my_error(ER_MISSING, MYF(0), create_table.table_name, "WITH SYSTEM VERSIONING");
     return true;
+  }
+
+  if (vers_tables)
+  {
+    DBUG_ASSERT(options & HA_VERSIONED_TABLE);
+    DBUG_ASSERT(versioned_write);
+    *versioned_write= true;
   }
 
   List_iterator<Create_field> it(alter_info->create_list);
