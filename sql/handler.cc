@@ -6863,7 +6863,7 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
   }
 
   List_iterator<Create_field> it(alter_info->create_list);
-  int added= 0;
+  bool explicit_declared= vers_info.as_row.start || vers_info.as_row.end;
   while (Create_field *f= it++)
   {
     if ((f->versioning == Column_definition::VERSIONING_NOT_SET &&
@@ -6873,7 +6873,8 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
       f->flags|= VERS_UPDATE_UNVERSIONED_FLAG;
     }
 
-    if (!vers_tables)
+    /* Assign selected implicit fields when no explicit fields */
+    if (!vers_tables || explicit_declared)
       continue;
 
     DBUG_ASSERT(versioned_write);
@@ -6901,30 +6902,39 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
       }
       continue;
     }
-
-    uint flags_left= VERS_SYSTEM_FIELD;
-    if (flags_left && (vers_info.is_start(*f) || vers_info.is_end(*f)))
-    {
-      uint sys_flag= f->flags & flags_left;
-      flags_left^= sys_flag;
-      List_iterator_fast<Item> it2(*items);
-      while (Item *item= it2++)
-      {
-        if (item->type() != Item::FIELD_ITEM)
-          continue;
-        Field *fld= static_cast<Item_field *>(item)->field;
-        DBUG_ASSERT(fld);
-        if ((fld->flags & sys_flag) &&
-          LString_i(f->field_name) == fld->field_name)
-        {
-          f->field= fld;
-          *versioned_write= false;
-        }
-      } // while (item)
-    } // if (flags_left ...
   } // while (Create_field *f= it++)
 
+  /* Assign selected system fields to explicit system fields if any */
+  if (vers_tables)
+  {
+    it.rewind();
+    while (Create_field *f= it++)
+    {
+      uint flags_left= VERS_SYSTEM_FIELD;
+      if (flags_left && (vers_info.is_start(*f) || vers_info.is_end(*f)) && !f->field)
+      {
+        uint sys_flag= f->flags & flags_left;
+        flags_left^= sys_flag;
+        List_iterator_fast<Item> it2(*items);
+        while (Item *item= it2++)
+        {
+          if (item->type() != Item::FIELD_ITEM)
+            continue;
+          Field *fld= static_cast<Item_field *>(item)->field;
+          DBUG_ASSERT(fld);
+          if ((fld->flags & sys_flag) &&
+            LString_i(f->field_name) == fld->field_name)
+          {
+            f->field= fld;
+            *versioned_write= false;
+          }
+        } // while (item)
+      } // if (flags_left ...
+    } // while (Create_field *f= it++)
+  } // if (vers_tables)
+
   bool integer_fields= vers_native(thd);
+  int added= 0;
   if (vers_info.fix_implicit(thd, alter_info, integer_fields, &added))
     return true;
 
