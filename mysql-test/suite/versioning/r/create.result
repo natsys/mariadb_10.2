@@ -275,6 +275,22 @@ select * from t3 where y > 2;
 y	st	en
 select y from t3 where st = @st and sys_trx_start > @st;
 y
+### 3. explicit system fields are kept as system
+create or replace table t3 (
+st SYS_DATATYPE generated always as row start,
+en SYS_DATATYPE generated always as row end,
+period for system_time (st, en)
+) with system versioning as select * from t0;
+show create table t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `y` int(11) DEFAULT NULL,
+  `st` SYS_DATATYPE GENERATED ALWAYS AS ROW START,
+  `en` SYS_DATATYPE GENERATED ALWAYS AS ROW END,
+  PERIOD FOR SYSTEM_TIME (`st`, `en`)
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+select y from t3 where st = @st;
+y
 2
 drop database test;
 create database test;

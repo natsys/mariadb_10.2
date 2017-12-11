@@ -248,20 +248,20 @@ show create table t3;
 select * from t3 where y > 2;
 select y from t3 where st = @st and sys_trx_start > @st;
 
-drop database test;
-create database test;
---exit
-
---echo ### proper way to create from versioned explicit
-eval create or replace table t2(
+--echo ### 3. explicit system fields are kept as system
+--replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
+eval create or replace table t3 (
   st $sys_datatype generated always as row start,
   en $sys_datatype generated always as row end,
   period for system_time (st, en)
-) with system versioning
-as select * from t0;
---replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
-show create table t2;
+) with system versioning as select * from t0;
+--replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE $sys_datatype_null SYS_DATATYPE $sys_datatype_not_null SYS_DATATYPE $sys_datatype_default_null SYS_DATATYPE
+show create table t3;
+select y from t3 where st = @st;
 
+drop database test;
+create database test;
+--exit
 
 delete from t0;
 

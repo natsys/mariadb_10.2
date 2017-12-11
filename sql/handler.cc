@@ -6832,7 +6832,9 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
       if (vers_info.is_start(*f) || vers_info.is_end(*f))
       {
         if (f->field)
+        {
           db_type= f->field->orig_table->file->ht;
+        }
         break;
       }
     }
@@ -6860,54 +6862,63 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
   int added= 0;
   while (Create_field *f= it++)
   {
-    if (vers_tables)
-    {
-      DBUG_ASSERT(versioned_write);
-      if (vers_info.is_start(*f))
-      {
-        if (vers_info.default_start == f->field_name)
-        {
-          if (vers_info.as_row.start)
-            it.remove();
-          else
-          {
-            vers_info.set_start(f->field_name);
-            *versioned_write= false;
-          }
-        }
-        else
-        {
-          f->flags-= VERS_SYS_START_FLAG;
-        }
-        continue;
-      }
-      if (vers_info.is_end(*f))
-      {
-        if (vers_info.default_end == f->field_name)
-        {
-          if (vers_info.as_row.end)
-            it.remove();
-          else
-          {
-            vers_info.set_end(f->field_name);
-            *versioned_write= false;
-          }
-        }
-        else
-        {
-          f->flags-= VERS_SYS_END_FLAG;
-        }
-        continue;
-      }
-    } // if (select_tables)
-
     if ((f->versioning == Column_definition::VERSIONING_NOT_SET &&
          !vers_info.with_system_versioning) ||
         f->versioning == Column_definition::WITHOUT_VERSIONING)
     {
       f->flags|= VERS_UPDATE_UNVERSIONED_FLAG;
     }
-  }
+
+    if (!vers_tables)
+      continue;
+
+    DBUG_ASSERT(versioned_write);
+    if (vers_info.is_start(*f) &&
+      vers_info.default_start == f->field_name)
+    {
+      if (vers_info.as_row.start)
+        it.remove();
+      else
+      {
+        vers_info.set_start(f->field_name);
+        *versioned_write= false;
+      }
+      continue;
+    }
+    if (vers_info.is_end(*f) &&
+      vers_info.default_end == f->field_name)
+    {
+      if (vers_info.as_row.end)
+        it.remove();
+      else
+      {
+        vers_info.set_end(f->field_name);
+        *versioned_write= false;
+      }
+      continue;
+    }
+
+    uint flags_left= VERS_SYSTEM_FIELD;
+    if (flags_left && (vers_info.is_start(*f) || vers_info.is_end(*f)))
+    {
+      uint sys_flag= f->flags & flags_left;
+      flags_left^= sys_flag;
+      List_iterator_fast<Item> it2(*items);
+      while (Item *item= it2++)
+      {
+        if (item->type() != Item::FIELD_ITEM)
+          continue;
+        Field *fld= static_cast<Item_field *>(item)->field;
+        DBUG_ASSERT(fld);
+        if ((fld->flags & sys_flag) &&
+          LString_i(f->field_name) == fld->field_name)
+        {
+          f->field= fld;
+          *versioned_write= false;
+        }
+      } // while (item)
+    } // if (flags_left ...
+  } // while (Create_field *f= it++)
 
   bool integer_fields= vers_native(thd);
   if (vers_info.fix_implicit(thd, alter_info, integer_fields, &added))
