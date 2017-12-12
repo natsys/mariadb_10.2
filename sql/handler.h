@@ -1736,7 +1736,7 @@ protected:
   bool is_start(const Create_field &f) const;
   bool is_end(const Create_field &f) const;
   bool fix_implicit(THD *thd, Alter_info *alter_info, bool integer_fields, int *added= NULL);
-  bool any_sys_field_declared() const
+  operator bool() const
   {
     return as_row.start || as_row.end || system_time.start || system_time.end;
   }
@@ -1747,7 +1747,7 @@ protected:
       unversioned_fields ||
       with_system_versioning ||
       without_system_versioning ||
-      any_sys_field_declared();
+      *this;
   }
   bool check_with_conditions(const char *table_name) const;
   bool check_generated_type(const char *table_name, Alter_info *alter_info,

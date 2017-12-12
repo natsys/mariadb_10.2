@@ -6750,7 +6750,7 @@ bool Vers_parse_info::fix_implicit(THD *thd, Alter_info *alter_info,
                                    bool integer_fields, int *added)
 {
   // If user specified some of these he must specify the others too. Do nothing.
-  if (any_sys_field_declared())
+  if (*this)
     return false;
 
   alter_info->flags|= Alter_info::ALTER_ADD_COLUMN;
@@ -6849,7 +6849,7 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
     return false;
   }
 
-  if (!vers_info.with_system_versioning && vers_info.any_sys_field_declared())
+  if (!vers_info.with_system_versioning && vers_info)
   {
     my_error(ER_MISSING, MYF(0), create_table.table_name, "WITH SYSTEM VERSIONING");
     return true;
@@ -6914,7 +6914,7 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
       if (flags_left && (vers_info.is_start(*f) || vers_info.is_end(*f)) && !f->field)
       {
         uint sys_flag= f->flags & flags_left;
-        flags_left^= sys_flag;
+        flags_left-= sys_flag;
         List_iterator_fast<Item> it2(*items);
         while (Item *item= it2++)
         {
@@ -6968,7 +6968,7 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
     // CREATE from SELECT (Create_fields are not yet added)
     !select_tables &&
     vers_cols == 0 &&
-    (plain_cols == 0 || !vers_info.any_sys_field_declared()))
+    (plain_cols == 0 || !vers_info))
   {
     my_error(ER_VERS_NO_COLS_DEFINED, MYF(0), create_table.table_name);
     return true;
