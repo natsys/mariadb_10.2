@@ -737,26 +737,7 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
     for (table= tables; table; table= table->next_local)
     {
       if (table->table && table->table->versioned())
-      {
         versioned_tables++;
-
-        if (thd->lex->sql_command == SQLCOM_INSERT_SELECT)
-        {
-          List_iterator_fast<Item> it(thd->lex->field_list);
-          while (Item *item= it++)
-          {
-            const LEX_CSTRING *name= &item->name;
-            if (!lex_string_cmp(system_charset_info, name,
-                                &table->table->vers_start_field()->field_name) ||
-                !lex_string_cmp(system_charset_info, name,
-                                &table->table->vers_end_field()->field_name))
-            {
-              my_error(ER_VERS_READONLY_FIELD, MYF(0), name->str);
-              DBUG_RETURN(-1);
-            }
-          }
-        }
-      }
       else if (table->vers_conditions)
       {
         my_error(ER_VERSIONING_REQUIRED, MYF(0), table->alias);
