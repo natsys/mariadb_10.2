@@ -203,6 +203,11 @@ insert into t1 values (1, null);
 update t1 set x= x + 1;
 select *, sys_trx_end = 18446744073709551615 as current from t1 for system_time all;
 
+create or replace table t1 (i int) with system versioning;
+insert into t1 values  (1),(2);
+--error ER_VERS_READONLY_FIELD
+INSERT INTO t1 (sys_trx_end) SELECT sys_trx_start FROM t1;
+
 drop table t1;
 drop table t2;
 
