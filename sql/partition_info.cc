@@ -953,7 +953,7 @@ bool partition_info::vers_setup_expression(THD * thd, uint32 alter_add)
 {
   DBUG_ASSERT(part_type == VERSIONING_PARTITION);
 
-  if (!table->versioned_by_sql())
+  if (!table->versioned(VERS_TIMESTAMP))
   {
     my_error(ER_VERS_ENGINE_UNSUPPORTED, MYF(0), table->s->table_name.str);
     return true;
@@ -1084,7 +1084,7 @@ bool partition_info::vers_scan_min_max(THD *thd, partition_element *part)
             part->partition_name);
           break;
         }
-        if (table->versioned_by_engine())
+        if (table->versioned(VERS_TRX_ID))
         {
           uchar buf[8];
           Field_timestampf fld(buf, NULL, 0, Field::NONE, &table->vers_end_field()->field_name, NULL, 6);

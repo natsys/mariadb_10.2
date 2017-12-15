@@ -7776,7 +7776,7 @@ void TABLE::vers_update_fields()
   bitmap_set_bit(write_set, vers_start_field()->field_index);
   bitmap_set_bit(write_set, vers_end_field()->field_index);
 
-  if (versioned_by_sql())
+  if (versioned(VERS_TIMESTAMP))
   {
     if (!vers_write)
       return;

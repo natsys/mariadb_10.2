@@ -1524,29 +1524,16 @@ public:
    */
   bool vers_write;
 
-  vers_sys_type_t versioned() const
+  bool versioned(vers_sys_type_t check= VERS_UNDEFINED) const
   {
     DBUG_ASSERT(s);
-    return s->versioned;
+    return check ? s->versioned == check : s->versioned;
   }
 
   bool versioned_write() const
   {
     DBUG_ASSERT(versioned() || !vers_write);
     return vers_write;
-  }
-
-  /* Versioned by SQL layer */
-  bool versioned_by_sql() const
-  {
-    DBUG_ASSERT(s && file);
-    return s->versioned && !file->native_versioned();
-  }
-
-  bool versioned_by_engine() const
-  {
-    DBUG_ASSERT(s && file);
-    return s->versioned && file->native_versioned();
   }
 
   bool vers_vtmd() const

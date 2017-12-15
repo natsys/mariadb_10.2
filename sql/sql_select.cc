@@ -912,7 +912,7 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
     bool tmp_from_ib=
         table->table->s->table_category == TABLE_CATEGORY_TEMPORARY &&
         table->table->vers_start_field()->type() == MYSQL_TYPE_LONGLONG;
-    bool timestamps_only= table->table->versioned_by_sql() && !tmp_from_ib;
+    bool timestamps_only= table->table->versioned(VERS_TIMESTAMP) && !tmp_from_ib;
 
     if (vers_conditions)
     {
@@ -934,7 +934,7 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
     // have uint64 type of sys_trx_(start|end) field.
     // They need special handling.
     TABLE *t= table->table;
-    if (tmp_from_ib || t->versioned_by_sql() ||
+    if (tmp_from_ib || t->versioned(VERS_TIMESTAMP) ||
         thd->variables.vers_innodb_algorithm_simple)
     {
       if (vers_conditions)
