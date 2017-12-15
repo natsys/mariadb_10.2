@@ -17457,6 +17457,8 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
   Field **tmp_from_field=from_field;
   Field *sys_trx_start= NULL;
   Field *sys_trx_end= NULL;
+  vers_sys_type_t versioned= VERS_UNDEFINED;
+
   while ((item=li++))
   {
     Item::Type type= item->type();
@@ -17597,6 +17599,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
               sys_trx_start= new_field;
             else if (field->flags & VERS_SYS_END_FLAG)
               sys_trx_end= new_field;
+            versioned= s->versioned;
           }
         }
       }
@@ -17607,6 +17610,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
           sys_trx_start= new_field;
         else if (ith->field_flags() & VERS_SYS_END_FLAG)
           sys_trx_end= new_field;
+        versioned= ith->vers_trx_id() ? VERS_TRX_ID : VERS_TIMESTAMP;
       }
       if (type == Item::SUM_FUNC_ITEM)
       {
@@ -17689,11 +17693,11 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
     }
   }
 
-  if (sys_trx_start && sys_trx_end)
+  if (versioned)
   {
     sys_trx_start->flags|= VERS_SYS_START_FLAG | VERS_HIDDEN_FLAG;
     sys_trx_end->flags|= VERS_SYS_END_FLAG | VERS_HIDDEN_FLAG;
-    share->versioned= true;
+    share->versioned= versioned;
     share->field= table->field;
     share->row_start_field= sys_trx_start->field_index;
     share->row_end_field= sys_trx_end->field_index;

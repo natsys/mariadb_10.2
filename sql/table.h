@@ -574,6 +574,13 @@ struct TABLE_STATISTICS_CB
 
 class Vers_min_max_stats;
 
+enum vers_sys_type_t
+{
+  VERS_UNDEFINED= 0,
+  VERS_TIMESTAMP,
+  VERS_TRX_ID
+};
+
 #ifndef UINT32_MAX
 #define UINT32_MAX             (4294967295U)
 #endif
@@ -757,7 +764,7 @@ struct TABLE_SHARE
     System versioning support.
    */
 
-  bool versioned;
+  vers_sys_type_t versioned;
   bool vtmd;
   uint16 row_start_field;
   uint16 row_end_field;
@@ -1517,7 +1524,7 @@ public:
    */
   bool vers_write;
 
-  bool versioned() const
+  vers_sys_type_t versioned() const
   {
     DBUG_ASSERT(s);
     return s->versioned;
@@ -1860,13 +1867,6 @@ class Item_in_subselect;
      - semi-join nest (sj_on_expr!= NULL && sj_subq_pred!=NULL)
   4) jtbm semi-join (jtbm_subselect != NULL)
 */
-
-enum vers_sys_type_t
-{
-  VERS_UNDEFINED = 0,
-  VERS_TIMESTAMP,
-  VERS_TRX_ID
-};
 
 /** last_leaf_for_name_resolutioning support. */
 struct vers_select_conds_t
