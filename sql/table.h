@@ -1524,16 +1524,16 @@ public:
    */
   bool vers_write;
 
-  bool versioned(vers_sys_type_t check= VERS_UNDEFINED) const
+  bool versioned(vers_sys_type_t type= VERS_UNDEFINED) const
   {
     DBUG_ASSERT(s);
-    return check ? s->versioned == check : s->versioned;
+    return type ? s->versioned == type : s->versioned;
   }
 
-  bool versioned_write() const
+  bool versioned_write(vers_sys_type_t type= VERS_UNDEFINED) const
   {
     DBUG_ASSERT(versioned() || !vers_write);
-    return vers_write;
+    return versioned(type) ? vers_write : false;
   }
 
   bool vers_vtmd() const

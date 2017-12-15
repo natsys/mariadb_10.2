@@ -6558,7 +6558,7 @@ no_such_table:
 	}
 
 	if (table && m_prebuilt->table) {
-		ut_ad(table->versioned() == m_prebuilt->table->versioned());
+		ut_ad(table->versioned(VERS_TRX_ID) == m_prebuilt->table->versioned());
 	}
 
 	info(HA_STATUS_NO_LOCK | HA_STATUS_VARIABLE | HA_STATUS_CONST);
@@ -7782,7 +7782,7 @@ ha_innobase::build_template(
 
 	index = whole_row ? clust_index : m_prebuilt->index;
 
-	m_prebuilt->versioned_write = table->versioned_write();
+	m_prebuilt->versioned_write = table->versioned_write(VERS_TRX_ID);
 	m_prebuilt->need_to_access_clustered = (index == clust_index);
 
 	/* Either m_prebuilt->index should be a secondary index, or it
@@ -8406,8 +8406,8 @@ no_commit:
 
 	innobase_srv_conc_enter_innodb(m_prebuilt);
 
-	vers_set_fields =
-		table->versioned_write() ? ROW_INS_VERSIONED : ROW_INS_NORMAL;
+	vers_set_fields = table->versioned_write(VERS_TRX_ID) ?
+		ROW_INS_VERSIONED : ROW_INS_NORMAL;
 
 	/* Step-5: Execute insert graph that will result in actual insert. */
 	error = row_insert_for_mysql((byte*) record, m_prebuilt, vers_set_fields);
@@ -9323,8 +9323,8 @@ ha_innobase::delete_row(
 	}
 
 	/* This is a delete */
-	m_prebuilt->upd_node->is_delete
-		= table->versioned_write() && table->vers_end_field()->is_max()
+	m_prebuilt->upd_node->is_delete = table->versioned_write(VERS_TRX_ID)
+		&& table->vers_end_field()->is_max()
 		? VERSIONED_DELETE
 		: PLAIN_DELETE;
 
@@ -11422,7 +11422,7 @@ create_table_info_t::create_table_def()
 		Field*	field = m_form->field[i];
 		ulint vers_row = 0;
 
-		if (m_form->versioned()) {
+		if (m_form->versioned(VERS_TRX_ID)) {
 			if (i == m_form->s->row_start_field) {
 				vers_row = DATA_VERS_START;
 			} else if (i == m_form->s->row_end_field) {
