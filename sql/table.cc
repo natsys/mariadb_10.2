@@ -8883,25 +8883,25 @@ bool TR_table::check()
 
 void vers_select_conds_t::resolve_units(bool timestamps_only)
 {
-  DBUG_ASSERT(type != FOR_SYSTEM_TIME_UNSPECIFIED);
+  DBUG_ASSERT(type != SYSTEM_TIME_UNSPECIFIED);
   DBUG_ASSERT(start);
-  if (unit_start == UNIT_AUTO)
+  if (unit_start == VERS_UNDEFINED)
   {
     if (start->type() == Item::FIELD_ITEM)
-      unit_start= UNIT_TIMESTAMP;
+      unit_start= VERS_TIMESTAMP;
     else
       unit_start= (!timestamps_only && (start->result_type() == INT_RESULT ||
         start->result_type() == REAL_RESULT)) ?
-          UNIT_TRX_ID : UNIT_TIMESTAMP;
+          VERS_TRX_ID : VERS_TIMESTAMP;
   }
-  if (end && unit_end == UNIT_AUTO)
+  if (end && unit_end == VERS_UNDEFINED)
   {
     if (start->type() == Item::FIELD_ITEM)
-      unit_start= UNIT_TIMESTAMP;
+      unit_start= VERS_TIMESTAMP;
     else
       unit_end= (!timestamps_only && (end->result_type() == INT_RESULT ||
         end->result_type() == REAL_RESULT)) ?
-          UNIT_TRX_ID : UNIT_TIMESTAMP;
+          VERS_TRX_ID : VERS_TIMESTAMP;
   }
 }
 

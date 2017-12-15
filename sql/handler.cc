@@ -6758,7 +6758,7 @@ bool Vers_parse_info::is_end(const Create_field &f) const
 }
 
 static Create_field *vers_init_sys_field(THD *thd, const char *field_name,
-                                         int flags, bool integer_fields)
+                                         int flags)
 {
   Create_field *f= new (thd->mem_root) Create_field();
   if (!f)
@@ -6769,17 +6769,8 @@ static Create_field *vers_init_sys_field(THD *thd, const char *field_name,
   f->field_name.length= strlen(field_name);
   f->charset= system_charset_info;
   f->flags= flags | VERS_HIDDEN_FLAG;
-  if (integer_fields)
-  {
-    f->set_handler(&type_handler_longlong);
-    f->flags|= UNSIGNED_FLAG;
-    f->length= MY_INT64_NUM_DECIMAL_DIGITS - 1;
-  }
-  else
-  {
-    f->set_handler(&type_handler_timestamp2);
-    f->length= MAX_DATETIME_PRECISION;
-  }
+  f->set_handler(&type_handler_timestamp2);
+  f->length= MAX_DATETIME_PRECISION;
 
   if (f->check(thd))
     return NULL;
@@ -6788,10 +6779,9 @@ static Create_field *vers_init_sys_field(THD *thd, const char *field_name,
 }
 
 static bool vers_create_sys_field(THD *thd, const char *field_name,
-                                  Alter_info *alter_info, int flags,
-                                  bool integer_fields)
+                                  Alter_info *alter_info, int flags)
 {
-  Create_field *f= vers_init_sys_field(thd, field_name, flags, integer_fields);
+  Create_field *f= vers_init_sys_field(thd, field_name, flags);
   if (!f)
     return true;
 
@@ -6803,9 +6793,9 @@ static bool vers_create_sys_field(THD *thd, const char *field_name,
 
 static bool vers_change_sys_field(THD *thd, const char *field_name,
                                   Alter_info *alter_info, int flags,
-                                  bool integer_fields, const char *change)
+                                  const char *change)
 {
-  Create_field *f= vers_init_sys_field(thd, field_name, flags, integer_fields);
+  Create_field *f= vers_init_sys_field(thd, field_name, flags);
   if (!f)
     return true;
 
@@ -6821,8 +6811,7 @@ static bool vers_change_sys_field(THD *thd, const char *field_name,
 const LString Vers_parse_info::default_start= "sys_trx_start";
 const LString Vers_parse_info::default_end= "sys_trx_end";
 
-bool Vers_parse_info::fix_implicit(THD *thd, Alter_info *alter_info,
-                                   bool integer_fields, int *added)
+bool Vers_parse_info::fix_implicit(THD *thd, Alter_info *alter_info, int *added)
 {
   // If user specified some of these he must specify the others too. Do nothing.
   if (*this)
@@ -6833,8 +6822,8 @@ bool Vers_parse_info::fix_implicit(THD *thd, Alter_info *alter_info,
   system_time= start_end_t(default_start, default_end);
   as_row= system_time;
 
-  if (vers_create_sys_field(thd, default_start, alter_info, VERS_SYS_START_FLAG, integer_fields) ||
-      vers_create_sys_field(thd, default_end, alter_info, VERS_SYS_END_FLAG, integer_fields))
+  if (vers_create_sys_field(thd, default_start, alter_info, VERS_SYS_START_FLAG) ||
+      vers_create_sys_field(thd, default_end, alter_info, VERS_SYS_END_FLAG))
   {
     return true;
   }
@@ -7008,9 +6997,8 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
     } // while (Create_field *f= it++)
   } // if (vers_tables)
 
-  bool integer_fields= vers_native(thd);
   int added= 0;
-  if (vers_info.fix_implicit(thd, alter_info, integer_fields, &added))
+  if (vers_info.fix_implicit(thd, alter_info, &added))
     return true;
 
   DBUG_ASSERT(added >= 0);
@@ -7049,8 +7037,14 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
     return true;
   }
 
-  return vers_info.check_with_conditions(create_table.table_name) ||
-         vers_info.check_generated_type(create_table.table_name, alter_info, integer_fields);
+  if (vers_info.check_with_conditions(create_table.table_name))
+    return true;
+
+  bool native= vers_native(thd);
+  if (vers_info.check_sys_fields(create_table.table_name, alter_info, native))
+    return true;
+
+  return false;
 }
 
 static bool add_field_to_drop_list(THD *thd, Alter_info *alter_info,
@@ -7092,9 +7086,6 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
                                           TABLE *table)
 {
   TABLE_SHARE *share= table->s;
-  bool integer_fields= create_info->vers_native(thd);
-  if (create_info->db_type->db_type == DB_TYPE_PARTITION_DB && table->file->native_versioned())
-    integer_fields= true;
   const char *table_name= share->table_name.str;
 
   if (!need_check() && !share->versioned)
@@ -7268,9 +7259,7 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
         }
 
         if (vers_change_sys_field(thd, name, alter_info,
-                                  f->flags &
-                                      (VERS_SYS_START_FLAG | VERS_SYS_END_FLAG),
-                                  integer_fields, name))
+                                  f->flags & VERS_SYSTEM_FIELD, name))
         {
           return true;
         }
@@ -7285,10 +7274,19 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
     return false;
   }
 
-  return fix_implicit(thd, alter_info, integer_fields) ||
-         (with_system_versioning &&
-          (check_with_conditions(table_name) ||
-           check_generated_type(table_name, alter_info, integer_fields)));
+  if (fix_implicit(thd, alter_info))
+    return true;
+
+  if (with_system_versioning)
+  {
+    if (check_with_conditions(table_name))
+      return true;
+    bool native= create_info->vers_native(thd);
+    if (check_sys_fields(table_name, alter_info, native))
+      return true;
+  }
+
+  return false;
 }
 
 bool
@@ -7374,38 +7372,61 @@ bool Vers_parse_info::check_with_conditions(const char *table_name) const
   return false;
 }
 
-bool Vers_parse_info::check_generated_type(const char *table_name,
+bool Vers_parse_info::check_sys_fields(const char *table_name,
                                            Alter_info *alter_info,
                                            bool integer_fields) const
 {
   List_iterator<Create_field> it(alter_info->create_list);
+  vers_sys_type_t found= VERS_UNDEFINED;
+  uint found_flag= 0;
   while (Create_field *f= it++)
   {
-    if (is_start(*f) || is_end(*f))
+    vers_sys_type_t check_unit= VERS_UNDEFINED;
+    uint sys_flag= f->flags & VERS_SYSTEM_FIELD;
+
+    if (!sys_flag)
+      continue;
+
+    if (sys_flag & found_flag)
     {
-      if (integer_fields)
+      my_error(ER_VERS_DUPLICATE_ROW_START_END, MYF(0),
+                found_flag & VERS_SYS_START_FLAG ? "START" : "END", f->field_name.str);
+      return true;
+    }
+
+    if ((f->type_handler() == &type_handler_datetime2 ||
+          f->type_handler() == &type_handler_timestamp2) &&
+        f->length == MAX_DATETIME_FULL_WIDTH)
+    {
+      check_unit= VERS_TIMESTAMP;
+    }
+    else if (integer_fields
+      && f->type_handler() == &type_handler_longlong
+      && (f->flags & UNSIGNED_FLAG)
+      && f->length == (MY_INT64_NUM_DECIMAL_DIGITS - 1))
+    {
+      check_unit= VERS_TRX_ID;
+    }
+
+    if (check_unit)
+    {
+      if (found)
       {
-        if (f->type_handler() != &type_handler_longlong || !(f->flags & UNSIGNED_FLAG) ||
-            f->length != (MY_INT64_NUM_DECIMAL_DIGITS - 1))
-        {
-          my_error(ER_VERS_FIELD_WRONG_TYPE, MYF(0), f->field_name.str,
-                   "BIGINT(20) UNSIGNED", table_name);
-          return true;
-        }
+        if (found == check_unit)
+          return false;
+
+        my_error(ER_VERS_FIELD_WRONG_TYPE, MYF(0), f->field_name.str,
+                  check_unit == VERS_TIMESTAMP ?
+                    "TIMESTAMP(6)" :
+                    "BIGINT(20) UNSIGNED",
+                  table_name);
+        return true;
       }
-      else
-      {
-        if (!(f->type_handler() == &type_handler_datetime2 ||
-              f->type_handler() == &type_handler_timestamp2) ||
-            f->length != MAX_DATETIME_FULL_WIDTH)
-        {
-          my_error(ER_VERS_FIELD_WRONG_TYPE, MYF(0), f->field_name.str,
-                   "TIMESTAMP(6)", table_name);
-          return true;
-        }
-      }
+      found= check_unit;
     }
   }
 
-  return false;
+  my_error(ER_MISSING, MYF(0), table_name, found_flag & VERS_SYS_START_FLAG ?
+    "ROW END" : found_flag ? "ROW START" : "ROW START/END");
+  return true;
 }

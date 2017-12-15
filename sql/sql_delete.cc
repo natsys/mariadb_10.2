@@ -329,7 +329,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
 
     // trx_sees() in InnoDB reads sys_trx_start
     if (!table->versioned_by_sql()) {
-      DBUG_ASSERT(table_list->vers_conditions.type == FOR_SYSTEM_TIME_BEFORE);
+      DBUG_ASSERT(table_list->vers_conditions.type == SYSTEM_TIME_BEFORE);
       bitmap_set_bit(table->read_set, table->vers_end_field()->field_index);
     }
   }
