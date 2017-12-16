@@ -17596,13 +17596,15 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
           if (s->versioned)
           {
             if (field->flags & VERS_SYS_START_FLAG)
+            {
               sys_trx_start= new_field;
+              versioned= s->versioned;
+            }
             else if (field->flags & VERS_SYS_END_FLAG)
+            {
               sys_trx_end= new_field;
-            else
-              goto skip_versioned1;
-            versioned= s->versioned;
-            skip_versioned1:;
+              versioned= s->versioned;
+            }
           }
         }
       }
@@ -17610,13 +17612,16 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
       {
         Item_type_holder *ith= (Item_type_holder*)item;
         if (ith->field_flags() & VERS_SYS_START_FLAG)
+        {
           sys_trx_start= new_field;
+          goto set_versioned;
+        }
         else if (ith->field_flags() & VERS_SYS_END_FLAG)
+        {
           sys_trx_end= new_field;
-        else
-          goto skip_versioned2;
-        versioned= ith->vers_trx_id() ? VERS_TRX_ID : VERS_TIMESTAMP;
-        skip_versioned2:;
+        set_versioned:
+          versioned= ith->vers_trx_id() ? VERS_TRX_ID : VERS_TIMESTAMP;
+        }
       }
       if (type == Item::SUM_FUNC_ITEM)
       {
@@ -17699,9 +17704,9 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
     }
   }
 
-  if (versioned)
+  if (sys_trx_start && sys_trx_end)
   {
-    DBUG_ASSERT(sys_trx_start && sys_trx_end);
+    DBUG_ASSERT(versioned);
     sys_trx_start->flags|= VERS_SYS_START_FLAG | VERS_HIDDEN_FLAG;
     sys_trx_end->flags|= VERS_SYS_END_FLAG | VERS_HIDDEN_FLAG;
     share->versioned= versioned;
