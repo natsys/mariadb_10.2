@@ -7033,7 +7033,7 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
     vers_cols == 0 &&
     (plain_cols == 0 || !vers_info))
   {
-    my_error(ER_VERS_NO_COLS_DEFINED, MYF(0), create_table.table_name);
+    my_error(ER_VERS_TABLE_MUST_HAVE_COLUMNS, MYF(0), create_table.table_name);
     return true;
   }
 
@@ -7407,6 +7407,12 @@ bool Vers_parse_info::check_sys_fields(const char *table_name,
     {
       check_unit= VERS_TRX_ID;
     }
+    else
+    {
+      if (!found)
+        found= VERS_TIMESTAMP;
+      goto error;
+    }
 
     if (check_unit)
     {
@@ -7414,9 +7420,9 @@ bool Vers_parse_info::check_sys_fields(const char *table_name,
       {
         if (found == check_unit)
           return false;
-
+      error:
         my_error(ER_VERS_FIELD_WRONG_TYPE, MYF(0), f->field_name.str,
-                  check_unit == VERS_TIMESTAMP ?
+                  found == VERS_TIMESTAMP ?
                     "TIMESTAMP(6)" :
                     "BIGINT(20) UNSIGNED",
                   table_name);

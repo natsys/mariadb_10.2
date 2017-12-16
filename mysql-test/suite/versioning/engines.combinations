@@ -1,4 +1,4 @@
-[innodb]
+[timestamp]
 default-storage-engine=innodb
 
 [myisam]

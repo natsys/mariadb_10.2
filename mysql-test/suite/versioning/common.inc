@@ -110,6 +110,6 @@ delimiter ;~~
 
 let $default_engine= `select default_engine()`;
 let $non_default_engine= `select non_default_engine()`;
-let $sys_datatype= `select sys_datatype(default_engine())`;
-let $sys_datatype_uc= `select upper(sys_datatype(default_engine()))`;
+let $sys_datatype= timestamp(6);
+let $sys_datatype_uc= TIMESTAMP(6);
 --enable_query_log
