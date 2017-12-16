@@ -31,13 +31,13 @@ x
 ### Engine change versioned/non-versioned prohibited
 create or replace table t1 (i int) engine=MyISAM with system versioning partition by hash(i);
 alter table t1 engine=InnoDB;
-ERROR HY000: Not allowed for versioned `test`.`t1`. Change to/from native versioning engine is prohibited.
+ERROR HY000: Not allowed for temporal `test`.`t1`. Change to/from native system versioning engine is prohibited.
 ### check server-level partitioning
 create or replace table t1 (x int)
 partition by system_time (
 partition p0 history,
 partition pn current);
-ERROR HY000: Engine does not support System Versioning for `t1`
+ERROR HY000: Transaction system versioning for `t1` is not supported
 create or replace table t1 (x int);
 alter table t1
 partition by system_time (

@@ -77,20 +77,16 @@ begin
   return NULL;
 end~~
 
-create procedure if not exists innodb_verify_vtq(recs int)
+create procedure if not exists verify_vtq_dummy(recs int)
 begin
   declare i int default 1;
-  if default_engine() = 'InnoDB' then
-    call verify_vtq;
-  elseif default_engine() = 'MyISAM' then
-    create temporary table tmp (No int, A bool, B bool, C bool, D bool);
-    while i <= recs do
-      insert into tmp values (i, 1, 1, 1, 1);
-      set i= i + 1;
-    end while;
-    select * from tmp;
-    drop table tmp;
-  end if;
+  create temporary table tmp (No int, A bool, B bool, C bool, D bool);
+  while i <= recs do
+    insert into tmp values (i, 1, 1, 1, 1);
+    set i= i + 1;
+  end while;
+  select * from tmp;
+  drop table tmp;
 end~~
 
 create procedure concat_exec2(a varchar(255), b varchar(255))
@@ -111,5 +107,17 @@ delimiter ;~~
 let $default_engine= `select default_engine()`;
 let $non_default_engine= `select non_default_engine()`;
 let $sys_datatype= timestamp(6);
+let $sys_datatype_expl= timestamp(6);
 let $sys_datatype_uc= TIMESTAMP(6);
+let $sys_datatype_expl_uc= TIMESTAMP(6);
+
+if ($MTR_COMBINATION_MYISAM)
+{
+  --let $MTR_COMBINATION_TIMESTAMP= 1
+}
+if ($MTR_COMBINATION_TRX_ID)
+{
+  let $sys_datatype_expl= bigint(20) unsigned;
+  let $sys_datatype_expl_uc= BIGINT(20) UNSIGNED;
+}
 --enable_query_log

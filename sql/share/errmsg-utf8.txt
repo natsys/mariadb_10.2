@@ -7825,7 +7825,7 @@ ER_VERS_FIELD_WRONG_TYPE
         eng "%`s must be of type %s for temporal table %`s"
 
 ER_VERS_ENGINE_UNSUPPORTED
-        eng "Engine does not support system versioning for %`s"
+        eng "Transaction system versioning for %`s is not supported"
 
 ER_VERS_RANGE_UNITS_MISMATCH
         eng "Range units mismatch"
