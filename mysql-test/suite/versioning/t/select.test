@@ -200,6 +200,7 @@ for system_time all as t;
 create or replace table t1 (x int) with system versioning engine myisam;
 --error ER_VERS_ENGINE_UNSUPPORTED
 select * from t1 for system_time as of transaction 1;
+
 create or replace table t1 (
   x int,
   sys_trx_start bigint unsigned generated always as row start,
@@ -218,6 +219,8 @@ select @trx_start < unix_timestamp(@ts) - 100 as trx_start_good;
 select x from t1 for system_time as of timestamp @ts;
 select x from t1 for system_time as of timestamp unix_timestamp(@ts);
 select x from t1 for system_time as of timestamp @trx_start;
+
+set @ts= timestamp'1-1-1 0:0:0';
 
 --echo ## TRANSACTION specifier
 select x from t1 for system_time as of transaction @ts;

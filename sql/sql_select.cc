@@ -941,6 +941,8 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
       {
         if (vers_conditions.start)
         {
+          if (!vers_conditions.unit_start)
+            vers_conditions.unit_start= t->s->versioned;
           switch (vers_conditions.unit_start)
           {
           case VERS_TIMESTAMP:
@@ -955,12 +957,16 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
               thd, vers_conditions.start);
             break;
           }
-          default:;
+          default:
+            DBUG_ASSERT(0);
+            break;
           }
         }
 
         if (vers_conditions.end)
         {
+          if (!vers_conditions.unit_end)
+            vers_conditions.unit_end= t->s->versioned;
           switch (vers_conditions.unit_end)
           {
           case VERS_TIMESTAMP:
@@ -975,7 +981,9 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
               thd, vers_conditions.end);
             break;
           }
-          default:;
+          default:
+            DBUG_ASSERT(0);
+            break;
           }
         }
       }

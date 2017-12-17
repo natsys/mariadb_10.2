@@ -200,8 +200,6 @@ select * from (t1 for system_time all join t2 for system_time all) for system_ti
 drop view v1;
 drop table t1, t2;
 
-call innodb_verify_vtq(27);
-
 drop procedure test_01;
 drop procedure test_02;
 
