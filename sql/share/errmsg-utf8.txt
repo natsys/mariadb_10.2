@@ -7921,7 +7921,7 @@ ER_VERS_GENERATED_ALWAYS_NOT_EMPTY
         eng "Can not modify column %`s to GENERATED ALWAYS AS ROW START/END for non-empty table"
 
 ER_VERS_TRT_IS_DISABLED
-        eng "Some temporal DML requires `transaction_registry` to be set to ON."
+        eng "Temporal operation requires `mysql.transaction_registry` (@@system_versioning_transaction_registry)."
 
 ER_VERS_DUPLICATE_ROW_START_END
 	eng "Duplicate ROW %s column %`s"

@@ -4317,6 +4317,9 @@ handler::check_if_supported_inplace_alter(TABLE *altered_table,
 
   HA_CREATE_INFO *create_info= ha_alter_info->create_info;
 
+  if (altered_table->versioned(VERS_TIMESTAMP))
+    DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
+
   Alter_inplace_info::HA_ALTER_FLAGS inplace_offline_operations=
     Alter_inplace_info::ALTER_COLUMN_EQUAL_PACK_LENGTH |
     Alter_inplace_info::ALTER_COLUMN_NAME |
@@ -7373,8 +7376,8 @@ bool Vers_parse_info::check_with_conditions(const char *table_name) const
 }
 
 bool Vers_parse_info::check_sys_fields(const char *table_name,
-                                           Alter_info *alter_info,
-                                           bool integer_fields) const
+                                       Alter_info *alter_info,
+                                       bool native) const
 {
   List_iterator<Create_field> it(alter_info->create_list);
   vers_sys_type_t found= VERS_UNDEFINED;
@@ -7400,7 +7403,7 @@ bool Vers_parse_info::check_sys_fields(const char *table_name,
     {
       check_unit= VERS_TIMESTAMP;
     }
-    else if (integer_fields
+    else if (native
       && f->type_handler() == &type_handler_longlong
       && (f->flags & UNSIGNED_FLAG)
       && f->length == (MY_INT64_NUM_DECIMAL_DIGITS - 1))
@@ -7419,7 +7422,14 @@ bool Vers_parse_info::check_sys_fields(const char *table_name,
       if (found)
       {
         if (found == check_unit)
+        {
+          if (found == VERS_TRX_ID && !use_transaction_registry)
+          {
+            my_error(ER_VERS_TRT_IS_DISABLED, MYF(0));
+            return true;
+          }
           return false;
+        }
       error:
         my_error(ER_VERS_FIELD_WRONG_TYPE, MYF(0), f->field_name.str,
                   found == VERS_TIMESTAMP ?

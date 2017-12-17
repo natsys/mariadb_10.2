@@ -1773,7 +1773,7 @@ protected:
   }
   bool check_with_conditions(const char *table_name) const;
   bool check_sys_fields(const char *table_name, Alter_info *alter_info,
-                            bool integer_fields) const;
+                        bool native) const;
 
 public:
   static const LString default_start;
