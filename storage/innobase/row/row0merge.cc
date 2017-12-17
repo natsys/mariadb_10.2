@@ -2246,12 +2246,11 @@ end_of_index:
 			ut_ad(add_autoinc
 			      < dict_table_get_n_user_cols(new_table));
 
-			bool historical_row = false;
+			bool history_row = false;
 			if (new_table->versioned()) {
 				const dfield_t* dfield = dtuple_get_nth_field(
 				    row, new_table->vers_end);
-				historical_row
-					= dfield->is_version_historical_end();
+				history_row = dfield->vers_history_row();
 			}
 
 			dfield_t*	dfield;
@@ -2259,7 +2258,7 @@ end_of_index:
 			dfield = dtuple_get_nth_field(row, add_autoinc);
 
 			if (new_table->versioned()) {
-				if (historical_row) {
+				if (history_row) {
 					if (dfield_get_type(dfield)->prtype & DATA_NOT_NULL) {
 						err = DB_UNSUPPORTED;
 						my_error(ER_UNSUPPORTED_EXTENSION, MYF(0),

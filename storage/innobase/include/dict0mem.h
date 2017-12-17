@@ -653,17 +653,17 @@ struct dict_col_t{
 	/** @return whether NULL is an allowed value for this column */
 	bool is_nullable() const { return !(prtype & DATA_NOT_NULL); }
 
-	/** @return whether this is any system versioned field */
-	bool is_any_versioned() const { return prtype & DATA_VERSIONED; }
+	/** @return whether this is system field */
+	bool vers_sys_field() const { return prtype & DATA_VERSIONED; }
 	/** @return whether this is system versioned */
 	bool is_versioned() const { return !(~prtype & DATA_VERSIONED); }
 	/** @return whether this is the system version start */
-	bool is_version_start() const
+	bool vers_sys_start() const
 	{
 		return (prtype & DATA_VERSIONED) == DATA_VERS_START;
 	}
 	/** @return whether this is the system version end */
-	bool is_version_end() const
+	bool vers_sys_end() const
 	{
 		return (prtype & DATA_VERSIONED) == DATA_VERS_END;
 	}

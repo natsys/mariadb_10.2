@@ -3636,7 +3636,7 @@ static ulonglong innodb_prepare_commit_versioned(THD* thd, ulonglong *trx_id)
 		for (trx_mod_tables_t::const_iterator t
 			     = trx->mod_tables.begin();
 		     t != trx->mod_tables.end(); t++) {
-			if (t->second.is_versioned()) {
+			if (t->second.is_trx_versioned()) {
 				DBUG_ASSERT(t->first->versioned());
 				DBUG_ASSERT(trx->undo_no);
 				DBUG_ASSERT(trx->rsegs.m_redo.rseg);
@@ -6558,7 +6558,7 @@ no_such_table:
 	}
 
 	if (table && m_prebuilt->table) {
-		ut_ad(table->versioned(VERS_TRX_ID) == m_prebuilt->table->versioned());
+		ut_ad(table->versioned() == m_prebuilt->table->versioned());
 	}
 
 	info(HA_STATUS_NO_LOCK | HA_STATUS_VARIABLE | HA_STATUS_CONST);
@@ -9196,8 +9196,10 @@ ha_innobase::update_row(
 			    || thd_sql_command(m_user_thd) != SQLCOM_ALTER_TABLE);
 
 		/* This is not a delete */
-		m_prebuilt->upd_node->is_delete
-			= vers_set_fields && !vers_ins_row
+		m_prebuilt->upd_node->is_delete =
+			(vers_set_fields && !vers_ins_row) ||
+			(thd_sql_command(m_user_thd) == SQLCOM_DELETE &&
+				table->versioned(VERS_TIMESTAMP))
 			? VERSIONED_DELETE
 			: NO_DELETE;
 
@@ -11422,7 +11424,7 @@ create_table_info_t::create_table_def()
 		Field*	field = m_form->field[i];
 		ulint vers_row = 0;
 
-		if (m_form->versioned(VERS_TRX_ID)) {
+		if (m_form->versioned()) {
 			if (i == m_form->s->row_start_field) {
 				vers_row = DATA_VERS_START;
 			} else if (i == m_form->s->row_end_field) {
