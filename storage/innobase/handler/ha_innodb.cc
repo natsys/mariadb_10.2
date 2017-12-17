@@ -3633,6 +3633,14 @@ static ulonglong innodb_prepare_commit_versioned(THD* thd, ulonglong *trx_id)
 	if (const trx_t* trx = thd_to_trx(thd)) {
 		*trx_id = trx->id;
 
+		if (trx->id && thd_sql_command(thd) == SQLCOM_ALTER_TABLE) {
+			mutex_enter(&trx_sys->mutex);
+			trx_id_t commit_id = trx_sys_get_new_trx_id();
+			mutex_exit(&trx_sys->mutex);
+
+			return commit_id;
+		}
+
 		for (trx_mod_tables_t::const_iterator t
 			     = trx->mod_tables.begin();
 		     t != trx->mod_tables.end(); t++) {
