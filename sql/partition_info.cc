@@ -1261,8 +1261,6 @@ bool partition_info::vers_setup_stats(THD * thd, bool is_create_table_ind)
         table->s->stat_serial++;
 
       table->s->hist_part_id= vers_info->hist_part->id;
-      if (!is_create_table_ind && (vers_limit_exceed() || vers_interval_exceed()))
-        vers_part_rotate(thd);
     }
     mysql_mutex_lock(&table->s->LOCK_rotation);
     mysql_cond_broadcast(&table->s->COND_rotation);

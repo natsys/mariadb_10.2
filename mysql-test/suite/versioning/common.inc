@@ -108,6 +108,13 @@ let $sys_datatype_expl= timestamp(6);
 let $sys_datatype_uc= TIMESTAMP(6);
 let $sys_datatype_expl_uc= TIMESTAMP(6);
 
+let $non_sys_datatype= `select sys_datatype(non_default_engine())`;
+let $non_sys_datatype_uc= `select upper(sys_datatype(non_default_engine()))`;
+let $sys_datatype_null= $sys_datatype NULL DEFAULT NULL;
+let $sys_datatype_default_null= $sys_datatype DEFAULT NULL;
+let $sys_datatype_not_null= $sys_datatype NOT NULL DEFAULT '0000-00-00 00:00:00.000000';
+let $non_sys_datatype_null= $non_sys_datatype NULL;
+
 if ($MTR_COMBINATION_MYISAM)
 {
   --let $MTR_COMBINATION_TIMESTAMP= 1
