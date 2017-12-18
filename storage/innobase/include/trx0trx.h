@@ -1333,7 +1333,8 @@ struct trx_t {
 					/*!< Total table lock wait time
 					up to this moment. */
 
-	bool		vers_alter_trt;
+	bool		vers_alter_trt; /*!< true if ALTER TABLE ... ADD SYSTEM VERSIONING
+					should write to mysql.transaction_registry*/
 
 #ifdef WITH_WSREP
 	os_event_t	wsrep_event;	/* event waited for in srv_conc_slot */
