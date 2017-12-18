@@ -221,6 +221,8 @@ trx_init(
 	trx->flush_observer = NULL;
 
 	++trx->version;
+
+	trx->vers_alter_trt = false;
 }
 
 /** For managing the life-cycle of the trx_t instance that we get

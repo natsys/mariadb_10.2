@@ -3633,8 +3633,7 @@ static ulonglong innodb_prepare_commit_versioned(THD* thd, ulonglong *trx_id)
 	if (const trx_t* trx = thd_to_trx(thd)) {
 		*trx_id = trx->id;
 
-		// FIXME: do this only for ALTER TABLE ... ADD SYSTEM VERSIONING
-		if (trx->id && thd_sql_command(thd) == SQLCOM_ALTER_TABLE) {
+		if (trx->id && trx->vers_alter_trt) {
 			mutex_enter(&trx_sys->mutex);
 			trx_id_t commit_id = trx_sys_get_new_trx_id();
 			mutex_exit(&trx_sys->mutex);

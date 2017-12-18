@@ -2330,6 +2330,7 @@ end_of_index:
 			    dtuple_get_nth_field(row, new_table->vers_end);
 			dfield_set_data(start, new_sys_trx_start, 8);
 			dfield_set_data(end, new_sys_trx_end, 8);
+			trx->vers_alter_trt = true;
 		}
 
 write_buffers:

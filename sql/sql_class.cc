@@ -1248,6 +1248,13 @@ extern "C" my_thread_id next_thread_id_noinline()
 }
 #endif
 
+extern "C"
+bool thd_alter_add_system_versioning(THD *thd)
+{
+  return thd->lex->sql_command == SQLCOM_ALTER_TABLE &&
+         thd->lex->alter_info.flags & Alter_info::ALTER_ADD_SYSTEM_VERSIONING;
+}
+
 
 const Type_handler *THD::type_handler_for_date() const
 {
