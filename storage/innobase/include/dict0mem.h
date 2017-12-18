@@ -1133,6 +1133,20 @@ struct dict_index_t{
 		n_core_fields = n_fields;
 		n_core_null_bytes = UT_BITS_IN_BYTES(n_nullable);
 	}
+
+	/** Check if record in clustered index is historical row.
+	@param[in]	rec	clustered row
+	@param[in]	offsets	offsets
+	@return true if row is historical */
+	bool
+	vers_history_row(const rec_t* rec, const ulint* offsets);
+
+	/** Check if record in secondary index is historical row.
+	@param[in]	rec	record in a secondary index
+	@param[out]	history_row true if row is historical
+	@return true on error */
+	bool
+	vers_history_row(const rec_t* rec, bool &history_row);
 };
 
 /** The status of online index creation */

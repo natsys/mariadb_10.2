@@ -2319,19 +2319,9 @@ end_of_index:
 		}
 
 		if (old_table->versioned()) {
-			if (!new_table->versioned() || drop_historical) {
-				const dict_col_t* col =
-				    &old_table->cols[old_table->vers_end];
-				const ulint nfield =
-				    dict_col_get_clust_pos(col, clust_index);
-				ulint len = 0;
-				const rec_t* sys_trx_end = rec_get_nth_field(
-				    rec, offsets, nfield, &len);
-				ut_ad(len == 8);
-				if (mach_read_from_8(sys_trx_end)
-				    != TRX_ID_MAX) {
-					continue;
-				}
+			if ((!new_table->versioned() || drop_historical)
+			    && clust_index->vers_history_row(rec, offsets)) {
+				continue;
 			}
 		} else if (new_table->versioned()) {
 			dfield_t* start =

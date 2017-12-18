@@ -1568,24 +1568,21 @@ private:
 	ulint&		counter;
 };
 
-/** Reads sys_trx_end field from clustered index row.
+/** Check if record in clustered index is historical row.
 @param[in]	rec	clustered row
 @param[in]	offsets	offsets
-@param[in]	index	clustered index
-@return trx_id_t */
-static
+@return true if row is historical */
 bool
-row_ins_historical_row(
+dict_index_t::vers_history_row(
 	const rec_t*		rec,
-	const ulint*		offsets,
-	const dict_index_t*	index)
+	const ulint*		offsets)
 {
-	ut_a(index->is_clust());
+	ut_a(is_clust());
 
 	ulint len;
-	dict_col_t& col= index->table->cols[index->table->vers_end];
+	dict_col_t& col= table->cols[table->vers_end];
 	ut_ad(col.vers_sys_end());
-	ulint nfield = dict_col_get_clust_pos(&col, index);
+	ulint nfield = dict_col_get_clust_pos(&col, this);
 	const byte *data = rec_get_nth_field(rec, offsets, nfield, &len);
 	if (col.mtype == DATA_FIXBINARY) {
 		ut_ad(len == sizeof timestamp_max_bytes);
@@ -1599,18 +1596,16 @@ row_ins_historical_row(
 	return false;
 }
 
-/** Performs search at clustered index and returns sys_trx_end if row was found.
-@param[in]	index	secondary index of record
+/** Check if record in secondary index is historical row.
 @param[in]	rec	record in a secondary index
-@return sys_trx_end on success or 0 at failure */
-static
+@param[out]	history_row true if row is historical
+@return true on error */
 bool
-row_ins_historical_row(
-	dict_index_t*	index,
+dict_index_t::vers_history_row(
 	const rec_t* rec,
 	bool &history_row)
 {
-	ut_ad(!index->is_clust());
+	ut_ad(!is_clust());
 
 	bool error = false;
 	mem_heap_t* heap = NULL;
@@ -1623,13 +1618,12 @@ row_ins_historical_row(
 	mtr.start();
 
 	rec_t* clust_rec =
-	    row_get_clust_rec(BTR_SEARCH_LEAF, rec, index, &clust_index, &mtr);
+	    row_get_clust_rec(BTR_SEARCH_LEAF, rec, this, &clust_index, &mtr);
 	if (clust_rec) {
 		offsets = rec_get_offsets(clust_rec, clust_index, offsets, true,
 					  ULINT_UNDEFINED, &heap);
 
-		history_row =
-		    row_ins_historical_row(clust_rec, offsets, clust_index);
+		history_row = clust_index->vers_history_row(clust_rec, offsets);
         } else {
 		ib::error() << "foreign constraints: secondary index is out of "
 			       "sync";
@@ -1842,10 +1836,11 @@ row_ins_check_foreign_constraint(
 				bool history_row = false;
 
 				if (check_index->is_clust()) {
-					history_row = row_ins_historical_row(
-						rec, offsets, check_index);
-				} else if (row_ins_historical_row(check_index,
-						rec, history_row)) {
+					history_row = check_index->
+						vers_history_row(rec, offsets);
+				} else if (check_index->
+					vers_history_row(rec, history_row))
+				{
 					break;
 				}
 
