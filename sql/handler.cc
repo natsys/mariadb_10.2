@@ -3046,6 +3046,26 @@ prev_insert_id(ulonglong nr, struct system_variables *variables)
 #define AUTO_INC_DEFAULT_NB_MAX_BITS 16
 #define AUTO_INC_DEFAULT_NB_MAX ((1 << AUTO_INC_DEFAULT_NB_MAX_BITS) - 1)
 
+// check for ALTER TABLE ... ADD COLUMN ... AUTO_INCREMENT query
+static bool is_alter_table_add_column_auto_increment(THD *thd)
+{
+  if (thd->lex->sql_command != SQLCOM_ALTER_TABLE)
+    return false;
+
+  bool add_auto_inc= false;
+  List_iterator_fast<Create_field> it(thd->lex->alter_info.create_list);
+  while (Create_field *f= it++)
+  {
+    if (f->flags & AUTO_INCREMENT_FLAG)
+    {
+      add_auto_inc= true;
+      break;
+    }
+  }
+
+  return add_auto_inc;
+}
+
 int handler::update_auto_increment()
 {
   ulonglong nr, nb_reserved_values;
@@ -3056,8 +3076,7 @@ int handler::update_auto_increment()
   enum enum_check_fields save_count_cuted_fields;
   DBUG_ENTER("handler::update_auto_increment");
 
-  // ALTER TABLE ... ADD COLUMN ... AUTO_INCREMENT
-  if (thd->lex->sql_command == SQLCOM_ALTER_TABLE)
+  if (is_alter_table_add_column_auto_increment(thd))
   {
     if (table->versioned())
     {
