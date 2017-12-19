@@ -155,6 +155,7 @@ extern bool volatile shutdown_in_progress;
 
 extern "C" LEX_STRING * thd_query_string (MYSQL_THD thd);
 extern "C" size_t thd_query_safe(MYSQL_THD thd, char *buf, size_t buflen);
+extern "C" bool thd_alter_add_system_versioning(MYSQL_THD thd);
 
 /**
   @class CSET_STRING

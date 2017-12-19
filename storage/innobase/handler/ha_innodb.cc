@@ -3644,7 +3644,8 @@ static ulonglong innodb_prepare_commit_versioned(THD* thd, ulonglong *trx_id)
 	if (const trx_t* trx = thd_to_trx(thd)) {
 		*trx_id = trx->id;
 
-		if (trx->id && trx->vers_alter_trt) {
+		if (trx->id && thd_alter_add_system_versioning(thd) && trx->mod_tables.size() == 1
+		    && trx->mod_tables.begin()->second.is_trx_versioned()) {
 			return get_new_trx_id_locked();
 		}
 
