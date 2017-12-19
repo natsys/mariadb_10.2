@@ -472,25 +472,10 @@ create or replace table t(x int, y int) with system versioning engine=innodb;
 alter table t modify y int without system versioning;
 insert into t values(1, 1);
 update t set y=2;
-CREATE OR REPLACE TABLE t1 (pk INT AUTO_INCREMENT unique) ENGINE=MyISAM WITH SYSTEM VERSIONING;
+# MDEV-14681 Bogus ER_UNSUPPORTED_EXTENSION
+CREATE OR REPLACE TABLE t1 (pk INT AUTO_INCREMENT unique) WITH SYSTEM VERSIONING;
 INSERT INTO t1 VALUES (1);
 DELETE FROM t1;
 ALTER TABLE t1 ENGINE=MyISAM;
-CREATE OR REPLACE TABLE t1 (pk INT AUTO_INCREMENT unique) ENGINE=InnoDB WITH SYSTEM VERSIONING;
-INSERT INTO t1 VALUES (1);
-DELETE FROM t1;
-ALTER TABLE t1 ENGINE=InnoDB;
-set global system_versioning_transaction_registry=on;
-Warnings:
-Warning	4145	Transaction-based system versioning is EXPERIMENTAL and is subject to change in future.
-CREATE OR REPLACE TABLE t1 (
-pk INT AUTO_INCREMENT unique,
-s bigint unsigned as row start,
-e bigint unsigned as row end,
-period for system_time(s,e)
-) ENGINE=InnoDB WITH SYSTEM VERSIONING;
-INSERT INTO t1 VALUES (1);
-DELETE FROM t1;
-ALTER TABLE t1 ENGINE=InnoDB;
 drop database test;
 create database test;
