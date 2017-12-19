@@ -1229,8 +1229,7 @@ next_column:
         // FIXME: implement Online DDL for system-versioned tables
 	DBUG_ASSERT(!altered_table->versioned(VERS_TIMESTAMP));
 	if (altered_table->versioned(VERS_TRX_ID)
-	    || ha_alter_info->handler_flags & Alter_inplace_info::ALTER_ADD_SYSTEM_VERSIONING
-	    || ha_alter_info->handler_flags & Alter_inplace_info::ALTER_DROP_SYSTEM_VERSIONING) {
+	    || ha_alter_info->handler_flags & Alter_inplace_info::ALTER_ADD_SYSTEM_VERSIONING) {
 		online = false;
 	}
 
