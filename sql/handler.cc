@@ -7172,6 +7172,10 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
       if (f->change.length &&
           f->flags & (VERS_SYS_START_FLAG | VERS_SYS_END_FLAG))
       {
+        if (thd->mdl_context.upgrade_shared_lock(
+                table->mdl_ticket, MDL_EXCLUSIVE,
+                thd->variables.lock_wait_timeout))
+          return true;
         if (table->file->info(HA_STATUS_VARIABLE | HA_STATUS_TIME))
           return true;
         if (0 < table->file->records())
