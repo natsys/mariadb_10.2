@@ -3623,17 +3623,6 @@ static const char* ha_innobase_exts[] = {
 	NullS
 };
 
-/** Retrives next trx_id in a thread-safe manner
-@retval		new trx_id */
-static trx_id_t get_new_trx_id_locked()
-{
-	mutex_enter(&trx_sys->mutex);
-	trx_id_t commit_id = trx_sys_get_new_trx_id();
-	mutex_exit(&trx_sys->mutex);
-
-	return commit_id;
-}
-
 /** Determine if system-versioned data was modified by the transaction.
 @param[in,out]	thd	current session
 @param[out]	trx_id	transaction start ID
@@ -3644,20 +3633,21 @@ static ulonglong innodb_prepare_commit_versioned(THD* thd, ulonglong *trx_id)
 	if (const trx_t* trx = thd_to_trx(thd)) {
 		*trx_id = trx->id;
 
-		if (trx->id && thd_alter_add_system_versioning(thd) && trx->mod_tables.size() == 1
-		    && trx->mod_tables.begin()->second.is_trx_versioned()) {
-			return get_new_trx_id_locked();
-		}
-
 		for (trx_mod_tables_t::const_iterator t
 			     = trx->mod_tables.begin();
 		     t != trx->mod_tables.end(); t++) {
 			if (t->second.is_trx_versioned()) {
 				DBUG_ASSERT(t->first->versioned());
-				DBUG_ASSERT(trx->undo_no);
+				if (!thd_alter_add_system_versioning(thd)) {
+					DBUG_ASSERT(trx->undo_no);
+				}
 				DBUG_ASSERT(trx->rsegs.m_redo.rseg);
 
-				return get_new_trx_id_locked();
+				mutex_enter(&trx_sys->mutex);
+				trx_id_t commit_id = trx_sys_get_new_trx_id();
+				mutex_exit(&trx_sys->mutex);
+
+				return commit_id;
 			}
 		}
 
