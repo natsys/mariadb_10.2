@@ -25,7 +25,8 @@ add period for system_time(s, e),
 add system versioning;
 alter table t add index idx(a), lock=none;
 ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED
-alter table t add index idx(a), lock=none;
+alter table t drop column s, drop column e;
+alter table t drop system versioning, lock=none;
 ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED
 set global system_versioning_transaction_registry=off;
 drop table t;

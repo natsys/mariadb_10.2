@@ -30,8 +30,9 @@ alter table t
   add system versioning;
 --error ER_ALTER_OPERATION_NOT_SUPPORTED
 alter table t add index idx(a), lock=none;
+alter table t drop column s, drop column e;
 --error ER_ALTER_OPERATION_NOT_SUPPORTED
-alter table t add index idx(a), lock=none;  
+alter table t drop system versioning, lock=none;
 
 set global system_versioning_transaction_registry=off;
 
