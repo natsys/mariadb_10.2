@@ -32,7 +32,7 @@ return if(cond = 1, '[CORRECT]', '[INCORRECT]');
 set @@system_versioning_alter_history=keep;
 set global system_versioning_transaction_registry=on;
 Warnings:
-Warning	4145	Transaction-based system versioning is EXPERIMENTAL and is subject to change in future.
+Warning	4144	Transaction-based system versioning is EXPERIMENTAL and is subject to change in future.
 create or replace table t1 (x int) engine innodb;
 insert into t1 values (1);
 alter table t1
