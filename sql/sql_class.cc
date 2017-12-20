@@ -1248,6 +1248,7 @@ extern "C" my_thread_id next_thread_id_noinline()
 }
 #endif
 
+
 const Type_handler *THD::type_handler_for_date() const
 {
   if (!(variables.sql_mode & MODE_ORACLE))
