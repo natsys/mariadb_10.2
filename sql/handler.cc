@@ -7195,9 +7195,9 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
                                                   : "GENERATED AS ROW END");
           return true;
         }
-        if (share->table_category != TABLE_CATEGORY_TEMPORARY &&
-            thd->mdl_context.upgrade_shared_lock(table->mdl_ticket, MDL_EXCLUSIVE,
-                                                 thd->variables.lock_wait_timeout))
+        if (thd->mdl_context.upgrade_shared_lock(
+                table->mdl_ticket, MDL_EXCLUSIVE,
+                thd->variables.lock_wait_timeout))
           return true;
         if (table->file->info(HA_STATUS_VARIABLE | HA_STATUS_TIME))
           return true;
