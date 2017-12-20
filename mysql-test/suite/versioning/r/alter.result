@@ -423,5 +423,10 @@ create or replace table t1 (pk int auto_increment unique) with system versioning
 insert into t1 values (1);
 delete from t1;
 alter table t1 engine=myisam;
+# MDEV-14692 crash in MDL_context::upgrade_shared_lock()
+create or replace temporary table t (a int);
+alter table t change column if exists b c bigint unsigned generated always as row start;
+Warnings:
+Note	1054	Unknown column 'b' in 't'
 drop database test;
 create database test;
