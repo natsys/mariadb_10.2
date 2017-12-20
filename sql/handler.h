@@ -2158,6 +2158,8 @@ public:
 
   static const HA_ALTER_FLAGS ALTER_ADD_SYSTEM_VERSIONING= 1ULL << 43;
 
+  static const HA_ALTER_FLAGS ALTER_DROP_SYSTEM_VERSIONING= 1ULL << 44;
+
   /**
     Create options (like MAX_ROWS) for the new version of table.
 

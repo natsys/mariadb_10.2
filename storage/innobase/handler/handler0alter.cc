@@ -694,7 +694,8 @@ ha_innobase::check_if_supported_inplace_alter(
 {
 	DBUG_ENTER("check_if_supported_inplace_alter");
 
-	if (altered_table->versioned(VERS_TIMESTAMP)) {
+	if (altered_table->versioned(VERS_TIMESTAMP)
+	    || ha_alter_info->handler_flags & Alter_inplace_info::ALTER_DROP_SYSTEM_VERSIONING) {
 		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 	}
 
@@ -1229,7 +1230,7 @@ next_column:
         // FIXME: implement Online DDL for system-versioned tables
 	DBUG_ASSERT(!altered_table->versioned(VERS_TIMESTAMP));
 	if (altered_table->versioned(VERS_TRX_ID)
-	    || ha_alter_info->handler_flags & Alter_inplace_info::ALTER_ADD_SYSTEM_VERSIONING) {
+	    || ha_alter_info->handler_flags & Alter_inplace_info::ALTER_DROP_SYSTEM_VERSIONING) {
 		online = false;
 	}
 
