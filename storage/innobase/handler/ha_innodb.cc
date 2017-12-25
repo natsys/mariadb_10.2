@@ -6557,7 +6557,7 @@ no_such_table:
 	}
 
 	if (table && m_prebuilt->table) {
-		ut_ad(table->versioned() == m_prebuilt->table->versioned());
+		ut_ad(table->versioned(VERS_TRX_ID) == m_prebuilt->table->versioned());
 	}
 
 	info(HA_STATUS_NO_LOCK | HA_STATUS_VARIABLE | HA_STATUS_CONST | HA_STATUS_OPEN);
@@ -11418,7 +11418,7 @@ create_table_info_t::create_table_def()
 		Field*	field = m_form->field[i];
 		ulint vers_row = 0;
 
-		if (m_form->versioned()) {
+		if (m_form->versioned(VERS_TRX_ID)) {
 			if (i == m_form->s->row_start_field) {
 				vers_row = DATA_VERS_START;
 			} else if (i == m_form->s->row_end_field) {

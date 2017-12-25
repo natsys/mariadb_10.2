@@ -1,5 +1,7 @@
 -- source include/have_innodb.inc
 
+set global system_versioning_transaction_registry=on;
+
 --echo #################
 --echo # Test RESTRICT #
 --echo #################
@@ -10,6 +12,9 @@ create table parent(
 
 create table child(
   parent_id int,
+  s bigint unsigned as row start invisible,
+  e bigint unsigned as row end invisible,
+  period for system_time(s, e),
   foreign key(parent_id) references parent(id)
     on delete restrict
     on update restrict
@@ -44,6 +49,9 @@ create table parent(
 
 create table child(
   parent_id int(10) unsigned primary key,
+  s bigint unsigned as row start invisible,
+  e bigint unsigned as row end invisible,
+  period for system_time(s, e),
   foreign key(parent_id) references parent(id)
 ) engine innodb with system versioning;
 
@@ -66,6 +74,9 @@ create table parent(
 
 create table child(
   parent_id int,
+  s bigint unsigned as row start invisible,
+  e bigint unsigned as row end invisible,
+  period for system_time(s, e),
   foreign key(parent_id) references parent(id)
     on delete cascade
     on update cascade
@@ -94,7 +105,10 @@ drop table child;
 drop table parent;
 
 create or replace table parent (
-  id int primary key
+  id int primary key,
+  s bigint unsigned as row start invisible,
+  e bigint unsigned as row end invisible,
+  period for system_time(s, e)
 ) with system versioning
 engine innodb;
 
@@ -124,6 +138,9 @@ engine innodb;
 create or replace table child (
   id int primary key,
   parent_id int not null,
+  s bigint unsigned as row start invisible,
+  e bigint unsigned as row end invisible,
+  period for system_time(s, e),
   constraint `parent-fk`
   foreign key (parent_id) references parent (id)
       on delete cascade
@@ -153,6 +170,9 @@ create table parent(
 
 create table child(
   parent_id int,
+  s bigint unsigned as row start invisible,
+  e bigint unsigned as row end invisible,
+  period for system_time(s, e),
   foreign key(parent_id) references parent(id)
     on delete set null
     on update set null
@@ -190,7 +210,10 @@ drop table parent;
 --echo ###########################
 
 create or replace table parent(
-  id int unique key
+  id int unique key,
+  s bigint unsigned as row start invisible,
+  e bigint unsigned as row end invisible,
+  period for system_time(s, e)
 ) engine innodb with system versioning;
 
 create or replace table child(
@@ -227,14 +250,20 @@ drop table parent;
 
 create or replace table a (
   cola int(10) primary key,
-  v_cola int(10) as (cola mod 10) virtual
+  v_cola int(10) as (cola mod 10) virtual,
+  s bigint unsigned as row start invisible,
+  e bigint unsigned as row end invisible,
+  period for system_time(s, e)
 ) engine=innodb with system versioning;
 
 create index v_cola on a (v_cola);
 
 create or replace table b(
   cola int(10),
-  v_cola int(10)
+  v_cola int(10),
+  s bigint unsigned as row start invisible,
+  e bigint unsigned as row end invisible,
+  period for system_time(s, e)
 ) engine=innodb with system versioning;
 
 alter table b add constraint `v_cola_fk`
@@ -246,3 +275,4 @@ insert into b(cola, v_cola) values (10,2);
 delete from a;
 
 drop table b, a;
+set global system_versioning_transaction_registry=off;
