@@ -6891,8 +6891,7 @@ bool Vers_parse_info::is_end(const Create_field &f) const
   return f.flags & VERS_SYS_END_FLAG;
 }
 
-static Create_field *vers_init_sys_field(THD *thd, const char *field_name,
-                                         int flags)
+static Create_field *vers_init_sys_field(THD *thd, const char *field_name, int flags, bool integer)
 {
   Create_field *f= new (thd->mem_root) Create_field();
   if (!f)
@@ -6903,8 +6902,17 @@ static Create_field *vers_init_sys_field(THD *thd, const char *field_name,
   f->field_name.length= strlen(field_name);
   f->charset= system_charset_info;
   f->flags= flags;
-  f->set_handler(&type_handler_timestamp2);
-  f->length= MAX_DATETIME_PRECISION;
+  if (integer)
+  {
+    f->set_handler(&type_handler_longlong);
+    f->length= MY_INT64_NUM_DECIMAL_DIGITS - 1;
+    f->flags|= UNSIGNED_FLAG;
+  }
+  else
+  {
+    f->set_handler(&type_handler_timestamp2);
+    f->length= MAX_DATETIME_PRECISION;
+  }
   f->invisible= INVISIBLE_SYSTEM;
 
   if (f->check(thd))
@@ -6916,7 +6924,7 @@ static Create_field *vers_init_sys_field(THD *thd, const char *field_name,
 static bool vers_create_sys_field(THD *thd, const char *field_name,
                                   Alter_info *alter_info, int flags)
 {
-  Create_field *f= vers_init_sys_field(thd, field_name, flags);
+  Create_field *f= vers_init_sys_field(thd, field_name, flags, false);
   if (!f)
     return true;
 
@@ -6926,11 +6934,10 @@ static bool vers_create_sys_field(THD *thd, const char *field_name,
   return false;
 }
 
-static bool vers_change_sys_field(THD *thd, const char *field_name,
-                                  Alter_info *alter_info, int flags,
-                                  const char *change)
+static bool vers_change_sys_field(THD *thd, const char *field_name, Alter_info *alter_info,
+                                  int flags, const char *change, bool integer)
 {
-  Create_field *f= vers_init_sys_field(thd, field_name, flags);
+  Create_field *f= vers_init_sys_field(thd, field_name, flags, integer);
   if (!f)
     return true;
 
@@ -7369,8 +7376,9 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
           return true;
         }
 
-        if (vers_change_sys_field(thd, name, alter_info,
-                                  f->flags & VERS_SYSTEM_FIELD, name))
+        bool integer= table->vers_start_field()->type() == MYSQL_TYPE_LONGLONG;
+        if (vers_change_sys_field(thd, name, alter_info, f->flags & VERS_SYSTEM_FIELD, name,
+                                  integer))
         {
           return true;
         }

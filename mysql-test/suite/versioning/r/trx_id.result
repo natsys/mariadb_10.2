@@ -79,6 +79,18 @@ algorithm=copy;
 select check_result(count(*) = @tmp) from mysql.transaction_registry;
 check_result(count(*) = @tmp)
 [CORRECT]
+# TRX_ID to TIMESTAMP versioning switch
+create or replace table t1 (
+x int,
+s bigint unsigned as row start invisible,
+e bigint unsigned as row end invisible,
+period for system_time (s, e)
+) engine innodb with system versioning;
+insert into t1 values (1);
+alter table t1 drop column s, drop column e;
+select e from t1 for system_time all;
+e
+18446744073709551615
 drop table t1;
 set global system_versioning_transaction_registry=off;
 drop function check_result;
