@@ -82,15 +82,15 @@ check_result(count(*) = @tmp)
 # TRX_ID to TIMESTAMP versioning switch
 create or replace table t1 (
 x int,
-s bigint unsigned as row start invisible,
-e bigint unsigned as row end invisible,
-period for system_time (s, e)
+sys_start bigint unsigned as row start invisible,
+sys_end bigint unsigned as row end invisible,
+period for system_time (sys_start, sys_end)
 ) engine innodb with system versioning;
 insert into t1 values (1);
-alter table t1 drop column s, drop column e;
-select e from t1 for system_time all;
-e
-18446744073709551615
+alter table t1 drop column sys_start, drop column sys_end;
+select sys_end = 18446744073709551615 as transaction_based from t1 for system_time all;
+transaction_based
+1
 drop table t1;
 set global system_versioning_transaction_registry=off;
 drop function check_result;
