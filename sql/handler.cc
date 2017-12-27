@@ -7178,7 +7178,7 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
     return false;
 
   if (alter_info->flags & Alter_info::ALTER_ADD_SYSTEM_VERSIONING &&
-      share->table_category == TABLE_CATEGORY_TEMPORARY)
+      share->tmp_table != NO_TMP_TABLE)
   {
     my_error(ER_VERS_TEMPORARY, MYF(0), "ADD SYSTEM VERSIONING");
     return true;
