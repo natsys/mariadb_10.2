@@ -7365,8 +7365,7 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
         if (!field)
           return true;
 
-        field->change.str= name;
-        field->change.length= strlen(name);
+        field->change= f->field_name;
 
         alter_info->flags|= Alter_info::ALTER_CHANGE_COLUMN;
         alter_info->create_list.push_back(field);
