@@ -7180,7 +7180,7 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
   if (alter_info->flags & Alter_info::ALTER_ADD_SYSTEM_VERSIONING &&
       share->table_category == TABLE_CATEGORY_TEMPORARY)
   {
-    my_error(ER_VERS_TEMPORARY, MYF(0), "WITH SYSTEM VERSIONING");
+    my_error(ER_VERS_TEMPORARY, MYF(0), "ADD SYSTEM VERSIONING");
     return true;
   }
 

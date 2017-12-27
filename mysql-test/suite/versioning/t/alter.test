@@ -377,5 +377,6 @@ create or replace table t (c text) engine=innodb with system versioning;
 show create table t;
 alter table t add fulltext key (c);
 
+
 drop database test;
 create database test;
