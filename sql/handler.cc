@@ -6934,22 +6934,6 @@ static bool vers_create_sys_field(THD *thd, const char *field_name,
   return false;
 }
 
-static bool vers_change_sys_field(THD *thd, const char *field_name, Alter_info *alter_info,
-                                  int flags, const char *change, bool integer)
-{
-  Create_field *f= vers_init_sys_field(thd, field_name, flags, integer);
-  if (!f)
-    return true;
-
-  f->change.str= change;
-  f->change.length= strlen(change);
-
-  alter_info->flags|= Alter_info::ALTER_CHANGE_COLUMN;
-  alter_info->create_list.push_back(f);
-
-  return false;
-}
-
 const LString Vers_parse_info::default_start= "sys_trx_start";
 const LString Vers_parse_info::default_end= "sys_trx_end";
 
@@ -7377,11 +7361,15 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
         }
 
         bool integer= table->vers_start_field()->type() == MYSQL_TYPE_LONGLONG;
-        if (vers_change_sys_field(thd, name, alter_info, f->flags & VERS_SYSTEM_FIELD, name,
-                                  integer))
-        {
+        Create_field *field= vers_init_sys_field(thd, name, f->flags & VERS_SYSTEM_FIELD, integer);
+        if (!field)
           return true;
-        }
+
+        field->change.str= name;
+        field->change.length= strlen(name);
+
+        alter_info->flags|= Alter_info::ALTER_CHANGE_COLUMN;
+        alter_info->create_list.push_back(field);
 
         it.remove();
 
