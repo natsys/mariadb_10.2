@@ -7177,7 +7177,7 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
   if (!need_check(alter_info) && !share->versioned)
     return false;
 
-  if (share->tmp_table && share->tmp_table != INTERNAL_TMP_TABLE)
+  if (!thd->variables.vers_force && share->tmp_table && share->tmp_table != INTERNAL_TMP_TABLE)
   {
     my_error(ER_VERS_TEMPORARY, MYF(0));
     return true;
