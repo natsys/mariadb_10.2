@@ -263,28 +263,6 @@ insert into t values (1);
 --error ER_VERS_ALTER_SYSTEM_FIELD
 alter table t modify column row_start bigint unsigned;
 
-create or replace table t (
-  a int,
-  row_start timestamp(6) as row start invisible,
-  row_end timestamp(6) as row end invisible,
-  period for system_time(row_start, row_end)
-) with system versioning;
-select * from t;
-
---error ER_VERS_SYS_FIELD_EXISTS
-alter table t drop system versioning;
-alter table t drop column row_start;
-select * from t;
-
---error ER_VERS_SYS_FIELD_EXISTS
-alter table t drop system versioning;
-alter table t drop column row_end;
-select * from t;
-
-alter table t drop system versioning;
-show create table t;
-
-
 ## These experimental options are now disabled
 
 --error ER_WRONG_VALUE_FOR_VAR

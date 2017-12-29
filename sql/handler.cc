@@ -7201,19 +7201,6 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
       return true;
     }
 
-    if (share->vers_start_field()->invisible < INVISIBLE_SYSTEM)
-    {
-      my_error(ER_VERS_SYS_FIELD_EXISTS, MYF(0),
-               share->vers_start_field()->field_name.str);
-      return true;
-    }
-    if (share->vers_end_field()->invisible < INVISIBLE_SYSTEM)
-    {
-      my_error(ER_VERS_SYS_FIELD_EXISTS, MYF(0),
-               share->vers_end_field()->field_name.str);
-      return true;
-    }
-
     if (add_field_to_drop_list(thd, alter_info, share->vers_start_field()) ||
         add_field_to_drop_list(thd, alter_info, share->vers_end_field()))
       return true;
