@@ -1544,6 +1544,9 @@ int JOIN::optimize()
 {
   int res= 0;
   join_optimization_state init_state= optimization_state;
+
+  Query_arena_stmt on_stmt_arena(thd);
+
   if (optimization_state == JOIN::OPTIMIZATION_PHASE_1_DONE)
     res= optimize_stage2();
   else
