@@ -756,6 +756,8 @@ void thd_set_ha_data(MYSQL_THD thd, const struct handlerton *hton,
 */
 void thd_wakeup_subsequent_commits(MYSQL_THD thd, int wakeup_error);
 
+void thd_vers_update_sys_field(MYSQL_THD thd);
+
 #ifdef __cplusplus
 }
 #endif

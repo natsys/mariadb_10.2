@@ -642,6 +642,12 @@ char *thd_security_context(THD *thd,
 }
 #endif
 
+
+extern "C"
+void thd_vers_update_sys_field(THD *thd)
+{
+}
+
 /**
   Implementation of Drop_table_error_handler::handle_condition().
   The reason in having this implementation is to silence technical low-level

@@ -2012,10 +2012,15 @@ run_again:
 		ufield->orig_len = 0;
 		ufield->exp = NULL;
 
-		mach_write_to_8(node->update->vers_sys_value, trx->id);
-		dfield_t* dfield = &ufield->new_val;
-		dfield_set_data(dfield, node->update->vers_sys_value, 8);
-		dict_col_copy_type(col, &dfield->type);
+		if (col->vers_native())
+		{
+			mach_write_to_8(node->update->vers_sys_value, trx->id);
+			dfield_t* dfield = &ufield->new_val;
+			dfield_set_data(dfield, node->update->vers_sys_value, 8);
+			dict_col_copy_type(col, &dfield->type);
+		} else {
+			thd_vers_update_sys_field(trx->mysql_thd);
+		}
 
 		uvect->n_fields++;
 		ut_ad(node->in_mysql_interface); // otherwise needs to recalculate node->cmpl_info
@@ -2118,14 +2123,6 @@ handle_error:
 				  && (node->is_delete == PLAIN_DELETE
 				      || node->update->affects_versioned());
 
-		if (vers_set_fields && !prebuilt->versioned_write)
-		{
-			// FIXME: timestamp-based update of row_end in run_again
-			err = DB_UNSUPPORTED;
-			trx->error_state = err;
-
-			goto handle_error;
-		}
 		goto run_again;
 	}
 
