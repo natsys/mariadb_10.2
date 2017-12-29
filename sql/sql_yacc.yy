@@ -892,10 +892,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
-  Currently there are 123 shift/reduce conflicts.
+  Currently there are 125 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 123
+%expect 125
 
 /*
    Comments for TOKENS.
@@ -8080,6 +8080,7 @@ alter_list_item:
           }
         | ADD period_for_system_time
           {
+            Lex->vers_get_info().add_period= true;
           }
         | add_column '(' create_field_list ')'
           {
@@ -8253,6 +8254,10 @@ alter_list_item:
         | DROP SYSTEM VERSIONING_SYM
           {
             Lex->alter_info.flags|= Alter_info::ALTER_DROP_SYSTEM_VERSIONING;
+          }
+        | DROP PERIOD_SYM FOR_SYSTEM_TIME_SYM
+          {
+            Lex->vers_get_info().drop_period= true;
           }
         ;
 

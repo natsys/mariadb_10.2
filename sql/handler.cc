@@ -7133,11 +7133,17 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
   return false;
 }
 
-static bool add_field_to_drop_list(THD *thd, Alter_info *alter_info,
-                                   Field *field)
+static bool add_field_to_drop_list_if_not_exists(THD *thd, Alter_info *alter_info, Field *field)
 {
   DBUG_ASSERT(field);
   DBUG_ASSERT(field->field_name.str);
+  List_iterator_fast<Alter_drop> it(alter_info->drop_list);
+  while (Alter_drop *drop= it++)
+  {
+    if (!my_strcasecmp(system_charset_info, field->field_name.str, drop->name))
+      return false;
+  }
+
   alter_info->flags|= Alter_info::ALTER_DROP_COLUMN;
   Alter_drop *ad= new (thd->mem_root)
       Alter_drop(Alter_drop::COLUMN, field->field_name.str, false);
@@ -7201,8 +7207,8 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
       return true;
     }
 
-    if (add_field_to_drop_list(thd, alter_info, share->vers_start_field()) ||
-        add_field_to_drop_list(thd, alter_info, share->vers_end_field()))
+    if (add_field_to_drop_list_if_not_exists(thd, alter_info, share->vers_start_field()) ||
+        add_field_to_drop_list_if_not_exists(thd, alter_info, share->vers_end_field()))
       return true;
 
     if (share->primary_key != MAX_KEY && !is_adding_primary_key(alter_info) &&

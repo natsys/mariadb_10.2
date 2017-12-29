@@ -1725,7 +1725,9 @@ struct Vers_parse_info
 {
   Vers_parse_info() :
     versioned_fields(false),
-    unversioned_fields(false)
+    unversioned_fields(false),
+    add_period(false),
+    drop_period(false)
   {}
 
   struct start_end_t
@@ -1789,6 +1791,8 @@ public:
   */
   bool versioned_fields : 1;
   bool unversioned_fields : 1;
+  bool add_period : 1;  // ADD PERIOD FOR SYSTEM_TIME was specified
+  bool drop_period : 1; // DROP PERIOD FOR SYSTEM_TIME was specified
 };
 
 /**
