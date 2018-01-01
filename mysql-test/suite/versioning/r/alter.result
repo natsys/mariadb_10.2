@@ -470,5 +470,7 @@ alter table t drop column sys_trx_start, drop period for system_time;
 ERROR HY000: Wrong parameters for `t`: missing 'DROP COLUMN sys_trx_end'
 alter table t drop column sys_trx_end, drop period for system_time;
 ERROR HY000: Wrong parameters for `t`: missing 'DROP COLUMN sys_trx_start'
+alter table t add period for system_time(sys_trx_start, sys_trx_end);
+ERROR HY000: Table `t` is already system-versioned
 drop database test;
 create database test;

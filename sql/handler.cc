@@ -7268,6 +7268,15 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
     return true;
   }
 
+  if (add_period)
+  {
+    if (share->versioned)
+    {
+      my_error(ER_VERS_ALREADY_VERSIONED, MYF(0), table_name);
+      return true;
+    }
+  }
+
   if (drop_period)
   {
     if (!share->versioned)
