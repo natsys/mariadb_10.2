@@ -461,5 +461,10 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
+alter table t drop period for system_time;
+ERROR HY000: Table `t` is not system-versioned
+alter table t add system versioning;
+alter table t drop period for system_time;
+ERROR HY000: Wrong parameters for `t`: missing 'DROP COLUMN sys_trx_start, DROP COLUMN sys_trx_end'
 drop database test;
 create database test;

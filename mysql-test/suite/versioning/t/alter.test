@@ -396,5 +396,17 @@ alter table t
   drop system versioning;
 show create table t;
 
+--error ER_VERS_NOT_VERSIONED
+alter table t drop period for system_time;
+
+alter table t add system versioning;
+--error ER_MISSING
+alter table t drop period for system_time;
+--error ER_MISSING
+alter table t drop column sys_trx_start, drop period for system_time;
+--error ER_MISSING
+alter table t drop column sys_trx_end, drop period for system_time;
+
+
 drop database test;
 create database test;
