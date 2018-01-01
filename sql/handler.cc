@@ -7342,6 +7342,36 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
         if (done_start && done_end)
           break;
       }
+
+      if (alter_info->drop_list.elements)
+      {
+        Dynamic_array<const char *> fields;
+        for (uint i= 0; i < share->fields; i++)
+        {
+          if (share->field[i]->vers_sys_field())
+            continue;
+          fields.push(share->field[i]->field_name.str);
+        }
+
+        it.rewind();
+        while (Alter_drop *d= it++)
+        {
+          for (uint i= 0; i < fields.elements(); i++)
+          {
+            if (!my_strcasecmp(system_charset_info, d->name, fields.at(i)))
+            {
+              fields.del(i);
+              break;
+            }
+          }
+        }
+
+        if (fields.elements() == 0)
+        {
+          my_error(ER_VERS_TABLE_MUST_HAVE_COLUMNS, MYF(0), table_name);
+          return true;
+        }
+      }
     }
 
     return false;
