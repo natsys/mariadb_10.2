@@ -391,6 +391,16 @@ create or replace table t4 (x int) engine=myisam;
 create or replace trigger tr after insert on t4 for each row insert into t2
 ( select x from t3 ) union ( select x from t1 );
 insert into t4 values (1);
+# MDEV-14821 Assertion failure
+CREATE OR REPLACE TABLE t1 (a INT, b INT) WITH SYSTEM VERSIONING;
+INSERT INTO t1 VALUES (1,10),(2,20),(3,30);
+UPDATE t1 SET b = 0;
+ALTER TABLE t1 PARTITION BY system_time INTERVAL 1 SECOND ( PARTITION p1 HISTORY, PARTITION p2 HISTORY, PARTITION pn CURRENT );
+DELETE FROM t1 WHERE a = 2;
+Warnings:
+Note	4115	Versioned table `test`.`t1`: switching from partition `p1` to `p2`
+DELETE FROM t1 WHERE a = 1;
+DELETE FROM t1 WHERE a = 5;
 # Test cleanup
 drop database test;
 create database test;
