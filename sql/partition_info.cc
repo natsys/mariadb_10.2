@@ -1517,7 +1517,7 @@ error:
     called for RANGE PARTITIONed tables.
 */
 
-bool partition_info::check_range_constants(THD *thd, bool alloc)
+bool partition_info::check_range_constants(THD *thd)
 {
   partition_element* part_def;
   bool first= TRUE;
@@ -1534,15 +1534,12 @@ bool partition_info::check_range_constants(THD *thd, bool alloc)
     part_column_list_val *UNINIT_VAR(current_largest_col_val);
     uint num_column_values= part_field_list.elements;
     uint size_entries= sizeof(part_column_list_val) * num_column_values;
-    if (alloc)
+    range_col_array= (part_column_list_val*) thd->calloc(num_parts *
+                                                         size_entries);
+    if (unlikely(range_col_array == NULL))
     {
-      range_col_array= (part_column_list_val*) thd->calloc(num_parts *
-        size_entries);
-      if (unlikely(range_col_array == NULL))
-      {
-        mem_alloc_error(num_parts * size_entries);
-        goto end;
-      }
+      mem_alloc_error(num_parts * size_entries);
+      goto end;
     }
     loc_range_col_array= range_col_array;
     i= 0;
@@ -1575,14 +1572,11 @@ bool partition_info::check_range_constants(THD *thd, bool alloc)
     longlong part_range_value;
     bool signed_flag= !part_expr->unsigned_flag;
 
-    if (alloc)
+    range_int_array= (longlong*) thd->alloc(num_parts * sizeof(longlong));
+    if (unlikely(range_int_array == NULL))
     {
-      range_int_array= (longlong*) thd->alloc(num_parts * sizeof(longlong));
-      if (unlikely(range_int_array == NULL))
-      {
-        mem_alloc_error(num_parts * sizeof(longlong));
-        goto end;
-      }
+      mem_alloc_error(num_parts * sizeof(longlong));
+      goto end;
     }
     i= 0;
     do
