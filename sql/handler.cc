@@ -7342,12 +7342,6 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
         if (done_start && done_end)
           break;
       }
-
-      if (share->fields - alter_info->drop_list.elements <= 2)
-      {
-        my_error(ER_VERS_TABLE_MUST_HAVE_COLUMNS, MYF(0), table_name);
-        return true;
-      }
     }
 
     return false;
