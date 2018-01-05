@@ -413,7 +413,7 @@ create or replace table t4 (f4 int);
 select * from
 t1 as t1a
 left join t2 as t2a
-left join (t3 as t3a inner join t1 as t1b)
+left join (t3 as t3a inner join t1)
 on t2a.f2 = t3a.f3
 on t1a.f1 = t2a.f2
 left join
