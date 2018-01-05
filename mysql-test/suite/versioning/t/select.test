@@ -283,8 +283,25 @@ delete from t1;
 select * from t1 where t = '00:00:00' and i > 0 and row_end <> '2012-12-12 00:00:00';
 --enable_warnings
 
+CREATE OR REPLACE TABLE t1 (f1 INT) WITH SYSTEM VERSIONING;
+CREATE OR REPLACE TABLE t2 (f2 INT) WITH SYSTEM VERSIONING;
+CREATE OR REPLACE TABLE t3 (f3 INT);
+CREATE OR REPLACE TABLE t4 (f4 INT);
+
+SELECT * FROM
+  t1 AS t1a
+    LEFT JOIN t2 AS t2a
+      LEFT JOIN (t3 AS t3a INNER JOIN t1 AS t1b)
+      ON t2a.f2 = t3a.f3
+    ON t1a.f1 = t2a.f2
+    LEFT JOIN
+      (t2 JOIN t3 INNER JOIN t4)
+    ON t2a.f2 = t1a.f1
+;
+
+
 drop view v1;
-drop table t1, t2;
+drop table t1, t2, t3, t4;
 
 call verify_vtq_dummy(34);
 
