@@ -358,4 +358,7 @@ a
 select * from t1 for system_time as of sysdate(6);
 a
 1
+create or replace table t1 (pk int primary key) with system versioning;
+create trigger tr before insert on t1 for each row select 1 into @a;
+insert into t1 values (1),(2);
 drop table t1;
