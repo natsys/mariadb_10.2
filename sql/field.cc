@@ -2240,6 +2240,7 @@ Field *Field::make_new_field(MEM_ROOT *root, TABLE *new_table,
                 VERS_SYS_START_FLAG | VERS_SYS_END_FLAG |
                 VERS_UPDATE_UNVERSIONED_FLAG);
   tmp->reset_fields();
+  tmp->invisible= VISIBLE;
   return tmp;
 }
 
