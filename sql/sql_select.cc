@@ -730,6 +730,15 @@ void JOIN::vers_check_items()
   }
 }
 
+static Item *make_expr_or_is_not_null(THD *thd, Item *expr, Item *not_null_item)
+{
+  List<Item> args;
+  args.push_back(expr, thd->mem_root);
+  args.push_back(new (thd->mem_root) Item_func_isnull(thd, not_null_item),
+                 thd->mem_root);
+  return new (thd->mem_root) Item_cond_or(thd, args);
+}
+
 int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr)
 {
   DBUG_ENTER("SELECT_LEX::vers_setup_cond");
@@ -940,12 +949,14 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
           max_time.second_part= TIME_MAX_SECOND_PART;
           curr= newx Item_datetime_literal(thd, &max_time,
                                             TIME_SECOND_PART_DIGITS);
-          cond1= newx Item_func_eq(thd, row_end, curr);
+          cond1= make_expr_or_is_not_null(
+              thd, newx Item_func_eq(thd, row_end, curr), row_end);
         }
         else
         {
           curr= newx Item_int(thd, ULONGLONG_MAX);
-          cond1= newx Item_func_eq(thd, row_end, curr);
+          cond1= make_expr_or_is_not_null(
+              thd, newx Item_func_eq(thd, row_end, curr), row_end);
         }
         break;
       case SYSTEM_TIME_AS_OF:
