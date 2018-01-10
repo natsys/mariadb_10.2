@@ -940,15 +940,14 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
           max_time.second_part= TIME_MAX_SECOND_PART;
           curr= newx Item_datetime_literal(thd, &max_time,
                                             TIME_SECOND_PART_DIGITS);
-          cond1= or_items(thd, newx Item_func_eq(thd, row_end, curr),
-                          newx Item_func_isnull(thd, row_end));
+          cond1= newx Item_func_eq(thd, row_end, curr);
         }
         else
         {
           curr= newx Item_int(thd, ULONGLONG_MAX);
-          cond1= or_items(thd, newx Item_func_eq(thd, row_end, curr),
-                          newx Item_func_isnull(thd, row_end));
+          cond1= newx Item_func_eq(thd, row_end, curr);
         }
+        cond1= or_items(thd, cond1, newx Item_func_isnull(thd, row_end));
         break;
       case SYSTEM_TIME_AS_OF:
         cond1= newx Item_func_le(thd, row_start,
