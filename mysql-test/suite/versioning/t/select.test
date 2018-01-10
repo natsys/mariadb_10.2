@@ -288,14 +288,10 @@ create or replace table t1 (f1 int) with system versioning;
 create or replace table t2 (f2 int) with system versioning;
 create or replace table t3 (f3 int);
 create or replace table t4 (f4 int);
-insert into t1 values(1);
-insert into t2 values(1);
-insert into t3 values(1);
-insert into t4 values(1);
-update t1 set f1=2;
-update t2 set f2=2;
-update t3 set f3=2;
-update t4 set f4=2;
+insert into t1 values (1), (2), (3), (4);
+insert into t2 values (1), (2), (3);
+insert into t3 values (1), (2);
+insert into t4 values (1);
 select * from
   t1 as t1a
     left join t2 as t2a left join (t3 as t3a inner join t1) on t2a.f2 = t3a.f3  on t1a.f1 = t2a.f2
