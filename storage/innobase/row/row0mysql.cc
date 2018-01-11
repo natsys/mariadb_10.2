@@ -2012,19 +2012,16 @@ run_again:
 		ufield->orig_len = 0;
 		ufield->exp = NULL;
 
-		ulint data_len;
 		if (col->vers_native())
 		{
 			mach_write_to_8(node->update->vers_sys_value, trx->id);
-			data_len= 8;
 		} else {
 			thd_vers_update_sys_field(trx->mysql_thd, (char *)
 						  node->update->vers_sys_value);
-			data_len= 7;
 		}
 
 		dfield_t* dfield = &ufield->new_val;
-		dfield_set_data(dfield, node->update->vers_sys_value, data_len);
+		dfield_set_data(dfield, node->update->vers_sys_value, col->len);
 		dict_col_copy_type(col, &dfield->type);
 
 		uvect->n_fields++;
