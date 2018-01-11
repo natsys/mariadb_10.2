@@ -2016,7 +2016,7 @@ run_again:
 		{
 			mach_write_to_8(node->update->vers_sys_value, trx->id);
 		} else {
-			thd_vers_update_sys_field(trx->mysql_thd, (char *)
+			thd_get_query_start_data(trx->mysql_thd, (char *)
 						  node->update->vers_sys_value);
 		}
 
