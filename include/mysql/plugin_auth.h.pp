@@ -528,7 +528,7 @@ void *thd_get_ha_data(const void* thd, const struct handlerton *hton);
 void thd_set_ha_data(void* thd, const struct handlerton *hton,
                      const void *ha_data);
 void thd_wakeup_subsequent_commits(void* thd, int wakeup_error);
-void thd_vers_update_sys_field(void* thd);
+void thd_vers_update_sys_field(void* thd, char *buf);
 typedef struct st_plugin_vio_info
 {
   enum { MYSQL_VIO_INVALID, MYSQL_VIO_TCP, MYSQL_VIO_SOCKET,

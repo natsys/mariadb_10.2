@@ -644,8 +644,11 @@ char *thd_security_context(THD *thd,
 
 
 extern "C"
-void thd_vers_update_sys_field(THD *thd)
+void thd_vers_update_sys_field(THD *thd, char *buf)
 {
+  LEX_CSTRING field_name;
+  Field_timestampf f((uchar *)buf, NULL, 0, Field::NONE, &field_name, NULL, 6);
+  f.store_TIME(thd->query_start(), thd->query_start_sec_part());
 }
 
 /**
