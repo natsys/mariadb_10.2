@@ -71,6 +71,15 @@ Created 9/17/2000 Heikki Tuuri
 #include <deque>
 #include <vector>
 
+/**
+  Get query start time as SQL field data.
+  Needed by InnoDB.
+  @param thd	Thread object
+  @param buf	Buffer to hold start time data
+*/
+void thd_get_query_start_data(THD *thd, char *buf);
+
+
 /** Provide optional 4.x backwards compatibility for 5.0 and above */
 ibool	row_rollback_on_timeout	= FALSE;
 

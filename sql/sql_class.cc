@@ -642,15 +642,6 @@ char *thd_security_context(THD *thd,
 }
 #endif
 
-
-extern "C"
-void thd_get_query_start_data(THD *thd, char *buf)
-{
-  LEX_CSTRING field_name;
-  Field_timestampf f((uchar *)buf, NULL, 0, Field::NONE, &field_name, NULL, 6);
-  f.store_TIME(thd->query_start(), thd->query_start_sec_part());
-}
-
 /**
   Implementation of Drop_table_error_handler::handle_condition().
   The reason in having this implementation is to silence technical low-level
@@ -5112,6 +5103,20 @@ extern "C" void thd_get_autoinc(const MYSQL_THD thd, ulong* off, ulong* inc)
 extern "C" bool thd_is_strict_mode(const MYSQL_THD thd)
 {
   return thd->is_strict_mode();
+}
+
+
+/**
+  Get query start time as SQL field data.
+  Needed by InnoDB.
+  @param thd	Thread object
+  @param buf	Buffer to hold start time data
+*/
+void thd_get_query_start_data(THD *thd, char *buf)
+{
+  LEX_CSTRING field_name;
+  Field_timestampf f((uchar *)buf, NULL, 0, Field::NONE, &field_name, NULL, 6);
+  f.store_TIME(thd->query_start(), thd->query_start_sec_part());
 }
 
 
