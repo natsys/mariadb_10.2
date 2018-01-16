@@ -3122,6 +3122,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
   uchar *record, *bitmaps;
   Field **field_ptr;
   uint8 save_context_analysis_only= thd->lex->context_analysis_only;
+  bool only_view_structure= thd->lex->sql_command == SQLCOM_SHOW_FIELDS;
   DBUG_ENTER("open_table_from_share");
   DBUG_PRINT("enter",("name: '%s.%s'  form: %p", share->db.str,
                       share->table_name.str, outparam));
@@ -3506,7 +3507,8 @@ partititon_err:
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   if (outparam->part_info &&
-    outparam->part_info->part_type == VERSIONING_PARTITION)
+      outparam->part_info->part_type == VERSIONING_PARTITION &&
+      !only_view_structure)
   {
     Query_arena *backup_stmt_arena_ptr= thd->stmt_arena;
     Query_arena backup_arena;
