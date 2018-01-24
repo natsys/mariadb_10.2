@@ -3673,6 +3673,9 @@ static void mark_full_partition_used_with_parts(partition_info *part_info,
   uint32 end=   start + part_info->num_subparts; 
   DBUG_ENTER("mark_full_partition_used_with_parts");
 
+  if (as_of_current_timestamp_history_part(part_info, part_id))
+    DBUG_VOID_RETURN;
+
   for (; start != end; start++)
   {
     DBUG_PRINT("info", ("1:Mark subpartition %u as used", start));

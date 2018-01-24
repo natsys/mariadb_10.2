@@ -144,6 +144,14 @@ execute select_pn;
 explain partitions select * from t1;
 --replace_regex /\d/N/ /ALL/system/ /Using where//
 explain partitions select * from t1 for system_time as of current_timestamp;
+--replace_regex /\d/N/ /ALL/system/ /Using where//
+explain partitions select * from t1 for system_time as of (current_timestamp);
+--replace_regex /\d/N/ /ALL/system/ /Using where//
+explain partitions select * from t1 for system_time as of now();
+--replace_regex /\d/N/ /ALL/system/ /Using where//
+explain partitions select * from t1 for system_time as of now(0);
+--replace_regex /\d/N/ /ALL/system/ /Using where//
+explain partitions select * from t1 for system_time as of now(6);
 
 set @str= concat('select row_start from t1 partition (pn) into @ts0');
 prepare stmt from @str; execute stmt; drop prepare stmt;
@@ -376,6 +384,27 @@ create or replace table t1 (i int) with system versioning
                                              partition pn current);
 create or replace table t2 select * from information_schema.tables;
 insert into t2 select * from information_schema.tables;
+
+--echo ## pruning subpartitions check
+create or replace table t1 (x int)
+with system versioning
+partition by system_time limit 2
+subpartition by key (x)
+subpartitions 2 (partition p0 history, partition pn current);
+insert into t1 values (1);
+
+--replace_regex /\d/N/ /ALL/system/ /Using where//
+explain partitions select * from t1;
+--replace_regex /\d/N/ /ALL/system/ /Using where//
+explain partitions select * from t1 for system_time as of current_timestamp;
+--replace_regex /\d/N/ /ALL/system/ /Using where//
+explain partitions select * from t1 for system_time as of (current_timestamp);
+--replace_regex /\d/N/ /ALL/system/ /Using where//
+explain partitions select * from t1 for system_time as of now();
+--replace_regex /\d/N/ /ALL/system/ /Using where//
+explain partitions select * from t1 for system_time as of now(0);
+--replace_regex /\d/N/ /ALL/system/ /Using where//
+explain partitions select * from t1 for system_time as of now(6);
 
 
 --echo # Test cleanup
