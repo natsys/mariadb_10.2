@@ -3623,6 +3623,35 @@ static void store_selargs_to_rec(PART_PRUNE_PARAM *ppar, SEL_ARG **start,
   }
 }
 
+static bool as_of_current_timestamp_history_part(partition_info *info, uint32 part_id)
+{
+  DBUG_ASSERT(info);
+  DBUG_ASSERT(info->table);
+  DBUG_ASSERT(info->table->pos_in_table_list);
+  if (info->part_type != VERSIONING_PARTITION ||
+      info->partitions.elem(part_id)->type() != partition_element::HISTORY)
+    return false;
+
+  vers_select_conds_t vers_conditions= info->table->pos_in_table_list->vers_conditions;
+
+  if (vers_conditions.type == SYSTEM_TIME_UNSPECIFIED)
+    return true;
+
+  if (vers_conditions.type == SYSTEM_TIME_AS_OF &&
+      vers_conditions.start->type() == Item::FUNC_ITEM)
+  {
+    Item_datetime_typecast *typecast= static_cast<Item_datetime_typecast *>(vers_conditions.start);
+    if (typecast->arguments()[0]->type() == Item::FUNC_ITEM &&
+        static_cast<Item_func *>(typecast->arguments()[0])->functype() == Item_func::NOW_FUNC)
+    {
+      Item_func_now_local *now= static_cast<Item_func_now_local *>(typecast->arguments()[0]);
+      if (now->decimals == MAX_DATETIME_PRECISION)
+        return true;
+    }
+  }
+
+  return false;
+}
 
 /* Mark a partition as used in the case when there are no subpartitions */
 static void mark_full_partition_used_no_parts(partition_info* part_info,
@@ -3630,7 +3659,8 @@ static void mark_full_partition_used_no_parts(partition_info* part_info,
 {
   DBUG_ENTER("mark_full_partition_used_no_parts");
   DBUG_PRINT("enter", ("Mark partition %u as used", part_id));
-  bitmap_set_bit(&part_info->read_partitions, part_id);
+  if (!as_of_current_timestamp_history_part(part_info, part_id))
+    bitmap_set_bit(&part_info->read_partitions, part_id);
   DBUG_VOID_RETURN;
 }
 

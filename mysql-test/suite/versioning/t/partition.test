@@ -142,6 +142,8 @@ execute select_pn;
 --echo ## pruning check
 --replace_regex /\d/N/ /ALL/system/ /Using where//
 explain partitions select * from t1;
+--replace_regex /\d/N/ /ALL/system/ /Using where//
+explain partitions select * from t1 for system_time as of current_timestamp;
 
 set @str= concat('select row_start from t1 partition (pn) into @ts0');
 prepare stmt from @str; execute stmt; drop prepare stmt;

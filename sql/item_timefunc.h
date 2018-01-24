@@ -1173,6 +1173,7 @@ public:
     Item_temporal_typecast(thd, a) { decimals= dec_arg; }
   const char *func_name() const { return "cast_as_datetime"; }
   const char *cast_type() const { return "datetime"; }
+  virtual enum Functype functype() const { return DATETIME_TYPECAST_FUNC; }
   const Type_handler *type_handler() const { return &type_handler_datetime2; }
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date);
   void fix_length_and_dec()
