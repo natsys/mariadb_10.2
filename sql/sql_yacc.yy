@@ -872,10 +872,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
-  Currently there are 125 shift/reduce conflicts.
+  Currently there are 138 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 125
+%expect 138
 
 /*
    Comments for TOKENS.
@@ -2014,7 +2014,8 @@ END_OF_INPUT
 
 %type <lex_str_list> opt_with_column_list
 
-%type <vers_history_point> history_point history_point2
+%type <vers_range_unit> opt_history_unit
+%type <vers_history_point> history_point
 %type <vers_column_versioning> with_or_without_system
 %%
 
@@ -9149,29 +9150,29 @@ select_options:
           }
         ;
 
-history_point2:
-          /*simple_expr */
+opt_history_unit:
+          /* empty*/
           {
-/*             $$= Vers_history_point(VERS_UNDEFINED, $1); */
+            $$= VERS_UNDEFINED;
           }
         | TRANSACTION_SYM
           {
-/*             $$= Vers_history_point(VERS_TRX_ID, $2); */
+            $$= VERS_TRX_ID;
           }
         | TIMESTAMP
           {
-/*             $$= Vers_history_point(VERS_TIMESTAMP, $2); */
+            $$= VERS_TIMESTAMP;
           }
         ;
 
 history_point:
-/*          simple_expr
+          temporal_literal
           {
-            $$= Vers_history_point(VERS_UNDEFINED, $1);
+            $$= Vers_history_point(VERS_TIMESTAMP, $1);
           }
-        | */history_point2 simple_expr
+        | opt_history_unit simple_expr
           {
-            $$= $1;
+            $$= Vers_history_point($1, $2);
           }
         ;
 
