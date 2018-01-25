@@ -872,10 +872,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
-  Currently there are 138 shift/reduce conflicts.
+  Currently there are 229 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 138
+%expect 229
 
 /*
    Comments for TOKENS.
@@ -9167,6 +9167,10 @@ opt_history_unit:
 
 history_point:
           temporal_literal
+          {
+            $$= Vers_history_point(VERS_TIMESTAMP, $1);
+          }
+        | function_call_keyword
           {
             $$= Vers_history_point(VERS_TIMESTAMP, $1);
           }

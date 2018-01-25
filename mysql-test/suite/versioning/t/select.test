@@ -297,6 +297,13 @@ select * from
     left join t2 as t2a left join (t3 as t3a inner join t1) on t2a.f2 = t3a.f3  on t1a.f1 = t2a.f2
     left join (t2 join t3 inner join t4) on t2a.f2 = t1a.f1;
 
+--echo ### MDEV-15004 parser greedily parses AS OF TIMESTAMP
+--error ER_WRONG_VALUE
+select timestamp'2016-02-30 08:07:06';
+--error ER_WRONG_VALUE
+select * from t1 for system_time as of timestamp'2016-02-30 08:07:06';
+select timestamp('2003-12-31 12:00:00','12:00:00');
+select * from t1 for system_time as of timestamp('2003-12-31 12:00:00','12:00:00');
 
 drop view v1;
 drop table t1, t2, t3, t4;
