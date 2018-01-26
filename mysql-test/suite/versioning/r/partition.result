@@ -141,7 +141,22 @@ x	C	D
 ## pruning check
 explain partitions select * from tN;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-N	SIMPLE	tN	pN,pn	system	NULL	NULL	NULL	NULL	N	
+N	SIMPLE	tN	pn	system	NULL	NULL	NULL	NULL	N	
+explain partitions select * from tN for system_time as of current_timestamp;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+N	SIMPLE	tN	pn	system	NULL	NULL	NULL	NULL	N	
+explain partitions select * from tN for system_time as of (current_timestamp);
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+N	SIMPLE	tN	pn	system	NULL	NULL	NULL	NULL	N	
+explain partitions select * from tN for system_time as of now();
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+N	SIMPLE	tN	pn	system	NULL	NULL	NULL	NULL	N	
+explain partitions select * from tN for system_time as of now(N);
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+N	SIMPLE	tN	pn	system	NULL	NULL	NULL	NULL	N	
+explain partitions select * from tN for system_time as of now(N);
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+N	SIMPLE	tN	pn	system	NULL	NULL	NULL	NULL	N	
 set @str= concat('select row_start from t1 partition (pn) into @ts0');
 prepare stmt from @str;
 execute stmt;
@@ -446,6 +461,31 @@ partition by system_time interval 1 month (partition p1 history,
 partition pn current);
 create or replace table t2 select * from information_schema.tables;
 insert into t2 select * from information_schema.tables;
+## pruning subpartitions check
+create or replace table t1 (x int)
+with system versioning
+partition by system_time limit 2
+subpartition by key (x)
+subpartitions 2 (partition p0 history, partition pn current);
+insert into t1 values (1);
+explain partitions select * from tN;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+N	SIMPLE	tN	pn_pnspN,pn_pnspN	system	NULL	NULL	NULL	NULL	N	
+explain partitions select * from tN for system_time as of current_timestamp;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+N	SIMPLE	tN	pn_pnspN,pn_pnspN	system	NULL	NULL	NULL	NULL	N	
+explain partitions select * from tN for system_time as of (current_timestamp);
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+N	SIMPLE	tN	pn_pnspN,pn_pnspN	system	NULL	NULL	NULL	NULL	N	
+explain partitions select * from tN for system_time as of now();
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+N	SIMPLE	tN	pn_pnspN,pn_pnspN	system	NULL	NULL	NULL	NULL	N	
+explain partitions select * from tN for system_time as of now(N);
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+N	SIMPLE	tN	pn_pnspN,pn_pnspN	system	NULL	NULL	NULL	NULL	N	
+explain partitions select * from tN for system_time as of now(N);
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+N	SIMPLE	tN	pn_pnspN,pn_pnspN	system	NULL	NULL	NULL	NULL	N	
 # Test cleanup
 set global debug_dbug=@old_dbug;
 drop database test;
