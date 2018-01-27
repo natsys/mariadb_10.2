@@ -1876,27 +1876,94 @@ class Item_in_subselect;
 */
 
 /** last_leaf_for_name_resolutioning support. */
+
+struct vers_history_point_t
+{
+  vers_sys_type_t unit;
+  Item *item;
+  void empty()
+  {
+    unit= VERS_UNDEFINED;
+    item= NULL;
+  }
+};
+
+class Vers_history_point : public vers_history_point_t
+{
+  void fix_item();
+
+public:
+  Vers_history_point()
+  {
+    empty();
+  }
+  Vers_history_point(vers_sys_type_t _unit, Item *_item)
+  {
+    unit= _unit;
+    item= _item;
+    fix_item();
+  }
+  Vers_history_point(vers_history_point_t p)
+  {
+    unit= p.unit;
+    item= p.item;
+    fix_item();
+  }
+  void empty()
+  {
+    vers_history_point_t::empty();
+  }
+  operator Item * ()
+  {
+    return item;
+  }
+  Item * operator-> ()
+  {
+    return item;
+  }
+  Item * operator= (Item *_item)
+  {
+    return item= _item;
+  }
+  operator vers_sys_type_t ()
+  {
+    return unit;
+  }
+  vers_sys_type_t operator= (vers_sys_type_t _unit)
+  {
+    return unit= _unit;
+  }
+  operator bool ()
+  {
+    return item ? true : false;
+  }
+};
+
 struct vers_select_conds_t
 {
   vers_system_time_t type;
-  vers_sys_type_t unit_start, unit_end;
   bool from_query:1;
   bool used:1;
-  Item *start, *end;
+  Vers_history_point start;
+  Vers_history_point end;
 
   void empty()
   {
     type= SYSTEM_TIME_UNSPECIFIED;
-    unit_start= unit_end= VERS_UNDEFINED;
     used= from_query= false;
-    start= end= NULL;
+    start.empty();
+    end.empty();
   }
 
-  Item *fix_dec(Item *item);
-
-  void init(vers_system_time_t t, vers_sys_type_t u_start= VERS_UNDEFINED,
-            Item * s= NULL, vers_sys_type_t u_end= VERS_UNDEFINED,
-            Item * e= NULL);
+  void init(vers_system_time_t _type,
+            Vers_history_point _start= Vers_history_point(),
+            Vers_history_point _end= Vers_history_point())
+  {
+    type= _type;
+    used= from_query= false;
+    start= _start;
+    end= _end;
+  }
 
   bool init_from_sysvar(THD *thd);
 

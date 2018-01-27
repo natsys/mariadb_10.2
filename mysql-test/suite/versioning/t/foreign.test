@@ -33,7 +33,7 @@ insert into child values(1);
 update parent set id=id+1;
 delete from child;
 update parent set id=id+1;
-select * from child for system_time from timestamp '1-1-1' to timestamp now(6);
+select * from child for system_time from timestamp ('1-1-1') to timestamp now(6);
 
 drop table child;
 drop table parent;

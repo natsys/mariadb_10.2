@@ -674,7 +674,7 @@ bool vers_select_conds_t::init_from_sysvar(THD *thd)
 {
   vers_asof_timestamp_t &in= thd->variables.vers_asof_timestamp;
   type= (vers_system_time_t) in.type;
-  unit_start= VERS_TIMESTAMP;
+  start.unit= VERS_TIMESTAMP;
   from_query= false;
   if (type != SYSTEM_TIME_UNSPECIFIED && type != SYSTEM_TIME_ALL)
   {
@@ -686,7 +686,7 @@ bool vers_select_conds_t::init_from_sysvar(THD *thd)
   }
   else
     start= NULL;
-  end= NULL;
+  end.empty();
   return false;
 }
 
@@ -864,8 +864,8 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
         vers_system_time_t/VERS_TRX_ID at stage of fix_fields()
         (this is large refactoring). */
       vers_conditions.resolve_units(timestamps_only);
-      if (timestamps_only && (vers_conditions.unit_start == VERS_TRX_ID ||
-        vers_conditions.unit_end == VERS_TRX_ID))
+      if (timestamps_only && (vers_conditions.start == VERS_TRX_ID ||
+        vers_conditions.end == VERS_TRX_ID))
       {
         my_error(ER_VERS_ENGINE_UNSUPPORTED, MYF(0), table->table_name);
         DBUG_RETURN(-1);
@@ -884,9 +884,9 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
       {
         if (vers_conditions.start)
         {
-          if (!vers_conditions.unit_start)
-            vers_conditions.unit_start= t->s->versioned;
-          switch (vers_conditions.unit_start)
+          if (!vers_conditions.start.unit)
+            vers_conditions.start.unit= t->s->versioned;
+          switch (vers_conditions.start.unit)
           {
           case VERS_TIMESTAMP:
           {
@@ -908,9 +908,9 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
 
         if (vers_conditions.end)
         {
-          if (!vers_conditions.unit_end)
-            vers_conditions.unit_end= t->s->versioned;
-          switch (vers_conditions.unit_end)
+          if (!vers_conditions.end.unit)
+            vers_conditions.end.unit= t->s->versioned;
+          switch (vers_conditions.end.unit)
           {
           case VERS_TIMESTAMP:
           {
@@ -988,7 +988,7 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
         cond1= newx Item_func_eq(thd, row_end, curr);
         break;
       case SYSTEM_TIME_AS_OF:
-        trx_id0= vers_conditions.unit_start == VERS_TIMESTAMP ?
+        trx_id0= vers_conditions.start == VERS_TIMESTAMP ?
           newx Item_func_vtq_id(thd, vers_conditions.start, TR_table::FLD_TRX_ID) :
           vers_conditions.start;
         cond1= newx Item_func_vtq_trx_sees_eq(thd, trx_id0, row_start);
@@ -996,10 +996,10 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
         break;
       case SYSTEM_TIME_FROM_TO:
       case SYSTEM_TIME_BETWEEN:
-        trx_id0= vers_conditions.unit_start == VERS_TIMESTAMP ?
+        trx_id0= vers_conditions.start == VERS_TIMESTAMP ?
           newx Item_func_vtq_id(thd, vers_conditions.start, TR_table::FLD_TRX_ID, true) :
           vers_conditions.start;
-        trx_id1= vers_conditions.unit_end == VERS_TIMESTAMP ?
+        trx_id1= vers_conditions.end == VERS_TIMESTAMP ?
           newx Item_func_vtq_id(thd, vers_conditions.end, TR_table::FLD_TRX_ID, false) :
           vers_conditions.end;
         cond1= vers_conditions.type == SYSTEM_TIME_FROM_TO ?
@@ -1008,7 +1008,7 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
         cond2= newx Item_func_vtq_trx_sees_eq(thd, row_end, trx_id0);
         break;
       case SYSTEM_TIME_BEFORE:
-        trx_id0= vers_conditions.unit_start == VERS_TIMESTAMP ?
+        trx_id0= vers_conditions.start == VERS_TIMESTAMP ?
           newx Item_func_vtq_id(thd, vers_conditions.start, TR_table::FLD_TRX_ID) :
           vers_conditions.start;
         cond1= newx Item_func_lt(thd, row_end, trx_id0);

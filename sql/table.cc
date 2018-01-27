@@ -8935,26 +8935,32 @@ void vers_select_conds_t::resolve_units(bool timestamps_only)
 {
   DBUG_ASSERT(type != SYSTEM_TIME_UNSPECIFIED);
   DBUG_ASSERT(start);
-  if (unit_start == VERS_UNDEFINED)
+  if (start == VERS_UNDEFINED)
   {
     if (start->type() == Item::FIELD_ITEM)
-      unit_start= VERS_TIMESTAMP;
+      start= VERS_TIMESTAMP;
     else
-      unit_start= (!timestamps_only && (start->result_type() == INT_RESULT ||
+      start= (!timestamps_only && (start->result_type() == INT_RESULT ||
         start->result_type() == REAL_RESULT)) ?
           VERS_TRX_ID : VERS_TIMESTAMP;
   }
-  if (end && unit_end == VERS_UNDEFINED)
+  if (end && end == VERS_UNDEFINED)
   {
     if (start->type() == Item::FIELD_ITEM)
-      unit_start= VERS_TIMESTAMP;
+      start= VERS_TIMESTAMP;
     else
-      unit_end= (!timestamps_only && (end->result_type() == INT_RESULT ||
+      end= (!timestamps_only && (end->result_type() == INT_RESULT ||
         end->result_type() == REAL_RESULT)) ?
           VERS_TRX_ID : VERS_TIMESTAMP;
   }
 }
 
+void Vers_history_point::fix_item()
+{
+  if (item && item->decimals == 0 && item->type() == Item::FUNC_ITEM &&
+      ((Item_func*)item)->functype() == Item_func::NOW_FUNC)
+    item->decimals= 6;
+}
 
 Field *TABLE::find_field_by_name(LEX_CSTRING *str) const
 {
