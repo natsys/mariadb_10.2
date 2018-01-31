@@ -280,8 +280,7 @@ call verify_vtq;
 create or replace table t1 (a int primary key, b int)
 with system versioning engine myisam;
 insert into t1 (a) values (1);
---replace_regex /'1-[- .\d:]+'/'1-YYYY-MM-DD hh:mm:ss.uuuuuu'/
---error ER_DUP_ENTRY
+
 replace t1 values (1,2),(1,3),(2,4);
 
 drop database test;

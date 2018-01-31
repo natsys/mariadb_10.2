@@ -620,6 +620,5 @@ create or replace table t1 (a int primary key, b int)
 with system versioning engine myisam;
 insert into t1 (a) values (1);
 replace t1 values (1,2),(1,3),(2,4);
-ERROR 23000: Duplicate entry '1-YYYY-MM-DD hh:mm:ss.uuuuuu' for key 'PRIMARY'
 drop database test;
 create database test;
