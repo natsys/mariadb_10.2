@@ -1106,6 +1106,13 @@ public:
   { return cmp(a, b); }
   virtual int key_cmp(const uchar *str, uint length)
   { return cmp(ptr,str); }
+
+  bool operator<(const Field &rhs) { return cmp(ptr, rhs.ptr) < 0; }
+  bool operator<=(const Field &rhs) { return cmp(ptr, rhs.ptr) <= 0; }
+  bool operator==(const Field &rhs) { return cmp(ptr, rhs.ptr) == 0; }
+  bool operator!=(const Field &rhs) { return !(*this == rhs); }
+  bool operator>=(const Field &rhs) { return cmp(ptr, rhs.ptr) >= 0; }
+  bool operator>(const Field &rhs) { return cmp(ptr, rhs.ptr) > 0; }
   /*
     Update the value m of the 'min_val' field with the current value v
     of this field if force_update is set to TRUE or if v < m.

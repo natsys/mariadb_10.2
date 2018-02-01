@@ -1642,7 +1642,7 @@ int vers_insert_history_row(TABLE *table)
 
   Field *row_start= table->vers_start_field();
   Field *row_end= table->vers_end_field();
-  if (row_start->cmp(row_start->ptr, row_end->ptr) != -1)
+  if (*row_start >= *row_end)
     return 0;
 
   return table->file->ha_write_row(table->record[0]);
