@@ -923,7 +923,6 @@ update_begin:
         }
         else if (!error)
         {
-
           if (has_vers_fields && table->versioned())
           {
             if (table->versioned(VERS_TIMESTAMP))
