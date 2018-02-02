@@ -1083,8 +1083,13 @@ public:
     thd->lex->query_tables_own_last= saved_query_tables_own_last;
     if (locked && !thd->in_sub_stmt)
     {
+      // Empty stmt transaction
+      ulonglong option_bits= thd->variables.option_bits;
+      // these options avoid real commit
+      thd->variables.option_bits|= OPTION_BEGIN | OPTION_GTID_BEGIN;
       ha_commit_trans(thd, false);
       ha_commit_trans(thd, true);
+      thd->variables.option_bits= option_bits;
     }
   }
 };
