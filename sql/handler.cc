@@ -7185,20 +7185,33 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
     return true;
   }
 
-  if (alter_info->flags & Alter_info::ALTER_ADD_SYSTEM_VERSIONING && table->versioned())
-  {
-    my_error(ER_VERS_ALREADY_VERSIONED, MYF(0), table_name);
-    return true;
-  }
+  bool add_versioning= alter_info->flags & Alter_info::ALTER_ADD_SYSTEM_VERSIONING;
+  bool drop_versioning= alter_info->flags & Alter_info::ALTER_DROP_SYSTEM_VERSIONING;
 
-  if (alter_info->flags & Alter_info::ALTER_DROP_SYSTEM_VERSIONING)
+  if (table->versioned())
   {
-    if (!share->versioned)
+    if (add_versioning || create_info->vers_info)
+    {
+      my_error(ER_VERS_ALREADY_VERSIONED, MYF(0), table_name);
+      return true;
+    }
+  }
+  else
+  {
+    if ((!add_versioning && create_info->vers_info))
+    {
+      my_error(ER_MISSING, MYF(0), table_name, "ADD SYSTEM VERSIONING");
+      return true;
+    }
+    if (drop_versioning)
     {
       my_error(ER_VERS_NOT_VERSIONED, MYF(0), table_name);
       return true;
     }
+  }
 
+  if (drop_versioning)
+  {
     if (add_field_to_drop_list_if_not_exists(thd, alter_info, share->vers_start_field()) ||
         add_field_to_drop_list_if_not_exists(thd, alter_info, share->vers_end_field()))
       return true;

@@ -6,6 +6,8 @@ create table t(
 show create table t;
 --error ER_VERS_NOT_VERSIONED
 alter table t drop system versioning;
+--error ER_MISSING
+alter table t add b timestamp(6) generated always as row start;
 
 alter table t add system versioning;
 show create table t;
@@ -47,6 +49,9 @@ alter table t
   add period for system_time(trx_start, trx_end),
   add system versioning;
 show create table t;
+
+--error ER_VERS_ALREADY_VERSIONED
+alter table t add b timestamp(6) generated always as row start;
 
 alter table t drop column trx_start, drop column trx_end;
 alter table t drop system versioning;
