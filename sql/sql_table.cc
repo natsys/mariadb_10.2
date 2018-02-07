@@ -5025,6 +5025,7 @@ int create_table_impl(THD *thd,
     TABLE_SHARE share;
 
     init_tmp_table_share(thd, &share, db, 0, table_name, path);
+    share.orig_table_name= orig_table_name;
 
     bool result= (open_table_def(thd, &share, GTS_TABLE) ||
                   open_table_from_share(thd, &share, "", 0, (uint) READ_ALL,

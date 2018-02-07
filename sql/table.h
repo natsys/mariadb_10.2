@@ -649,8 +649,10 @@ struct TABLE_SHARE
   {
     return tmp_table ? (
       orig_table_name ?
-        orig_table_name :
-        "(temporary)") :
+        orig_table_name : (
+        table_name.str[0] != '#' ?
+          table_name.str :
+          "(temporary)")) :
       table_name.str;
   }
 
