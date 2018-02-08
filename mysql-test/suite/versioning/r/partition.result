@@ -446,6 +446,12 @@ partition by system_time interval 1 month (
 partition p1 history,
 partition pn current);
 create or replace table t2 select * from information_schema.tables;
+# MDEV-15103 Assertion in ha_partition::part_records() for updating VIEW
+create or replace table t1 (pk int primary key, f int) with system versioning
+partition by system_time limit 100 (partition p1 history, partition pn current);
+insert into t1 values (1,10), (2,20);
+create or replace view v1 as select * from t1;
+update v1 set f= 30;
 # Test cleanup
 set global debug_dbug=@old_dbug;
 drop database test;

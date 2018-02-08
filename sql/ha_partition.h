@@ -1484,12 +1484,17 @@ public:
     uint32 part_id= part_elem->id * sub_factor;
     uint32 part_id_end= part_id + sub_factor;
     DBUG_ASSERT(part_id_end <= m_tot_parts);
+    MY_BITMAP *read_parts= &(m_part_info->read_partitions);
     ha_rows part_recs= 0;
     for (; part_id < part_id_end; ++part_id)
     {
       handler *file= m_file[part_id];
-      DBUG_ASSERT(bitmap_is_set(&(m_part_info->read_partitions), part_id));
+      bool read_set= bitmap_is_set(read_parts, part_id);
+      if (!read_set)
+        bitmap_set_bit(read_parts, part_id);
       file->info(HA_STATUS_VARIABLE | HA_STATUS_NO_LOCK | HA_STATUS_OPEN);
+      if (!read_set)
+        bitmap_clear_bit(read_parts, part_id);
       part_recs+= file->stats.records;
     }
     return part_recs;
