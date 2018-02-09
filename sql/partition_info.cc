@@ -897,9 +897,7 @@ partition_info::vers_part_rotate(THD * thd)
   {
     DBUG_ASSERT(table->s->hist_part_id == vers_info->now_part->id - 1);
     push_warning_printf(thd,
-      thd->lex->sql_command == SQLCOM_ALTER_TABLE ?
-        Sql_condition::WARN_LEVEL_NOTE :
-        Sql_condition::WARN_LEVEL_WARN,
+      Sql_condition::WARN_LEVEL_NOTE,
       WARN_VERS_PART_FULL,
       ER_THD(thd, WARN_VERS_PART_FULL),
       table->s->db.str, table->s->error_table_name(),
@@ -910,6 +908,10 @@ partition_info::vers_part_rotate(THD * thd)
   table->s->hist_part_id++;
   const char* old_part_name= vers_info->hist_part->partition_name;
   vers_hist_part();
+
+  // Pruning: ROW_END in next partition must be greater than in previous
+  thd->set_start_time();
+  table->vers_update_end();
 
   push_warning_printf(thd,
     Sql_condition::WARN_LEVEL_NOTE,
@@ -953,6 +955,8 @@ bool partition_info::vers_set_expression(THD *thd, partition_element *el, MYSQL_
   return false;
 }
 
+/* System versioning pruning: create Item_datetime_literal for col_val->item_expression */
+
 bool partition_info::vers_setup_expression(THD * thd, uint32 alter_add)
 {
   DBUG_ASSERT(part_type == VERSIONING_PARTITION);
@@ -972,11 +976,11 @@ bool partition_info::vers_setup_expression(THD * thd, uint32 alter_add)
   if (alter_add)
   {
     DBUG_ASSERT(partitions.elements > alter_add + 1);
-    Vers_min_max_stats** old_array= table->s->stat_trx;
-    table->s->stat_trx= static_cast<Vers_min_max_stats**>(
+    Vers_pruning_stat** old_array= table->s->vers_pruning_stats;
+    table->s->vers_pruning_stats= static_cast<Vers_pruning_stat**>(
       alloc_root(&table->s->mem_root, sizeof(void *) * (partitions.elements * num_columns + 1)));
-    memcpy(table->s->stat_trx, old_array, sizeof(void *) * (partitions.elements - alter_add) * num_columns);
-    table->s->stat_trx[partitions.elements * num_columns]= NULL;
+    memcpy(table->s->vers_pruning_stats, old_array, sizeof(void *) * (partitions.elements - alter_add) * num_columns);
+    table->s->vers_pruning_stats[partitions.elements * num_columns]= NULL;
   }
   else
   {
@@ -1010,9 +1014,9 @@ bool partition_info::vers_setup_expression(THD * thd, uint32 alter_add)
       if (el->id == UINT_MAX32 || el->type() == partition_element::CURRENT)
       {
         DBUG_ASSERT(table && table->s);
-        Vers_min_max_stats *stat_trx_end= new (&table->s->mem_root)
-          Vers_min_max_stats(&table->s->vers_end_field()->field_name, table->s);
-        table->s->stat_trx[id * num_columns + STAT_TRX_END]= stat_trx_end;
+        Vers_pruning_stat *stat_trx_end= new (&table->s->mem_root)
+          Vers_pruning_stat(&table->s->vers_end_field()->field_name, table->s);
+        table->s->vers_pruning_stats[id * num_columns + Vers_pruning_stat::ROW_END]= stat_trx_end;
         el->id= id++;
         if (el->type() == partition_element::CURRENT)
           break;
@@ -1103,14 +1107,14 @@ public:
 
 // scan table for min/max row_end
 inline
-bool partition_info::vers_scan_min_max(THD *thd, partition_element *part)
+bool partition_info::vers_scan_stats(THD *thd, partition_element *part)
 {
   uint32 sub_factor= num_subparts ? num_subparts : 1;
   uint32 part_id= part->id * sub_factor;
   uint32 part_id_end= part_id + sub_factor;
   DBUG_ASSERT(part->empty);
   DBUG_ASSERT(part->type() == partition_element::HISTORY);
-  DBUG_ASSERT(table->s->stat_trx);
+  DBUG_ASSERT(table->s->vers_pruning_stats);
 
   Table_locker l(thd, *table, TL_READ);
   if (l.lock())
@@ -1164,12 +1168,12 @@ bool partition_info::vers_scan_min_max(THD *thd, partition_element *part)
           Field_timestampf fld(buf, NULL, 0, Field::NONE, &table->vers_end_field()->field_name, NULL, 6);
           if (!vers_trx_id_to_ts(thd, table->vers_end_field(), fld))
           {
-            vers_stat_trx(STAT_TRX_END, part).update_unguarded(&fld);
+            vers_pruning_stat(Vers_pruning_stat::ROW_END, part).update_unguarded(&fld);
           }
         }
         else
         {
-          vers_stat_trx(STAT_TRX_END, part).update_unguarded(table->vers_end_field());
+          vers_pruning_stat(Vers_pruning_stat::ROW_END, part).update_unguarded(table->vers_end_field());
         }
       }
       file->ha_rnd_end();
@@ -1185,41 +1189,33 @@ bool partition_info::vers_scan_min_max(THD *thd, partition_element *part)
   return false;
 }
 
-void partition_info::vers_update_col_vals(THD *thd, partition_element *el0, partition_element *el1)
+/* System versioning pruning:
+   Update Item_datetime_literal stored in part_column_list_val::item_expression
+   with Vers_pruning_stat. */
+void partition_info::vers_update_col_vals(THD *thd, partition_element *el1)
 {
   MYSQL_TIME t;
   memset(&t, 0, sizeof(t));
-  DBUG_ASSERT(table && table->s && table->s->stat_trx);
-  DBUG_ASSERT(!el0 || el1->id == el0->id + 1);
+  DBUG_ASSERT(table && table->s && table->s->vers_pruning_stats);
   const uint idx= el1->id * num_columns;
-  my_time_t ts;
-  part_column_list_val *col_val;
-  Item_datetime_literal *val_item;
-  Vers_min_max_stats *stat_trx_x;
+
   for (uint i= 0; i < num_columns; ++i)
   {
-    stat_trx_x= table->s->stat_trx[idx + i];
-    if (el0)
-    {
-      ts= stat_trx_x->min_time();
-      thd->variables.time_zone->gmt_sec_to_TIME(&t, ts);
-      col_val= &el0->get_col_val(i);
-      val_item= static_cast<Item_datetime_literal*>(col_val->item_expression);
-      DBUG_ASSERT(val_item);
-      if (*val_item > t)
-      {
-        val_item->set_time(&t);
-        col_val->fixed= 0;
-      }
-    }
-    col_val= &el1->get_col_val(i);
+    Vers_pruning_stat *stat= table->s->vers_pruning_stats[idx + i];
+    part_column_list_val *col_val= &el1->get_col_val(i);
     if (!col_val->max_value)
     {
-      ts= stat_trx_x->max_time() + 1;
+      ulong sec_part;
+      my_time_t ts= stat->max_time(&sec_part);
+      if (++sec_part == HRTIME_RESOLUTION)
+      {
+        ++ts; sec_part= 0;
+      }
       thd->variables.time_zone->gmt_sec_to_TIME(&t, ts);
-      val_item= static_cast<Item_datetime_literal*>(col_val->item_expression);
+      t.second_part= sec_part;
+      Item_datetime_literal *val_item= static_cast<Item_datetime_literal*>(col_val->item_expression);
       DBUG_ASSERT(val_item);
-      if (*val_item < t)
+      if (*val_item != t)
       {
         val_item->set_time(&t);
         col_val->fixed= 0;
@@ -1259,19 +1255,18 @@ bool partition_info::vers_setup_stats(THD * thd, bool is_create_table_ind)
     bool dont_stat= true;
     bool col_val_updated= false;
     // initialize stat_trx
-    if (!table->s->stat_trx)
+    if (!table->s->vers_pruning_stats)
     {
       DBUG_ASSERT(partitions.elements > 1);
-      table->s->stat_trx= static_cast<Vers_min_max_stats**>(
+      table->s->vers_pruning_stats= static_cast<Vers_pruning_stat**>(
         alloc_root(&table->s->mem_root, sizeof(void *) * (partitions.elements * num_columns + 1)));
-      table->s->stat_trx[partitions.elements * num_columns]= NULL;
+      table->s->vers_pruning_stats[partitions.elements * num_columns]= NULL;
       dont_stat= false;
     }
 
     // build freelist, scan min/max, assign hist_part
     List_iterator<partition_element> it(partitions);
-    partition_element *el= NULL, *prev;
-    while ((prev= el, el= it++))
+    while (partition_element *el= it++)
     {
       if (el->type() == partition_element::HISTORY && dont_stat)
       {
@@ -1283,31 +1278,34 @@ bool partition_info::vers_setup_stats(THD * thd, bool is_create_table_ind)
         continue;
       }
 
+      Vers_pruning_stat *pruning_stat= new (&table->s->mem_root)
+        Vers_pruning_stat(&table->s->vers_end_field()->field_name, table->s);
+
+      if (!pruning_stat)
       {
-        Vers_min_max_stats *stat_trx_end= new (&table->s->mem_root)
-          Vers_min_max_stats(&table->s->vers_end_field()->field_name, table->s);
-        table->s->stat_trx[el->id * num_columns + STAT_TRX_END]= stat_trx_end;
+        error= true;
+        my_error(ER_OUT_OF_RESOURCES, MYF(0));
+        break;
       }
+
+      table->s->vers_pruning_stats[el->id * num_columns + Vers_pruning_stat::ROW_END]= pruning_stat;
 
       if (!is_create_table_ind)
       {
         if (el->type() == partition_element::CURRENT)
         {
-          uchar buf[8];
-          Field_timestampf fld(buf, NULL, 0, Field::NONE, &table->vers_end_field()->field_name, NULL, 6);
-          fld.set_max();
-          vers_stat_trx(STAT_TRX_END, el).update_unguarded(&fld);
+          pruning_stat->turn_off();
           el->empty= false;
         }
-        else if (vers_scan_min_max(thd, el))
+        else if (vers_scan_stats(thd, el))
         {
-          table->s->stat_trx= NULL; // may be a leak on endless table open
+          table->s->vers_pruning_stats= NULL; // may be a leak on endless table open
           error= true;
           break;
         }
         if (!el->empty)
         {
-          vers_update_col_vals(thd, prev, el);
+          vers_update_col_vals(thd, el);
           col_val_updated= true;
         }
       }

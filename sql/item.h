@@ -1771,6 +1771,7 @@ public:
   { return this; }
   virtual bool vers_trx_id() const
   { return false; }
+  bool vers_sys_field() const;
   virtual Item *neg_transformer(THD *thd) { return NULL; }
   virtual Item *update_value_transformer(THD *thd, uchar *select_arg)
   { return this; }
@@ -4207,6 +4208,10 @@ public:
   bool operator>(const MYSQL_TIME &ltime) const;
   bool operator<(const MYSQL_TIME &ltime) const;
   bool operator==(const MYSQL_TIME &ltime) const;
+  bool operator!=(const MYSQL_TIME &ltime) const
+  {
+    return !(*this == ltime);
+  }
 };
 
 

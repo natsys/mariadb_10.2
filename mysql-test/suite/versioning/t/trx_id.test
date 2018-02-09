@@ -1,5 +1,6 @@
 -- source include/have_innodb.inc
 -- source include/not_embedded.inc
+-- source suite/versioning/common.inc
 
 create or replace table t1 (
   x int,
@@ -11,10 +12,6 @@ create or replace table t1 (
 insert into t1 (x) values (1);
 
 --echo # ALTER ADD SYSTEM VERSIONING should write to mysql.transaction_registry
-create function check_result (cond boolean)
-    returns char(50) deterministic
-    return if(cond = 1, '[CORRECT]', '[INCORRECT]');
-
 set @@system_versioning_alter_history=keep;
 
 create or replace table t1 (x int) engine innodb;

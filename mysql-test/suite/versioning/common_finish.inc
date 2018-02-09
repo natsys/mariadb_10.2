@@ -8,4 +8,5 @@ drop function sys_datatype;
 drop function current_row;
 drop procedure concat_exec2;
 drop procedure concat_exec3;
+drop function check_result;
 --enable_query_log

@@ -90,9 +90,13 @@ typedef struct p_elem_val
 
 struct st_ddl_log_memory_entry;
 
-/* Used for collecting MIN/MAX stats on row_end for doing pruning
-   in SYSTEM_TIME partitiong. */
-class Vers_min_max_stats : public Sql_alloc
+/* System Versioning pruning:
+
+   Per-partition MIN/MAX stats on row_end collector for pruning in SYSTEM_TIME
+   partitiong. The stats are collected process-wide in TABLE_SHARE and then are
+   copied to thread-local range constants. */
+
+class Vers_pruning_stat : public Sql_alloc
 {
   static const uint buf_size= 4 + (TIME_SECOND_PART_DIGITS + 1) / 2;
   uchar min_buf[buf_size];
@@ -102,7 +106,12 @@ class Vers_min_max_stats : public Sql_alloc
   mysql_rwlock_t lock;
 
 public:
-  Vers_min_max_stats(const LEX_CSTRING *field_name, TABLE_SHARE *share) :
+  enum field_t
+  {
+    ROW_END= 0
+  };
+
+  Vers_pruning_stat(const LEX_CSTRING *field_name, TABLE_SHARE *share) :
     min_value(min_buf, NULL, 0, Field::NONE, field_name, share, 6),
     max_value(max_buf, NULL, 0, Field::NONE, field_name, share, 6)
   {
@@ -110,9 +119,14 @@ public:
     memset(max_buf, 0, buf_size);
     mysql_rwlock_init(key_rwlock_LOCK_vers_stats, &lock);
   }
-  ~Vers_min_max_stats()
+  ~Vers_pruning_stat()
   {
     mysql_rwlock_destroy(&lock);
+  }
+  void turn_off()
+  {
+    max_value.set_max();
+    memset(min_buf, 0, buf_size);
   }
   bool update_unguarded(Field *from)
   {
@@ -135,20 +149,15 @@ public:
     mysql_rwlock_unlock(&lock);
     return res;
   }
-  my_time_t max_time()
+  my_time_t max_time(ulong *sec_part= NULL)
   {
     mysql_rwlock_rdlock(&lock);
-    ulong sec_part;
-    my_time_t res= max_value.get_timestamp(&sec_part);
+    my_time_t res= max_value.get_timestamp(sec_part);
     mysql_rwlock_unlock(&lock);
     return res;
   }
 };
 
-enum stat_trx_field
-{
-  STAT_TRX_END= 0
-};
 
 class partition_element :public Sql_alloc
 {

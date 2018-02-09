@@ -10472,6 +10472,15 @@ void view_error_processor(THD *thd, void *data)
   ((TABLE_LIST *)data)->hide_view_error(thd);
 }
 
+bool Item::vers_sys_field() const
+{
+  if (type() == FIELD_ITEM)
+  {
+    Field *f= ((Item_field *)this)->field;
+    return f->vers_sys_field();
+  }
+  return false;
+}
 
 st_select_lex *Item_ident::get_depended_from() const
 {

@@ -138,10 +138,6 @@ x	A	B
 execute select_pn;
 x	C	D
 1	1	1
-## pruning check
-explain partitions select * from tN;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-N	SIMPLE	tN	pN,pn	system	NULL	NULL	NULL	NULL	N	
 set @str= concat('select row_start from t1 partition (pn) into @ts0');
 prepare stmt from @str;
 execute stmt;
@@ -245,14 +241,20 @@ x
 3
 insert into t1 values (4), (5);
 ### warn about full partition
+update t1 set x= x + 1;
+Warnings:
+Note	4112	Versioned table `test`.`t1`: partition `p1` is full, add more HISTORY partitions
 delete from t1;
 Warnings:
-Warning	4112	Versioned table `test`.`t1`: partition `p1` is full, add more HISTORY partitions
+Note	4112	Versioned table `test`.`t1`: partition `p1` is full, add more HISTORY partitions
+Note	4112	Versioned table `test`.`t1`: partition `p1` is full, add more HISTORY partitions
 select * from t1 partition (p1) order by x;
 x
 3
 4
 5
+5
+6
 ### Assertion in ALTER on warning from partitioning LIMIT [#446]
 create or replace table t1 (x int) with system versioning;
 insert into t1 values (1), (2);
@@ -260,8 +262,22 @@ delete from t1;
 alter table t1 partition by system_time limit 1 (
 partition p1 history,
 partition pn current);
+### ROW_END is increased on rotation
+create or replace table t1 (x int)
+with system versioning
+partition by system_time limit 1 (
+partition p0 history,
+partition p1 history,
+partition pn current);
+insert into t1 values (0), (1);
+delete from t1;
 Warnings:
-Note	4112	Versioned table `test`.`t1`: partition `p1` is full, add more HISTORY partitions
+Note	4114	Versioned table `test`.`t1`: switching from partition `p0` to `p1`
+select row_end from t1 partition (p0) into @ts0;
+select row_end from t1 partition (p1) into @ts1;
+select check_result(@ts0 < @ts1);
+check_result(@ts0 < @ts1)
+[CORRECT]
 ## rotation by INTERVAL
 create or replace table t1 (x int)
 with system versioning
@@ -341,7 +357,7 @@ x
 delete from t1;
 Warnings:
 Note	4114	Versioned table `test`.`t1`: switching from partition `p0` to `p1`
-Warning	4112	Versioned table `test`.`t1`: partition `p1` is full, add more HISTORY partitions
+Note	4112	Versioned table `test`.`t1`: partition `p1` is full, add more HISTORY partitions
 select * from t1 partition (p0sp0);
 x
 1
@@ -373,6 +389,115 @@ insert into t1 values (1);
 create or replace table t1 (i int) engine=innodb partition by key(i);
 alter table t1 add system versioning;
 insert into t1 values();
+## Partition pruning
+create or replace table t1 (x int)
+with system versioning
+partition by system_time interval 1 second (
+partition p0 history,
+partition p1 history,
+partition pn current);
+insert into t1 values (1);
+update t1 set x= 2;
+set timestamp= unix_timestamp(sysdate(6)) + 2;
+update t1 set x= 3;
+Warnings:
+Note	4114	Versioned table `test`.`t1`: switching from partition `p0` to `p1`
+set timestamp= 0;
+select row_end from t1 partition (p0) where x = 1 into @ts1;
+select row_end from t1 partition (p1) where x = 2 into @ts2;
+select * from t1 for system_time as of timestamp @ts1;
+x
+2
+select * from t1 for system_time as of timestamp @ts2;
+x
+3
+### Pruning main case
+explain partitions select * from t1 for system_time as of timestamp @ts1;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p0,p1,pn	ALL	NULL	NULL	NULL	NULL	3	Using where
+explain partitions select * from t1 for system_time as of timestamp @ts2;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p1,pn	ALL	NULL	NULL	NULL	NULL	2	Using where
+explain partitions select * from t1;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	pn	x	NULL	NULL	NULL	NULL	x	x
+### Pruning after stats update
+set @ts3= unix_timestamp(@ts2) + 1;
+explain partitions select * from t1 for system_time as of timestamp @ts3;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	pn	x	NULL	NULL	NULL	NULL	x	x
+set timestamp= @ts3;
+update t1 set x= 4;
+set timestamp= 0;
+explain partitions select * from t1 for system_time as of timestamp @ts3;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p1,pn	ALL	NULL	NULL	NULL	NULL	3	Using where
+### Stats updated in another thread
+set @ts4= @ts3 + 1;
+explain partitions select * from t1 for system_time as of timestamp @ts4;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	pn	x	NULL	NULL	NULL	NULL	x	x
+connect  con1,localhost,root,,test;
+explain partitions select * from t1 for system_time as of timestamp @ts4;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	pn	x	NULL	NULL	NULL	NULL	x	x
+set timestamp= @ts4;
+update t1 set x= 4;
+Warnings:
+Note	4112	Versioned table `test`.`t1`: partition `p1` is full, add more HISTORY partitions
+explain partitions select * from t1 for system_time as of timestamp @ts4;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p1,pn	ALL	NULL	NULL	NULL	NULL	4	Using where
+connection default;
+explain partitions select * from t1 for system_time as of timestamp @ts4;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p1,pn	ALL	NULL	NULL	NULL	NULL	4	Using where
+disconnect con1;
+### Pruning corner cases
+#### 1. Rotation is done on row_end == T.N, next record is row_end == (T+1).0
+call pruning_corner_case(
+'2018-01-01 00:00:00.999997',
+'2018-01-01 00:00:00.999998',
+'2018-01-01 00:00:00.999999',
+'2018-01-01 00:00:01');
+x	row_end
+1	2018-01-01 00:00:00.999998
+x	row_end
+2	2018-01-01 00:00:01.000000
+ts0
+2018-01-01 00:00:00.999997
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p0,p1,pn	x	NULL	NULL	NULL	NULL	x	x
+ts1
+2018-01-01 00:00:00.999998
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p0,p1,pn	x	NULL	NULL	NULL	NULL	x	x
+ts_asof
+2018-01-01 00:00:00.999999
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p1,pn	x	NULL	NULL	NULL	NULL	x	x
+#### 2. Rotation is done on row_end == T.0, next record is row_end == T.N
+call pruning_corner_case(
+'2018-01-01 00:00:00.999999',
+'2018-01-01 00:00:01',
+'2018-01-01 00:00:01.000001',
+'2018-01-01 00:00:01.000002');
+x	row_end
+1	2018-01-01 00:00:01.000000
+x	row_end
+2	2018-01-01 00:00:01.000002
+ts0
+2018-01-01 00:00:00.999999
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p0,p1,pn	x	NULL	NULL	NULL	NULL	x	x
+ts1
+2018-01-01 00:00:01.000000
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p0,p1,pn	x	NULL	NULL	NULL	NULL	x	x
+ts_asof
+2018-01-01 00:00:01.000001
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p1,pn	x	NULL	NULL	NULL	NULL	x	x
 # MDEV-14722 Assertion in ha_commit_trans for sub-statement
 create or replace table t1 (i int) with system versioning
 partition by system_time interval 1 day (
@@ -424,14 +549,12 @@ alter table t1 partition by system_time limit 1 (
 partition p1 history,
 partition p2 history,
 partition pn current);
-Warnings:
-Note	4114	Versioned table `test`.`t1`: switching from partition `p1` to `p2`
 delete from t1 where x = 1;
 Warnings:
-Warning	4112	Versioned table `test`.`t1`: partition `p2` is full, add more HISTORY partitions
+Note	4114	Versioned table `test`.`t1`: switching from partition `p1` to `p2`
 delete from t1 where x = 2;
 Warnings:
-Warning	4112	Versioned table `test`.`t1`: partition `p2` is full, add more HISTORY partitions
+Note	4112	Versioned table `test`.`t1`: partition `p2` is full, add more HISTORY partitions
 # MDEV-14923 Assertion upon INSERT into locked versioned partitioned table
 create or replace table t1 (x int) with system versioning
 partition by system_time (partition p1 history, partition pn current);

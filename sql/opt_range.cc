@@ -7784,7 +7784,24 @@ SEL_TREE *Item_func_in::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
     DBUG_RETURN(0);
   } 
   DBUG_RETURN(tree);
-} 
+}
+
+
+SEL_TREE *Item_func_null_predicate::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
+{
+  DBUG_ENTER("Item_func_null_predicate::get_mm_tree");
+  SEL_TREE *ftree;
+  if (args[0]->vers_sys_field())
+  {
+    Item_null *null= new (param->old_root) Item_null(param->thd);
+    ftree= null->get_mm_tree(param, cond_ptr);
+    DBUG_RETURN(ftree);
+  }
+  ftree= get_full_func_mm_tree_for_args(param, args[0], NULL);
+  if (!ftree)
+    ftree= Item_func::get_mm_tree(param, cond_ptr);
+  DBUG_RETURN(ftree);
+}
 
 
 SEL_TREE *Item_equal::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)

@@ -6,9 +6,6 @@ period for system_time (sys_trx_start, sys_trx_end)
 ) with system versioning engine innodb;
 insert into t1 (x) values (1);
 # ALTER ADD SYSTEM VERSIONING should write to mysql.transaction_registry
-create function check_result (cond boolean)
-returns char(50) deterministic
-return if(cond = 1, '[CORRECT]', '[INCORRECT]');
 set @@system_versioning_alter_history=keep;
 create or replace table t1 (x int) engine innodb;
 insert into t1 values (1);

@@ -2458,14 +2458,7 @@ public:
   Item_func_null_predicate(THD *thd, Item *a): Item_bool_func(thd, a) { }
   void add_key_fields(JOIN *join, KEY_FIELD **key_fields, uint *and_level,
                       table_map usable_tables, SARGABLE_PARAM **sargables);
-  SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
-  {
-    DBUG_ENTER("Item_func_null_predicate::get_mm_tree");
-    SEL_TREE *ftree= get_full_func_mm_tree_for_args(param, args[0], NULL);
-    if (!ftree)
-      ftree= Item_func::get_mm_tree(param, cond_ptr);
-    DBUG_RETURN(ftree);
-  }
+  SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr);
   CHARSET_INFO *compare_collation() const
   { return args[0]->collation.collation; }
   void fix_length_and_dec() { decimals=0; max_length=1; maybe_null=0; }

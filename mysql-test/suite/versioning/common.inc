@@ -101,6 +101,10 @@ begin
 end~~
 delimiter ;~~
 
+create function check_result (cond boolean)
+    returns char(50) deterministic
+    return if(cond = 1, '[CORRECT]', '[WRONG]');
+
 let $default_engine= `select default_engine()`;
 let $non_default_engine= `select non_default_engine()`;
 let $sys_datatype= timestamp(6);

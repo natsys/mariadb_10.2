@@ -574,7 +574,7 @@ struct TABLE_STATISTICS_CB
   bool histograms_are_read;   
 };
 
-class Vers_min_max_stats;
+class Vers_pruning_stat;
 
 enum vers_sys_type_t
 {
@@ -779,7 +779,7 @@ struct TABLE_SHARE
   uint16 row_start_field;
   uint16 row_end_field;
   uint32 hist_part_id;
-  Vers_min_max_stats** stat_trx;
+  Vers_pruning_stat** vers_pruning_stats;
   ulonglong stat_serial; // guards check_range_constants() updates
 
   bool busy_rotation;
@@ -791,7 +791,7 @@ struct TABLE_SHARE
   {
     hist_part_id= UINT_MAX32;
     busy_rotation= false;
-    stat_trx= NULL;
+    vers_pruning_stats= NULL;
     stat_serial= 0;
     mysql_mutex_init(key_TABLE_SHARE_LOCK_rotation, &LOCK_rotation, MY_MUTEX_INIT_FAST);
     mysql_cond_init(key_TABLE_SHARE_COND_rotation, &COND_rotation, NULL);

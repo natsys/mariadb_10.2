@@ -8599,9 +8599,9 @@ void TABLE_SHARE::vers_destroy()
   mysql_mutex_destroy(&LOCK_rotation);
   mysql_cond_destroy(&COND_rotation);
   mysql_rwlock_destroy(&LOCK_stat_serial);
-  if (stat_trx)
+  if (vers_pruning_stats)
   {
-    for (Vers_min_max_stats** p= stat_trx; *p; ++p)
+    for (Vers_pruning_stat** p= vers_pruning_stats; *p; ++p)
     {
       delete *p;
     }
