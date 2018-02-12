@@ -7195,6 +7195,13 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
       my_error(ER_VERS_ALREADY_VERSIONED, MYF(0), table_name);
       return true;
     }
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+    if (table->part_info && drop_versioning)
+    {
+      my_error(ER_VERS_DROP_VERSIONING_PARTITION, MYF(0), table_name);
+      return true;
+    }
+#endif
   }
   else
   {

@@ -7908,3 +7908,6 @@ ER_VERS_INPLACE_NOT_IMPLEMENTED
 
 WARN_VERS_FEDERATED
         eng "System versioning is skipped for FEDERATED %`s.%`s"
+
+ER_VERS_DROP_VERSIONING_PARTITION
+        eng "Can not DROP SYSTEM VERSIONING for table %`s partitioned BY SYSTEM_TIME"
