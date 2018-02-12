@@ -2501,7 +2501,7 @@ const char *get_canonical_filename(handler *file, const char *path,
   The .frm file will be deleted only if we return 0.
 */
 int ha_delete_table(THD *thd, handlerton *table_type, const char *path,
-                    const char *db, const char *alias, bool generate_warning)
+                    const LEX_CSTRING *db, const LEX_CSTRING *alias, bool generate_warning)
 {
   handler *file;
   char tmp_path[FN_REFLEN];
@@ -2534,12 +2534,9 @@ int ha_delete_table(THD *thd, handlerton *table_type, const char *path,
       dummy_share.path.str= (char*) path;
       dummy_share.path.length= strlen(path);
       dummy_share.normalized_path= dummy_share.path;
-      dummy_share.db.str= (char*) db;
-      dummy_share.db.length= strlen(db);
-      dummy_share.table_name.str= (char*) alias;
-      dummy_share.table_name.length= strlen(alias);
-      dummy_table.alias.set(alias, dummy_share.table_name.length,
-                            table_alias_charset);
+      dummy_share.db= *db;
+      dummy_share.table_name= *alias;
+      dummy_table.alias.set(alias->str, alias->length, table_alias_charset);
       file->change_table_ptr(&dummy_table, &dummy_share);
       file->print_error(error, MYF(intercept ? ME_JUST_WARNING : 0));
     }
@@ -2610,7 +2607,7 @@ double handler::keyread_time(uint index, uint ranges, ha_rows rows)
     engines that support that (e.g. InnoDB) may want to overwrite this method.
     The model counts in the time to read index entries from cache.
   */
-  ulong len= table->key_info[index].key_length + ref_length;
+  size_t len= table->key_info[index].key_length + ref_length;
   if (index == table->s->primary_key && table->file->primary_key_is_clustered())
     len= table->s->stored_rec_length;
   double keys_per_block= (stats.block_size/2.0/len+1);
@@ -2661,7 +2658,8 @@ PSI_table_share *handler::ha_table_share_psi() const
     Don't wait for locks if not HA_OPEN_WAIT_IF_LOCKED is set
 */
 int handler::ha_open(TABLE *table_arg, const char *name, int mode,
-                     uint test_if_locked, MEM_ROOT *mem_root)
+                     uint test_if_locked, MEM_ROOT *mem_root,
+                     List<String> *partitions_to_open)
 {
   int error;
   DBUG_ENTER("handler::ha_open");
@@ -2675,6 +2673,8 @@ int handler::ha_open(TABLE *table_arg, const char *name, int mode,
   DBUG_ASSERT(m_lock_type == F_UNLCK);
   DBUG_PRINT("info", ("old m_lock_type: %d F_UNLCK %d", m_lock_type, F_UNLCK));
   DBUG_ASSERT(alloc_root_inited(&table->mem_root));
+
+  set_partitions_to_open(partitions_to_open);
 
   if ((error=open(name,mode,test_if_locked)))
   {
@@ -3679,9 +3679,15 @@ void handler::print_error(int error, myf errflag)
     textno=ER_UNSUPPORTED_EXTENSION;
     break;
   case HA_ERR_RECORD_FILE_FULL:
-  case HA_ERR_INDEX_FILE_FULL:
   {
     textno=ER_RECORD_FILE_FULL;
+    /* Write the error message to error log */
+    errflag|= ME_NOREFRESH;
+    break;
+  }
+  case HA_ERR_INDEX_FILE_FULL:
+  {
+    textno=ER_INDEX_FILE_FULL;
     /* Write the error message to error log */
     errflag|= ME_NOREFRESH;
     break;
@@ -3989,7 +3995,7 @@ static bool update_frm_version(TABLE *table)
 
     int4store(version, MYSQL_VERSION_ID);
 
-    if ((result= mysql_file_pwrite(file, (uchar*) version, 4, 51L, MYF_RW)))
+    if ((result= (int)mysql_file_pwrite(file, (uchar*) version, 4, 51L, MYF_RW)))
       goto err;
 
     table->s->mysql_version= MYSQL_VERSION_ID;
@@ -4770,7 +4776,7 @@ void handler::update_global_table_stats()
     }
     memcpy(table_stats->table, table->s->table_cache_key.str,
            table->s->table_cache_key.length);
-    table_stats->table_name_length= table->s->table_cache_key.length;
+    table_stats->table_name_length= (uint)table->s->table_cache_key.length;
     table_stats->engine_type= ht->db_type;
     /* No need to set variables to 0, as we use MY_ZEROFILL above */
 
@@ -4813,7 +4819,7 @@ void handler::update_global_index_stats()
     if (index_rows_read[index])
     {
       INDEX_STATS* index_stats;
-      uint key_length;
+      size_t key_length;
       KEY *key_info = &table->key_info[index];  // Rows were read using this
 
       DBUG_ASSERT(key_info->cache_name);
@@ -4872,7 +4878,6 @@ int ha_create_table(THD *thd, const char *path,
   TABLE_SHARE share;
   bool temp_table __attribute__((unused)) =
     create_info->options & (HA_LEX_CREATE_TMP_TABLE | HA_CREATE_TMP_ALTER);
-                                 
   DBUG_ENTER("ha_create_table");
 
   init_tmp_table_share(thd, &share, db, 0, table_name, path);
@@ -4900,7 +4905,8 @@ int ha_create_table(THD *thd, const char *path,
 
   share.m_psi= PSI_CALL_get_table_share(temp_table, &share);
 
-  if (open_table_from_share(thd, &share, "", 0, READ_ALL, 0, &table, true))
+  if (open_table_from_share(thd, &share, &empty_clex_str, 0, READ_ALL, 0,
+                            &table, true))
     goto err;
 
   update_create_info_from_table(create_info, &table);
@@ -4914,8 +4920,8 @@ int ha_create_table(THD *thd, const char *path,
     if (!thd->is_error())
       my_error(ER_CANT_CREATE_TABLE, MYF(0), db, table_name, error);
     table.file->print_error(error, MYF(ME_JUST_WARNING));
-    PSI_CALL_drop_table_share(temp_table, share.db.str, share.db.length,
-                              share.table_name.str, share.table_name.length);
+    PSI_CALL_drop_table_share(temp_table, share.db.str, (uint)share.db.length,
+                              share.table_name.str, (uint)share.table_name.length);
   }
 
   (void) closefrm(&table);
@@ -5211,7 +5217,7 @@ private:
         *hton will be NULL.
 */
 
-bool ha_table_exists(THD *thd, const char *db, const char *table_name,
+bool ha_table_exists(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *table_name,
                      handlerton **hton, bool *is_sequence)
 {
   handlerton *dummy;
@@ -5226,7 +5232,7 @@ bool ha_table_exists(THD *thd, const char *db, const char *table_name,
     is_sequence= &dummy2;
   *is_sequence= 0;
 
-  TDC_element *element= tdc_lock_share(thd, db, table_name);
+  TDC_element *element= tdc_lock_share(thd, db->str, table_name->str);
   if (element && element != MY_ERRPTR)
   {
     if (hton)
@@ -5238,8 +5244,8 @@ bool ha_table_exists(THD *thd, const char *db, const char *table_name,
 
   char path[FN_REFLEN + 1];
   size_t path_len = build_table_filename(path, sizeof(path) - 1,
-                                         db, table_name, "", 0);
-  st_discover_existence_args args= {path, path_len, db, table_name, 0, true};
+                                         db->str, table_name->str, "", 0);
+  st_discover_existence_args args= {path, path_len, db->str, table_name->str, 0, true};
 
   if (file_ext_exists(path, path_len, reg_ext))
   {
@@ -5282,14 +5288,12 @@ bool ha_table_exists(THD *thd, const char *db, const char *table_name,
   {
     TABLE_LIST table;
     uint flags = GTS_TABLE | GTS_VIEW;
-
     if (!hton)
       flags|= GTS_NOLOCK;
 
     Table_exists_error_handler no_such_table_handler;
     thd->push_internal_handler(&no_such_table_handler);
-    table.init_one_table(db, strlen(db), table_name, strlen(table_name),
-                         table_name, TL_READ);
+    table.init_one_table(db, table_name, 0, TL_READ);
     TABLE_SHARE *share= tdc_acquire_share(thd, &table, flags);
     thd->pop_internal_handler();
 
@@ -5428,7 +5432,7 @@ static my_bool discover_names(THD *thd, plugin_ref plugin,
 
   if (ht->state == SHOW_OPTION_YES && ht->discover_table_names)
   {
-    uint old_elements= args->result->tables->elements();
+    size_t old_elements= args->result->tables->elements();
     if (ht->discover_table_names(ht, args->db, args->dirp, args->result))
       return 1;
 
@@ -5437,7 +5441,7 @@ static my_bool discover_names(THD *thd, plugin_ref plugin,
       a corresponding .frm file; but custom engine discover methods might
     */
     if (ht->discover_table_names != hton_ext_based_table_discovery)
-      args->possible_duplicates+= args->result->tables->elements() - old_elements;
+      args->possible_duplicates+= (uint)(args->result->tables->elements() - old_elements);
   }
 
   return 0;
@@ -6741,7 +6745,7 @@ bool HA_CREATE_INFO::check_conflicting_charset_declarations(CHARSET_INFO *cs)
 /* Remove all indexes for a given table from global index statistics */
 
 static
-int del_global_index_stats_for_table(THD *thd, uchar* cache_key, uint cache_key_length)
+int del_global_index_stats_for_table(THD *thd, uchar* cache_key, size_t cache_key_length)
 {
   int res = 0;
   DBUG_ENTER("del_global_index_stats_for_table");
@@ -6782,7 +6786,7 @@ int del_global_table_stat(THD *thd, LEX_CSTRING *db, LEX_CSTRING *table)
   TABLE_STATS *table_stats;
   int res = 0;
   uchar *cache_key;
-  uint cache_key_length;
+  size_t cache_key_length;
   DBUG_ENTER("del_global_table_stat");
 
   cache_key_length= db->length + 1 + table->length + 1;
@@ -6819,7 +6823,7 @@ end:
 int del_global_index_stat(THD *thd, TABLE* table, KEY* key_info)
 {
   INDEX_STATS *index_stats;
-  uint key_length= table->s->table_cache_key.length + key_info->name.length + 1;
+  size_t key_length= table->s->table_cache_key.length + key_info->name.length + 1;
   int res = 0;
   DBUG_ENTER("del_global_index_stat");
   mysql_mutex_lock(&LOCK_global_index_stats);
@@ -6997,7 +7001,8 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
 
   if (!(alter_info->flags & Alter_info::ALTER_ADD_SYSTEM_VERSIONING) && vers_info)
   {
-    my_error(ER_MISSING, MYF(0), create_table.table_name, "WITH SYSTEM VERSIONING");
+    my_error(ER_MISSING, MYF(0), create_table.table_name.str,
+             "WITH SYSTEM VERSIONING");
     return true;
   }
 
@@ -7115,15 +7120,16 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
     vers_cols == 0 &&
     (plain_cols == 0 || !vers_info))
   {
-    my_error(ER_VERS_TABLE_MUST_HAVE_COLUMNS, MYF(0), create_table.table_name);
+    my_error(ER_VERS_TABLE_MUST_HAVE_COLUMNS, MYF(0),
+             create_table.table_name.str);
     return true;
   }
 
-  if (vers_info.check_with_conditions(create_table.table_name))
+  if (vers_info.check_with_conditions(create_table.table_name.str))
     return true;
 
   bool native= vers_native(thd);
-  if (vers_info.check_sys_fields(create_table.table_name, alter_info, native))
+  if (vers_info.check_sys_fields(create_table.table_name.str, alter_info, native))
     return true;
 
   return false;
@@ -7400,8 +7406,8 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
       {
         String tmp;
         tmp.append("DROP COLUMN ");
-        tmp.append(done_start ? table->vers_end_field()->field_name
-                              : table->vers_start_field()->field_name);
+        tmp.append(done_start ? &table->vers_end_field()->field_name
+                              : &table->vers_start_field()->field_name);
         my_error(ER_MISSING, MYF(0), table_name, tmp.c_ptr());
         return true;
       }
@@ -7449,7 +7455,7 @@ Vers_parse_info::fix_create_like(Alter_info &alter_info, HA_CREATE_INFO &create_
     push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_UNKNOWN_ERROR,
                         "System versioning is stripped from temporary `%s.%s`",
-                        table.db, table.table_name);
+                        table.db.str, table.table_name.str);
     return false;
   }
 
@@ -7471,8 +7477,8 @@ Vers_parse_info::fix_create_like(Alter_info &alter_info, HA_CREATE_INFO &create_
 
   if (!f_start || !f_end)
   {
-    my_error(ER_MISSING, MYF(0), src_table.table_name,
-      f_start ? "AS ROW END" : "AS ROW START");
+    my_error(ER_MISSING, MYF(0), src_table.table_name.str,
+             f_start ? "AS ROW END" : "AS ROW START");
     return true;
   }
 
@@ -7532,7 +7538,8 @@ bool Vers_parse_info::check_sys_fields(const char *table_name,
     if (sys_flag & found_flag)
     {
       my_error(ER_VERS_DUPLICATE_ROW_START_END, MYF(0),
-                found_flag & VERS_SYS_START_FLAG ? "START" : "END", f->field_name.str);
+                found_flag & VERS_SYS_START_FLAG ? "START" : "END",
+               f->field_name.str);
       return true;
     }
 
@@ -7573,10 +7580,10 @@ bool Vers_parse_info::check_sys_fields(const char *table_name,
         }
       error:
         my_error(ER_VERS_FIELD_WRONG_TYPE, MYF(0), f->field_name.str,
-                  found == VERS_TIMESTAMP ?
-                    "TIMESTAMP(6)" :
-                    "BIGINT(20) UNSIGNED",
-                  table_name);
+                 found == VERS_TIMESTAMP ?
+                 "TIMESTAMP(6)" :
+                 "BIGINT(20) UNSIGNED",
+                 table_name);
         return true;
       }
       found= check_unit;
@@ -7584,6 +7591,6 @@ bool Vers_parse_info::check_sys_fields(const char *table_name,
   }
 
   my_error(ER_MISSING, MYF(0), table_name, found_flag & VERS_SYS_START_FLAG ?
-    "ROW END" : found_flag ? "ROW START" : "ROW START/END");
+           "ROW END" : found_flag ? "ROW START" : "ROW START/END");
   return true;
 }

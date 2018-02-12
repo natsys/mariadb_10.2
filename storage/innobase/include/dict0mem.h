@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1087,8 +1087,12 @@ struct dict_index_t{
 	/** @return whether instant ADD COLUMN is in effect */
 	inline bool is_instant() const;
 
-	/** @return whether the index is the clustered index */
-	bool is_clust() const { return type & DICT_CLUSTERED; }
+	/** @return whether the index is the primary key index
+	(not the clustered index of the change buffer) */
+	bool is_primary() const
+	{
+		return DICT_CLUSTERED == (type & (DICT_CLUSTERED | DICT_IBUF));
+	}
 
 	/** Determine how many fields of a given prefix can be set NULL.
 	@param[in]	n_prefix	number of fields in the prefix
@@ -1114,7 +1118,7 @@ struct dict_index_t{
 	@param[out]	len	value length (in bytes), or UNIV_SQL_NULL
 	@return	default value
 	@retval	NULL	if the default value is SQL NULL (len=UNIV_SQL_NULL) */
-	const byte* instant_field_value(uint n, ulint* len) const
+	const byte* instant_field_value(ulint n, ulint* len) const
 	{
 		DBUG_ASSERT(is_instant() || id == DICT_INDEXES_ID);
 		DBUG_ASSERT(n + (id == DICT_INDEXES_ID) >= n_core_fields);
@@ -1130,7 +1134,7 @@ struct dict_index_t{
 	Protected by index root page x-latch or table X-lock. */
 	void remove_instant()
 	{
-		DBUG_ASSERT(is_clust());
+		DBUG_ASSERT(is_primary());
 		if (!is_instant()) {
 			return;
 		}
@@ -1550,6 +1554,27 @@ struct dict_table_t {
 	void add_to_cache();
 
 	bool versioned() const { return vers_start || vers_end; }
+	bool versioned_by_id() const
+	{
+		return vers_start && cols[vers_start].mtype == DATA_INT;
+	}
+
+	void inc_fk_checks()
+	{
+#ifdef UNIV_DEBUG
+		lint fk_checks=
+#endif
+		my_atomic_addlint(&n_foreign_key_checks_running, 1);
+		ut_ad(fk_checks >= 0);
+	}
+	void dec_fk_checks()
+	{
+#ifdef UNIV_DEBUG
+		lint fk_checks=
+#endif
+		my_atomic_addlint(&n_foreign_key_checks_running, -1);
+		ut_ad(fk_checks > 0);
+	}
 
 	/** Id of the table. */
 	table_id_t				id;
@@ -1594,6 +1619,13 @@ struct dict_table_t {
 	7 whether the aux FTS tables names are in hex.
 	Use DICT_TF2_FLAG_IS_SET() to parse this flag. */
 	unsigned				flags2:DICT_TF2_BITS;
+
+	/** TRUE if the table is an intermediate table during copy alter
+	operation or a partition/subpartition which is required for copying
+	data and skip the undo log for insertion of row in the table.
+	This variable will be set and unset during extra(), or during the
+	process of altering partitions */
+	unsigned                                skip_alter_undo:1;
 
 	/*!< whether this is in a single-table tablespace and the .ibd
 	file is missing or page decryption failed and page is corrupted */

@@ -248,7 +248,7 @@ row_upd_check_references_constraints(
 
 	DEBUG_SYNC_C("foreign_constraint_check_for_update");
 
-	mtr_start_trx(mtr, trx);
+	mtr->start();
 
 	if (trx->dict_operation_lock_mode == 0) {
 		got_s_lock = TRUE;
@@ -581,6 +581,7 @@ row_upd_changes_field_size_or_external(
 	ulint			i;
 
 	ut_ad(rec_offs_validate(NULL, index, offsets));
+	ut_ad(!index->table->skip_alter_undo);
 	n_fields = upd_get_n_fields(update);
 
 	for (i = 0; i < n_fields; i++) {
@@ -705,6 +706,7 @@ row_upd_rec_in_place(
 	ulint			i;
 
 	ut_ad(rec_offs_validate(rec, index, offsets));
+	ut_ad(!index->table->skip_alter_undo);
 
 	if (rec_offs_comp(offsets)) {
 #ifdef UNIV_DEBUG
@@ -1013,6 +1015,7 @@ row_upd_build_sec_rec_difference_binary(
 	ut_ad(rec_offs_n_fields(offsets) == dtuple_get_n_fields(entry));
 	ut_ad(!rec_offs_any_extern(offsets));
 	ut_ad(!rec_offs_any_default(offsets));
+	ut_ad(!index->table->skip_alter_undo);
 
 	update = upd_create(dtuple_get_n_fields(entry), heap);
 
@@ -1094,6 +1097,7 @@ row_upd_build_difference_binary(
 
 	/* This function is used only for a clustered index */
 	ut_a(dict_index_is_clust(index));
+	ut_ad(!index->table->skip_alter_undo);
 
 	update = upd_create(n_fld + n_v_fld, heap);
 
@@ -1356,6 +1360,8 @@ row_upd_index_replace_new_col_vals_index_pos(
 	const upd_t*		update,
 	mem_heap_t*		heap)
 {
+	ut_ad(!index->table->skip_alter_undo);
+
 	const page_size_t&	page_size = dict_table_page_size(index->table);
 
 	dtuple_set_info_bits(entry, update->info_bits);
@@ -1409,6 +1415,8 @@ row_upd_index_replace_new_col_vals(
 	const dict_index_t*	clust_index
 		= dict_table_get_first_index(index->table);
 	const page_size_t&	page_size = dict_table_page_size(index->table);
+
+	ut_ad(!index->table->skip_alter_undo);
 
 	dtuple_set_info_bits(entry, update->info_bits);
 
@@ -1483,6 +1491,8 @@ row_upd_replace_vcol(
 	ulint			col_no;
 	ulint			i;
 	ulint			n_cols;
+
+	ut_ad(!table->skip_alter_undo);
 
 	n_cols = dtuple_get_n_v_fields(row);
 	for (col_no = 0; col_no < n_cols; col_no++) {
@@ -1705,6 +1715,7 @@ row_upd_changes_ord_field_binary_func(
 	ut_ad(thr);
 	ut_ad(thr->graph);
 	ut_ad(thr->graph->trx);
+	ut_ad(!index->table->skip_alter_undo);
 
 	n_unique = dict_index_get_n_unique(index);
 
@@ -1964,6 +1975,8 @@ row_upd_changes_doc_id(
 	dict_index_t*	clust_index;
 	fts_t*		fts = table->fts;
 
+	ut_ad(!table->skip_alter_undo);
+
 	clust_index = dict_table_get_first_index(table);
 
 	/* Convert from index-specific column number to table-global
@@ -1985,6 +1998,8 @@ row_upd_changes_fts_column(
 	ulint		col_no;
 	dict_index_t*	clust_index;
 	fts_t*		fts = table->fts;
+
+	ut_ad(!table->skip_alter_undo);
 
 	if (upd_fld_is_virtual_col(upd_field)) {
 		col_no = upd_field->field_no;
@@ -2319,7 +2334,7 @@ row_upd_sec_index_entry(
 	DEBUG_SYNC_C_IF_THD(trx->mysql_thd,
 			    "before_row_upd_sec_index_entry");
 
-	mtr_start_trx(&mtr, trx);
+	mtr.start();
 
 	switch (index->space) {
 	case SRV_TMP_SPACE_ID:
@@ -2836,6 +2851,7 @@ row_upd_clust_rec(
 	ut_ad(node);
 	ut_ad(dict_index_is_clust(index));
 	ut_ad(!thr_get_trx(thr)->in_rollback);
+	ut_ad(!node->table->skip_alter_undo);
 
 	pcur = node->pcur;
 	btr_cur = btr_pcur_get_btr_cur(pcur);
@@ -2880,7 +2896,7 @@ row_upd_clust_rec(
 	/* We may have to modify the tree structure: do a pessimistic descent
 	down the index tree */
 
-	mtr_start_trx(mtr, thr_get_trx(thr));
+	mtr->start();
 	mtr->set_named_space(index->space);
 
 	/* Disable REDO logging as lifetime of temp-tables is limited to
@@ -3068,7 +3084,7 @@ row_upd_clust_step(
 
 	/* We have to restore the cursor to its position */
 
-	mtr_start_trx(&mtr, thr_get_trx(thr));
+	mtr.start();
 	mtr.set_named_space(index->space);
 
 	if (dict_table_is_temporary(node->table)) {
@@ -3129,9 +3145,9 @@ row_upd_clust_step(
 		dict_drop_index_tree(
 			btr_pcur_get_rec(pcur), pcur, &mtr);
 
-		mtr_commit(&mtr);
+		mtr.commit();
 
-		mtr_start_trx(&mtr, thr_get_trx(thr));
+		mtr.start();
 		mtr.set_named_space(index->space);
 
 		success = btr_pcur_restore_position(BTR_MODIFY_LEAF, pcur,
@@ -3139,7 +3155,7 @@ row_upd_clust_step(
 		if (!success) {
 			err = DB_ERROR;
 
-			mtr_commit(&mtr);
+			mtr.commit();
 
 			return(err);
 		}
@@ -3154,7 +3170,7 @@ row_upd_clust_step(
 			0, btr_pcur_get_block(pcur),
 			rec, index, offsets, thr);
 		if (err != DB_SUCCESS) {
-			mtr_commit(&mtr);
+			mtr.commit();
 			goto exit_func;
 		}
 	}

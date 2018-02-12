@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -42,13 +42,12 @@ Created 3/26/1996 Heikki Tuuri
 #include "log0log.h"
 #include "log0recv.h"
 #include "os0file.h"
-#include "read0read.h"
 #include "fsp0sysspace.h"
 
 #include <mysql/service_wsrep.h>
 
 /** The transaction system */
-trx_sys_t*		trx_sys;
+trx_sys_t		trx_sys;
 
 /** Check whether transaction id is valid.
 @param[in]	id              transaction id to check
@@ -58,7 +57,7 @@ ReadView::check_trx_id_sanity(
 	trx_id_t		id,
 	const table_name_t&	name)
 {
-	if (id >= trx_sys->max_trx_id) {
+	if (id >= trx_sys.get_max_trx_id()) {
 
 		ib::warn() << "A transaction id"
 			   << " in a record of table "
@@ -89,32 +88,6 @@ ReadView::check_trx_id_sanity(
 uint	trx_rseg_n_slots_debug = 0;
 #endif
 
-/*****************************************************************//**
-Writes the value of max_trx_id to the file based trx system header. */
-void
-trx_sys_flush_max_trx_id(void)
-/*==========================*/
-{
-	mtr_t		mtr;
-	trx_sysf_t*	sys_header;
-
-	/* wsrep_fake_trx_id  violates this assert
-	Copied from trx_sys_get_new_trx_id
-	*/
-	ut_ad(trx_sys_mutex_own());
-
-	if (!srv_read_only_mode) {
-		mtr_start(&mtr);
-
-		sys_header = trx_sysf_get(&mtr);
-
-		mlog_write_ull(
-			sys_header + TRX_SYS_TRX_ID_STORE,
-			trx_sys->max_trx_id, &mtr);
-
-		mtr_commit(&mtr);
-	}
-}
 
 /*****************************************************************//**
 Updates the offset information about the end of the MySQL binlog entry
@@ -126,8 +99,8 @@ trx_sys_update_mysql_binlog_offset(
 /*===============================*/
 	const char*	file_name,/*!< in: MySQL log file name */
 	int64_t		offset,	/*!< in: position in that log file */
-        trx_sysf_t*     sys_header, /*!< in: trx sys header */
-	mtr_t*		mtr)	/*!< in: mtr */
+	buf_block_t*	sys_header, /*!< in,out: trx sys header */
+	mtr_t*		mtr)	/*!< in,out: mini-transaction */
 {
 	DBUG_PRINT("InnoDB",("trx_mysql_binlog_offset: %lld", (longlong) offset));
 
@@ -140,27 +113,26 @@ trx_sys_update_mysql_binlog_offset(
 		return;
 	}
 
-	if (mach_read_from_4(TRX_SYS_MYSQL_LOG_MAGIC_N_FLD
-			     + TRX_SYS_MYSQL_LOG_INFO + sys_header)
-	    != TRX_SYS_MYSQL_LOG_MAGIC_N) {
+	byte* p = TRX_SYS + TRX_SYS_MYSQL_LOG_MAGIC_N_FLD
+		+ TRX_SYS_MYSQL_LOG_INFO + sys_header->frame;
 
-		mlog_write_ulint(TRX_SYS_MYSQL_LOG_MAGIC_N_FLD
-				 + TRX_SYS_MYSQL_LOG_INFO + sys_header,
+	if (mach_read_from_4(p) != TRX_SYS_MYSQL_LOG_MAGIC_N) {
+		mlog_write_ulint(p,
 				 TRX_SYS_MYSQL_LOG_MAGIC_N,
 				 MLOG_4BYTES, mtr);
 	}
 
-	if (memcmp(file_name, TRX_SYS_MYSQL_LOG_NAME + TRX_SYS_MYSQL_LOG_INFO
-		   + sys_header, len)) {
-		mlog_write_string(TRX_SYS_MYSQL_LOG_NAME
-				  + TRX_SYS_MYSQL_LOG_INFO
-				  + sys_header,
+	p = TRX_SYS + TRX_SYS_MYSQL_LOG_NAME + TRX_SYS_MYSQL_LOG_INFO
+		+ sys_header->frame;
+
+	if (memcmp(file_name, p, len)) {
+		mlog_write_string(p,
 				  reinterpret_cast<const byte*>(file_name),
 				  len, mtr);
 	}
 
 	mlog_write_ull(TRX_SYS_MYSQL_LOG_INFO + TRX_SYS_MYSQL_LOG_OFFSET
-		       + sys_header, offset, mtr);
+		       + TRX_SYS + sys_header->frame, offset, mtr);
 }
 
 /** Display the MySQL binlog offset info if it is present in the trx
@@ -172,18 +144,20 @@ trx_sys_print_mysql_binlog_offset()
 
 	mtr.start();
 
-	const trx_sysf_t*	sys_header = trx_sysf_get(&mtr);
+	const buf_block_t* block = trx_sysf_get(&mtr, false);
 
-	if (mach_read_from_4(TRX_SYS_MYSQL_LOG_INFO
-			     + TRX_SYS_MYSQL_LOG_MAGIC_N_FLD + sys_header)
+	if (block
+	    && mach_read_from_4(TRX_SYS + TRX_SYS_MYSQL_LOG_INFO
+				+ TRX_SYS_MYSQL_LOG_MAGIC_N_FLD
+				+ block->frame)
 	    == TRX_SYS_MYSQL_LOG_MAGIC_N) {
 		ib::info() << "Last binlog file '"
 			<< TRX_SYS_MYSQL_LOG_INFO + TRX_SYS_MYSQL_LOG_NAME
-			+ sys_header
+			+ TRX_SYS + block->frame
 			<< "', position "
 			<< mach_read_from_8(TRX_SYS_MYSQL_LOG_INFO
 					    + TRX_SYS_MYSQL_LOG_OFFSET
-					    + sys_header);
+					    + TRX_SYS + block->frame);
 	}
 
 	mtr.commit();
@@ -211,27 +185,27 @@ static inline void read_wsrep_xid_uuid(const XID* xid, unsigned char* buf)
 
 #endif /* UNIV_DEBUG */
 
-/** Update WSREP XID info in sys_header of TRX_SYS_PAGE_NO = 5.
+/** Update WSREP XID info in the TRX_SYS page.
 @param[in]	xid		Transaction XID
-@param[in,out]	sys_header	sys_header
-@param[in]	mtr		minitransaction */
+@param[in,out]	sys_header	TRX_SYS page
+@param[in,out]	mtr		mini-transaction */
 UNIV_INTERN
 void
 trx_sys_update_wsrep_checkpoint(
 	const XID*	xid,
-	trx_sysf_t*	sys_header,
+	buf_block_t*	sys_header,
 	mtr_t*		mtr)
 {
 	ut_ad(xid->formatID == 1);
 	ut_ad(wsrep_is_wsrep_xid(xid));
 
-	if (mach_read_from_4(sys_header + TRX_SYS_WSREP_XID_INFO
-			     + TRX_SYS_WSREP_XID_MAGIC_N_FLD)
-		!= TRX_SYS_WSREP_XID_MAGIC_N) {
-		mlog_write_ulint(sys_header + TRX_SYS_WSREP_XID_INFO
-			+ TRX_SYS_WSREP_XID_MAGIC_N_FLD,
-			TRX_SYS_WSREP_XID_MAGIC_N,
-			MLOG_4BYTES, mtr);
+	byte* magic = TRX_SYS + TRX_SYS_WSREP_XID_INFO
+		+ TRX_SYS_WSREP_XID_MAGIC_N_FLD
+		+ sys_header->frame;
+
+	if (mach_read_from_4(magic) != TRX_SYS_WSREP_XID_MAGIC_N) {
+		mlog_write_ulint(magic, TRX_SYS_WSREP_XID_MAGIC_N,
+				 MLOG_4BYTES, mtr);
 #ifdef UNIV_DEBUG
 	} else {
 		/* Check that seqno is monotonically increasing */
@@ -250,22 +224,22 @@ trx_sys_update_wsrep_checkpoint(
 #endif /* UNIV_DEBUG */
 	}
 
-	mlog_write_ulint(sys_header + TRX_SYS_WSREP_XID_INFO
-		+ TRX_SYS_WSREP_XID_FORMAT,
-		(int)xid->formatID,
-		MLOG_4BYTES, mtr);
-	mlog_write_ulint(sys_header + TRX_SYS_WSREP_XID_INFO
-		+ TRX_SYS_WSREP_XID_GTRID_LEN,
-		(int)xid->gtrid_length,
-		MLOG_4BYTES, mtr);
-	mlog_write_ulint(sys_header + TRX_SYS_WSREP_XID_INFO
-		+ TRX_SYS_WSREP_XID_BQUAL_LEN,
-		(int)xid->bqual_length,
-		MLOG_4BYTES, mtr);
-	mlog_write_string(sys_header + TRX_SYS_WSREP_XID_INFO
-		+ TRX_SYS_WSREP_XID_DATA,
-		(const unsigned char*) xid->data,
-		XIDDATASIZE, mtr);
+	mlog_write_ulint(TRX_SYS + TRX_SYS_WSREP_XID_INFO
+			 + TRX_SYS_WSREP_XID_FORMAT + sys_header->frame,
+			 uint32_t(xid->formatID),
+			 MLOG_4BYTES, mtr);
+	mlog_write_ulint(TRX_SYS + TRX_SYS_WSREP_XID_INFO
+			 + TRX_SYS_WSREP_XID_GTRID_LEN + sys_header->frame,
+			 uint32_t(xid->gtrid_length),
+			 MLOG_4BYTES, mtr);
+	mlog_write_ulint(TRX_SYS + TRX_SYS_WSREP_XID_INFO
+			 + TRX_SYS_WSREP_XID_BQUAL_LEN + sys_header->frame,
+			 uint32_t(xid->bqual_length),
+			 MLOG_4BYTES, mtr);
+	mlog_write_string(TRX_SYS + TRX_SYS_WSREP_XID_INFO
+			  + TRX_SYS_WSREP_XID_DATA + sys_header->frame,
+			  reinterpret_cast<const byte*>(xid->data),
+			  XIDDATASIZE, mtr);
 }
 
 /** Read WSREP checkpoint XID from sys header.
@@ -275,57 +249,57 @@ UNIV_INTERN
 bool
 trx_sys_read_wsrep_checkpoint(XID* xid)
 {
-	trx_sysf_t*	sys_header;
 	mtr_t		mtr;
-	ulint		magic;
 
 	ut_ad(xid);
 
-	mtr_start(&mtr);
+	mtr.start();
 
-	sys_header = trx_sysf_get(&mtr);
+	const buf_block_t* block = trx_sysf_get(&mtr, false);
 
-	if ((magic = mach_read_from_4(sys_header + TRX_SYS_WSREP_XID_INFO
-					+ TRX_SYS_WSREP_XID_MAGIC_N_FLD))
+	if (!block ||
+	    mach_read_from_4(TRX_SYS + TRX_SYS_WSREP_XID_INFO
+			     + TRX_SYS_WSREP_XID_MAGIC_N_FLD + block->frame)
 	    != TRX_SYS_WSREP_XID_MAGIC_N) {
 		memset(xid, 0, sizeof(*xid));
 		long long seqno= -1;
 		memcpy(xid->data + 24, &seqno, sizeof(long long));
 		xid->formatID = -1;
-		mtr_commit(&mtr);
+		mtr.commit();
 		return false;
 	}
 
 	xid->formatID = (int)mach_read_from_4(
-			sys_header
-			+ TRX_SYS_WSREP_XID_INFO + TRX_SYS_WSREP_XID_FORMAT);
+		TRX_SYS + TRX_SYS_WSREP_XID_INFO + TRX_SYS_WSREP_XID_FORMAT
+		+ block->frame);
 	xid->gtrid_length = (int)mach_read_from_4(
-			sys_header
-			+ TRX_SYS_WSREP_XID_INFO + TRX_SYS_WSREP_XID_GTRID_LEN);
+		TRX_SYS + TRX_SYS_WSREP_XID_INFO + TRX_SYS_WSREP_XID_GTRID_LEN
+		+ block->frame);
 	xid->bqual_length = (int)mach_read_from_4(
-			sys_header
-			+ TRX_SYS_WSREP_XID_INFO + TRX_SYS_WSREP_XID_BQUAL_LEN);
-	ut_memcpy(xid->data,
-		  sys_header + TRX_SYS_WSREP_XID_INFO + TRX_SYS_WSREP_XID_DATA,
-		  XIDDATASIZE);
+		TRX_SYS + TRX_SYS_WSREP_XID_INFO + TRX_SYS_WSREP_XID_BQUAL_LEN
+		+ block->frame);
+	memcpy(xid->data,
+	       TRX_SYS + TRX_SYS_WSREP_XID_INFO + TRX_SYS_WSREP_XID_DATA
+	       + block->frame,
+	       XIDDATASIZE);
 
-	mtr_commit(&mtr);
+	mtr.commit();
 	return true;
 }
 
 #endif /* WITH_WSREP */
 
-/** @return an unallocated rollback segment slot in the TRX_SYS header
+/** Find an available rollback segment.
+@param[in]	sys_header
+@return an unallocated rollback segment slot in the TRX_SYS header
 @retval ULINT_UNDEFINED if not found */
 ulint
-trx_sysf_rseg_find_free(mtr_t* mtr)
+trx_sys_rseg_find_free(const buf_block_t* sys_header)
 {
-	trx_sysf_t*	sys_header = trx_sysf_get(mtr);
-
-	for (ulint i = 0; i < TRX_SYS_N_RSEGS; i++) {
-		if (trx_sysf_rseg_get_page_no(sys_header, i, mtr)
+	for (ulint rseg_id = 0; rseg_id < TRX_SYS_N_RSEGS; rseg_id++) {
+		if (trx_sysf_rseg_get_page_no(sys_header, rseg_id)
 		    == FIL_NULL) {
-			return(i);
+			return rseg_id;
 		}
 	}
 
@@ -340,13 +314,14 @@ trx_sysf_get_n_rseg_slots()
 	mtr_t		mtr;
 	mtr.start();
 
-	trx_sysf_t*	sys_header	= trx_sysf_get(&mtr);
 	srv_available_undo_logs = 0;
-
-	for (ulint i = 0; i < TRX_SYS_N_RSEGS; i++) {
-		srv_available_undo_logs
-			+= trx_sysf_rseg_get_page_no(sys_header, i, &mtr)
-			!= FIL_NULL;
+	if (const buf_block_t* sys_header = trx_sysf_get(&mtr, false)) {
+		for (ulint rseg_id = 0; rseg_id < TRX_SYS_N_RSEGS; rseg_id++) {
+			srv_available_undo_logs
+				+= trx_sysf_rseg_get_page_no(sys_header,
+							     rseg_id)
+				!= FIL_NULL;
+		}
 	}
 
 	mtr.commit();
@@ -361,7 +336,6 @@ trx_sysf_create(
 /*============*/
 	mtr_t*	mtr)	/*!< in: mtr */
 {
-	trx_sysf_t*	sys_header;
 	ulint		slot_no;
 	buf_block_t*	block;
 	page_t*		page;
@@ -395,15 +369,10 @@ trx_sysf_create(
 	mlog_write_ulint(page + TRX_SYS_DOUBLEWRITE
 			 + TRX_SYS_DOUBLEWRITE_MAGIC, 0, MLOG_4BYTES, mtr);
 
-	sys_header = trx_sysf_get(mtr);
-
-	/* Start counting transaction ids from number 1 up */
-	mach_write_to_8(sys_header + TRX_SYS_TRX_ID_STORE, 1);
-
 	/* Reset the rollback segment slots.  Old versions of InnoDB
 	(before MySQL 5.5) define TRX_SYS_N_RSEGS as 256 and expect
 	that the whole array is initialized. */
-	ptr = TRX_SYS_RSEGS + sys_header;
+	ptr = TRX_SYS + TRX_SYS_RSEGS + page;
 	compile_time_assert(256 >= TRX_SYS_N_RSEGS);
 	memset(ptr, 0xff, 256 * TRX_SYS_RSEG_SLOT_SIZE);
 	ptr += 256 * TRX_SYS_RSEG_SLOT_SIZE;
@@ -412,71 +381,29 @@ trx_sysf_create(
 	/* Initialize all of the page.  This part used to be uninitialized. */
 	memset(ptr, 0, UNIV_PAGE_SIZE - FIL_PAGE_DATA_END + page - ptr);
 
-	mlog_log_string(sys_header, UNIV_PAGE_SIZE - FIL_PAGE_DATA_END
-			+ page - sys_header, mtr);
+	mlog_log_string(TRX_SYS + page, UNIV_PAGE_SIZE - FIL_PAGE_DATA_END
+			- TRX_SYS, mtr);
 
 	/* Create the first rollback segment in the SYSTEM tablespace */
-	slot_no = trx_sysf_rseg_find_free(mtr);
-	page_no = trx_rseg_header_create(TRX_SYS_SPACE,
-					 ULINT_MAX, slot_no, mtr);
+	slot_no = trx_sys_rseg_find_free(block);
+	page_no = trx_rseg_header_create(TRX_SYS_SPACE, slot_no, block, mtr);
 
 	ut_a(slot_no == TRX_SYS_SYSTEM_RSEG_ID);
 	ut_a(page_no == FSP_FIRST_RSEG_PAGE_NO);
 }
 
-/** Initialize the transaction system main-memory data structures. */
+/** Create the instance */
 void
-trx_sys_init_at_db_start()
+trx_sys_t::create()
 {
-	trx_sysf_t*	sys_header;
+	ut_ad(this == &trx_sys);
+	ut_ad(!is_initialised());
+	m_initialised = true;
+	mutex_create(LATCH_ID_TRX_SYS, &mutex);
+	UT_LIST_INIT(mysql_trx_list, &trx_t::mysql_trx_list);
+	UT_LIST_INIT(m_views, &ReadView::m_view_list);
 
-	/* VERY important: after the database is started, max_trx_id value is
-	divisible by TRX_SYS_TRX_ID_WRITE_MARGIN, and the 'if' in
-	trx_sys_get_new_trx_id will evaluate to TRUE when the function
-	is first time called, and the value for trx id will be written
-	to the disk-based header! Thus trx id values will not overlap when
-	the database is repeatedly started! */
-
-	mtr_t	mtr;
-	mtr.start();
-
-	sys_header = trx_sysf_get(&mtr);
-
-	trx_sys->max_trx_id = 2 * TRX_SYS_TRX_ID_WRITE_MARGIN
-		+ ut_uint64_align_up(mach_read_from_8(sys_header
-						   + TRX_SYS_TRX_ID_STORE),
-				     TRX_SYS_TRX_ID_WRITE_MARGIN);
-
-	mtr.commit();
-	ut_d(trx_sys->rw_max_trx_id = trx_sys->max_trx_id);
-
-	trx_dummy_sess = sess_open();
-
-	trx_lists_init_at_db_start();
-	trx_sys->mvcc->clone_oldest_view(&purge_sys->view);
-}
-
-/*****************************************************************//**
-Creates the trx_sys instance and initializes purge_queue and mutex. */
-void
-trx_sys_create(void)
-/*================*/
-{
-	ut_ad(trx_sys == NULL);
-
-	trx_sys = static_cast<trx_sys_t*>(ut_zalloc_nokey(sizeof(*trx_sys)));
-
-	mutex_create(LATCH_ID_TRX_SYS, &trx_sys->mutex);
-
-	UT_LIST_INIT(trx_sys->serialisation_list, &trx_t::no_list);
-	UT_LIST_INIT(trx_sys->rw_trx_list, &trx_t::trx_list);
-	UT_LIST_INIT(trx_sys->mysql_trx_list, &trx_t::mysql_trx_list);
-
-	trx_sys->mvcc = UT_NEW_NOKEY(MVCC(1024));
-
-	new(&trx_sys->rw_trx_ids) trx_ids_t(ut_allocator<trx_id_t>(
-			mem_key_trx_sys_t_rw_trx_ids));
-	trx_sys->rw_trx_hash.init();
+	rw_trx_hash.init();
 }
 
 /*****************************************************************//**
@@ -572,16 +499,16 @@ trx_sys_create_rsegs()
 	return(true);
 }
 
-/*********************************************************************
-Shutdown/Close the transaction system. */
+/** Close the transaction system on shutdown */
 void
-trx_sys_close(void)
-/*===============*/
+trx_sys_t::close()
 {
-	ut_ad(trx_sys != NULL);
 	ut_ad(srv_shutdown_state == SRV_SHUTDOWN_EXIT_THREADS);
+	if (!is_initialised()) {
+		return;
+	}
 
-	if (ulint size = trx_sys->mvcc->size()) {
+	if (size_t size = view_count()) {
 		ib::error() << "All read views were not closed before"
 			" shutdown: " << size << " read views open";
 	}
@@ -591,117 +518,63 @@ trx_sys_close(void)
 		trx_dummy_sess = NULL;
 	}
 
-	/* Only prepared transactions may be left in the system. Free them. */
-	ut_a(UT_LIST_GET_LEN(trx_sys->rw_trx_list) == trx_sys->n_prepared_trx
-	     || !srv_was_started
-	     || srv_read_only_mode
-	     || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO);
-
-	for (trx_t* trx = UT_LIST_GET_FIRST(trx_sys->rw_trx_list);
-	     trx != NULL;
-	     trx = UT_LIST_GET_FIRST(trx_sys->rw_trx_list)) {
-
-		trx_free_prepared(trx);
-
-		UT_LIST_REMOVE(trx_sys->rw_trx_list, trx);
-	}
+	rw_trx_hash.destroy();
 
 	/* There can't be any active transactions. */
 
 	for (ulint i = 0; i < TRX_SYS_N_RSEGS; ++i) {
-		if (trx_rseg_t* rseg = trx_sys->rseg_array[i]) {
+		if (trx_rseg_t* rseg = rseg_array[i]) {
 			trx_rseg_mem_free(rseg);
 		}
 
-		if (trx_rseg_t* rseg = trx_sys->temp_rsegs[i]) {
+		if (trx_rseg_t* rseg = temp_rsegs[i]) {
 			trx_rseg_mem_free(rseg);
 		}
 	}
 
-	UT_DELETE(trx_sys->mvcc);
-
-	ut_a(UT_LIST_GET_LEN(trx_sys->rw_trx_list) == 0);
-	ut_a(UT_LIST_GET_LEN(trx_sys->mysql_trx_list) == 0);
-	ut_a(UT_LIST_GET_LEN(trx_sys->serialisation_list) == 0);
+	ut_a(UT_LIST_GET_LEN(mysql_trx_list) == 0);
+	ut_ad(UT_LIST_GET_LEN(m_views) == 0);
 
 	/* We used placement new to create this mutex. Call the destructor. */
-	mutex_free(&trx_sys->mutex);
-
-	trx_sys->rw_trx_ids.~trx_ids_t();
-
-	trx_sys->rw_trx_hash.destroy();
-	ut_free(trx_sys);
-
-	trx_sys = NULL;
+	mutex_free(&mutex);
+	m_initialised = false;
 }
 
-/*********************************************************************
-Check if there are any active (non-prepared) transactions.
-This is only used to check if it's safe to shutdown.
-@return total number of active transactions or 0 if none */
-ulint
-trx_sys_any_active_transactions(void)
-/*=================================*/
+
+static my_bool active_count_callback(rw_trx_hash_element_t *element,
+                                     uint32_t *count)
 {
-	ulint	total_trx = 0;
+  mutex_enter(&element->mutex);
+  if (trx_t *trx= element->trx)
+  {
+    mutex_enter(&trx->mutex);
+    if (trx_state_eq(trx, TRX_STATE_ACTIVE))
+      ++*count;
+    mutex_exit(&trx->mutex);
+  }
+  mutex_exit(&element->mutex);
+  return 0;
+}
 
-	trx_sys_mutex_enter();
 
-	total_trx = UT_LIST_GET_LEN(trx_sys->rw_trx_list);
+/** @return total number of active (non-prepared) transactions */
+ulint trx_sys_t::any_active_transactions()
+{
+	uint32_t total_trx = 0;
 
-	for (trx_t* trx = UT_LIST_GET_FIRST(trx_sys->mysql_trx_list);
+	trx_sys.rw_trx_hash.iterate_no_dups(
+				reinterpret_cast<my_hash_walk_action>
+				(active_count_callback), &total_trx);
+
+	mutex_enter(&mutex);
+	for (trx_t* trx = UT_LIST_GET_FIRST(trx_sys.mysql_trx_list);
 	     trx != NULL;
 	     trx = UT_LIST_GET_NEXT(mysql_trx_list, trx)) {
-		total_trx += trx->state != TRX_STATE_NOT_STARTED;
+		if (trx->state != TRX_STATE_NOT_STARTED && !trx->id) {
+			total_trx++;
+		}
 	}
-
-	ut_a(total_trx >= trx_sys->n_prepared_trx);
-	total_trx -= trx_sys->n_prepared_trx;
-
-	trx_sys_mutex_exit();
+	mutex_exit(&mutex);
 
 	return(total_trx);
 }
-
-#ifdef UNIV_DEBUG
-/*************************************************************//**
-Validate the trx_ut_list_t.
-@return true if valid. */
-static
-bool
-trx_sys_validate_trx_list_low(
-/*===========================*/
-	trx_ut_list_t*	trx_list)	/*!< in: &trx_sys->rw_trx_list */
-{
-	const trx_t*	trx;
-	const trx_t*	prev_trx = NULL;
-
-	ut_ad(trx_sys_mutex_own());
-
-	ut_ad(trx_list == &trx_sys->rw_trx_list);
-
-	for (trx = UT_LIST_GET_FIRST(*trx_list);
-	     trx != NULL;
-	     prev_trx = trx, trx = UT_LIST_GET_NEXT(trx_list, prev_trx)) {
-
-		check_trx_state(trx);
-		ut_a(prev_trx == NULL || prev_trx->id > trx->id);
-	}
-
-	return(true);
-}
-
-/*************************************************************//**
-Validate the trx_sys_t::rw_trx_list.
-@return true if the list is valid. */
-bool
-trx_sys_validate_trx_list()
-/*=======================*/
-{
-	ut_ad(trx_sys_mutex_own());
-
-	ut_a(trx_sys_validate_trx_list_low(&trx_sys->rw_trx_list));
-
-	return(true);
-}
-#endif /* UNIV_DEBUG */

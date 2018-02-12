@@ -1275,20 +1275,11 @@ run_again:
 	return(err);
 }
 
-/*********************************************************************//**
-Sets a table lock on the table mentioned in prebuilt.
+/** Lock a table.
+@param[in,out]	prebuilt	table handle
 @return error code or DB_SUCCESS */
 dberr_t
-row_lock_table_for_mysql(
-/*=====================*/
-	row_prebuilt_t*	prebuilt,	/*!< in: prebuilt struct in the MySQL
-					table handle */
-	dict_table_t*	table,		/*!< in: table to lock, or NULL
-					if prebuilt->table should be
-					locked as
-					prebuilt->select_lock_type */
-	ulint		mode)		/*!< in: lock mode of table
-					(ignored if table==NULL) */
+row_lock_table(row_prebuilt_t* prebuilt)
 {
 	trx_t*		trx		= prebuilt->trx;
 	que_thr_t*	thr;
@@ -1318,17 +1309,10 @@ run_again:
 
 	trx_start_if_not_started_xa(trx, false);
 
-	if (table) {
-		err = lock_table(
-			0, table,
-			static_cast<enum lock_mode>(mode), thr);
-	} else {
-		err = lock_table(
-			0, prebuilt->table,
-			static_cast<enum lock_mode>(
-				prebuilt->select_lock_type),
-			thr);
-	}
+	err = lock_table(0, prebuilt->table,
+			 static_cast<enum lock_mode>(
+				 prebuilt->select_lock_type),
+			 thr);
 
 	trx->error_state = err;
 
@@ -1608,9 +1592,21 @@ error_exit:
 			}
 		}
 
-		/* Pass NULL for the columns affected, since an INSERT affects
-		all FTS indexes. */
-		fts_trx_add_op(trx, table, doc_id, FTS_INSERT, NULL);
+		if (table->skip_alter_undo) {
+			if (trx->fts_trx == NULL) {
+				trx->fts_trx = fts_trx_create(trx);
+			}
+
+			fts_trx_table_t ftt;
+			ftt.table = table;
+			ftt.fts_trx = trx->fts_trx;
+
+			fts_add_doc_from_tuple(&ftt, doc_id, node->row);
+		} else {
+			/* Pass NULL for the columns affected, since an INSERT affects
+			all FTS indexes. */
+			fts_trx_add_op(trx, table, doc_id, FTS_INSERT, NULL);
+		}
 	}
 
 	que_thr_stop_for_mysql_no_error(thr, trx);
@@ -1629,7 +1625,7 @@ error_exit:
 
 	if (prebuilt->clust_index_was_generated) {
 		/* set row id to prebuilt */
-		ut_memcpy(prebuilt->row_id, node->row_id_buf, DATA_ROW_ID_LEN);
+		memcpy(prebuilt->row_id, node->sys_buf, DATA_ROW_ID_LEN);
 	}
 
 	dict_stats_update_if_needed(table);
@@ -1836,15 +1832,10 @@ init_fts_doc_id_for_ref(
 	}
 }
 
-/* A functor for decrementing counters. */
-class ib_dec_counter {
-public:
-	ib_dec_counter() {}
-
+struct dec_foreign_key_checks_running
+{
 	void operator() (upd_node_t* node) {
-		ut_ad(node->table->n_foreign_key_checks_running > 0);
-		my_atomic_addlint(
-			&node->table->n_foreign_key_checks_running, -1);
+		node->table->dec_fk_checks();
 	}
 };
 
@@ -2076,7 +2067,7 @@ run_again:
 		if (was_lock_wait) {
 			std::for_each(new_upd_nodes->begin(),
 				      new_upd_nodes->end(),
-				      ib_dec_counter());
+				      dec_foreign_key_checks_running());
 			std::for_each(new_upd_nodes->begin(),
 				      new_upd_nodes->end(),
 				      que_graph_free_recursive);
@@ -2108,9 +2099,7 @@ run_again:
 
 	if (thr->fk_cascade_depth > 0) {
 		/* Processing cascade operation */
-		ut_ad(node->table->n_foreign_key_checks_running > 0);
-		my_atomic_addlint(
-			&node->table->n_foreign_key_checks_running, -1);
+		dec_foreign_key_checks_running()(node);
 		node->processed_cascades->push_back(node);
 	}
 
@@ -2216,20 +2205,17 @@ error:
 	}
 
 	if (thr->fk_cascade_depth > 0) {
-		ut_ad(node->table->n_foreign_key_checks_running > 0);
-		my_atomic_addlint(
-			&node->table->n_foreign_key_checks_running, -1);
+		dec_foreign_key_checks_running()(node);
 		thr->fk_cascade_depth = 0;
 	}
 
-	/* Reset the table->n_foreign_key_checks_running counter */
 	std::for_each(cascade_upd_nodes->begin(),
 		      cascade_upd_nodes->end(),
-		      ib_dec_counter());
+		      dec_foreign_key_checks_running());
 
 	std::for_each(new_upd_nodes->begin(),
 		      new_upd_nodes->end(),
-		      ib_dec_counter());
+		      dec_foreign_key_checks_running());
 
 	std::for_each(cascade_upd_nodes->begin(),
 		      cascade_upd_nodes->end(),
@@ -3099,9 +3085,6 @@ row_mysql_table_id_reassign(
 
 	dict_hdr_get_new_id(new_id, NULL, NULL, table, false);
 
-	/* Remove all locks except the table-level S and X locks. */
-	lock_remove_all_on_table(table, FALSE);
-
 	pars_info_add_ull_literal(info, "old_id", table->id);
 	pars_info_add_ull_literal(info, "new_id", *new_id);
 
@@ -3152,7 +3135,7 @@ row_discard_tablespace_begin(
 	if (table) {
 		dict_stats_wait_bg_to_stop_using_table(table, trx);
 		ut_a(!is_system_tablespace(table->space));
-		ut_a(table->n_foreign_key_checks_running == 0);
+		ut_ad(!table->n_foreign_key_checks_running);
 	}
 
 	return(table);
@@ -3271,10 +3254,7 @@ row_discard_tablespace(
 	their operations.
 
 	3) Insert buffer: we remove all entries for the tablespace in
-	the insert buffer tree.
-
-	4) FOREIGN KEY operations: if table->n_foreign_key_checks_running > 0,
-	we do not allow the discard. */
+	the insert buffer tree. */
 
 	ibuf_delete_for_discarded_space(table->space);
 
@@ -3398,19 +3378,9 @@ row_discard_tablespace_for_mysql(
 
 		err = DB_ERROR;
 
-	} else if (table->n_foreign_key_checks_running > 0) {
-		char	table_name[MAX_FULL_NAME_LEN + 1];
-
-		innobase_format_name(
-			table_name, sizeof(table_name),
-			table->name.m_name);
-
-		ib_senderrf(trx->mysql_thd, IB_LOG_LEVEL_ERROR,
-			    ER_DISCARD_FK_CHECKS_RUNNING, table_name);
-
-		err = DB_ERROR;
-
 	} else {
+		ut_ad(!table->n_foreign_key_checks_running);
+
 		/* Do foreign key constraint checks. */
 
 		err = row_discard_tablespace_foreign_key_checks(trx, table);
@@ -3470,9 +3440,31 @@ run_again:
 		que_thr_stop_for_mysql_no_error(thr, trx);
 	} else {
 		que_thr_stop_for_mysql(thr);
-		ut_ad(err != DB_QUE_THR_SUSPENDED);
 
-		if (row_mysql_handle_errors(&err, trx, thr, NULL)) {
+		if (err != DB_QUE_THR_SUSPENDED) {
+			ibool	was_lock_wait;
+
+			was_lock_wait = row_mysql_handle_errors(
+				&err, trx, thr, NULL);
+
+			if (was_lock_wait) {
+				goto run_again;
+			}
+		} else {
+			que_thr_t*	run_thr;
+			que_node_t*	parent;
+
+			parent = que_node_get_parent(thr);
+
+			run_thr = que_fork_start_command(
+				static_cast<que_fork_t*>(parent));
+
+			ut_a(run_thr == thr);
+
+			/* There was a lock wait but the thread was not
+			in a ready to run or running state. */
+			trx->error_state = DB_LOCK_WAIT;
+
 			goto run_again;
 		}
 	}
@@ -3750,6 +3742,7 @@ row_drop_table_for_mysql(
 
 	if (!dict_table_is_temporary(table) && !table->no_rollback()) {
 
+		dict_stats_recalc_pool_del(table);
 		dict_stats_defrag_pool_del(table, NULL);
 		if (btr_defragment_thread_active) {
 			/* During fts_drop_orphaned_tables() in
@@ -3757,6 +3750,17 @@ row_drop_table_for_mysql(
 			btr_defragment_mutex has not yet been
 			initialized by btr_defragment_init(). */
 			btr_defragment_remove_table(table);
+		}
+
+		/* Remove stats for this table and all of its indexes from the
+		persistent storage if it exists and if there are stats for this
+		table in there. This function creates its own trx and commits
+		it. */
+		char	errstr[1024];
+		err = dict_stats_drop_table(name, errstr, sizeof(errstr));
+
+		if (err != DB_SUCCESS) {
+			ib::warn() << errstr;
 		}
 	}
 
@@ -4054,12 +4058,6 @@ defer:
 		ut_ad(!dict_table_is_temporary(table));
 
 		if (!table->no_rollback()) {
-			char	errstr[1024];
-			if (dict_stats_drop_table(name, errstr, sizeof errstr,
-						  trx) != DB_SUCCESS) {
-				ib::warn() << errstr;
-			}
-
 			err = row_drop_ancillary_fts_tables(table, trx);
 			if (err != DB_SUCCESS) {
 				break;

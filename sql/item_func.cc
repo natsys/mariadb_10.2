@@ -54,6 +54,7 @@
 #include "set_var.h"
 #include "debug_sync.h"
 #include "sql_base.h"
+#include "sql_cte.h"
 
 #ifdef NO_EMBEDDED_ACCESS_CHECKS
 #define sp_restore_security_context(A,B) while (0) {}
@@ -3203,7 +3204,7 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
   if (check_stack_overrun(thd, STACK_MIN_SIZE, buff))
     DBUG_RETURN(TRUE);				// Fatal error flag is set!
 
-  udf_func *tmp_udf=find_udf(u_d->name.str,(uint) u_d->name.length,1);
+  udf_func *tmp_udf=find_udf(u_d->name.str,u_d->name.length,1);
 
   if (!tmp_udf)
   {
@@ -3298,7 +3299,7 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
       f_args.lengths[i]= arguments[i]->max_length;
       f_args.maybe_null[i]= (char) arguments[i]->maybe_null;
       f_args.attributes[i]= arguments[i]->name.str;
-      f_args.attribute_lengths[i]= arguments[i]->name.length;
+      f_args.attribute_lengths[i]= (ulong)arguments[i]->name.length;
 
       if (arguments[i]->const_item())
       {
@@ -4385,7 +4386,7 @@ user_var_entry *get_variable(HASH *hash, LEX_CSTRING *name,
                                                  name->length)) &&
       create_if_not_exists)
   {
-    uint size=ALIGN_SIZE(sizeof(user_var_entry))+name->length+1+extra_size;
+    size_t size=ALIGN_SIZE(sizeof(user_var_entry))+name->length+1+extra_size;
     if (!my_hash_inited(hash))
       return 0;
     if (!(entry = (user_var_entry*) my_malloc(size,
@@ -4514,10 +4515,13 @@ bool Item_func_set_user_var::fix_fields(THD *thd, Item **ref)
     TABLE_LIST *derived;
     for (derived= unit->derived;
          derived;
-         derived= derived->select_lex->master_unit()->derived)
+         derived= unit->derived)
     {
       derived->set_materialized_derived();
       derived->prohibit_cond_pushdown= true;
+      if (unit->with_element && unit->with_element->is_recursive)
+        break;
+      unit= derived->select_lex->master_unit();
     }
   }
 
@@ -4603,7 +4607,7 @@ bool Item_func_set_user_var::register_field_in_bitmap(void *arg)
 */
 
 static bool
-update_hash(user_var_entry *entry, bool set_null, void *ptr, uint length,
+update_hash(user_var_entry *entry, bool set_null, void *ptr, size_t length,
             Item_result type, CHARSET_INFO *cs,
             bool unsigned_arg)
 {
@@ -4664,7 +4668,7 @@ update_hash(user_var_entry *entry, bool set_null, void *ptr, uint length,
 
 
 bool
-Item_func_set_user_var::update_hash(void *ptr, uint length,
+Item_func_set_user_var::update_hash(void *ptr, size_t length,
                                     Item_result res_type,
                                     CHARSET_INFO *cs,
                                     bool unsigned_arg)
@@ -5328,7 +5332,7 @@ get_var_with_binlog(THD *thd, enum_sql_command sql_command,
     return 0;
   }
 
-  uint size;
+  size_t size;
   /*
     First we need to store value of var_entry, when the next situation
     appears:
@@ -5395,7 +5399,7 @@ void Item_func_get_user_var::fix_length_and_dec()
   if (!error && m_var_entry)
   {
     unsigned_flag= m_var_entry->unsigned_flag;
-    max_length= m_var_entry->length;
+    max_length= (uint32)m_var_entry->length;
     collation.set(m_var_entry->charset(), DERIVATION_IMPLICIT);
     set_handler_by_result_type(m_var_entry->type);
     switch (result_type()) {
@@ -5439,7 +5443,7 @@ bool Item_func_get_user_var::const_item() const
 void Item_func_get_user_var::print(String *str, enum_query_type query_type)
 {
   str->append(STRING_WITH_LEN("@"));
-  append_identifier(current_thd, str, name.str, name.length);
+  append_identifier(current_thd, str, &name);
 }
 
 
@@ -5476,7 +5480,7 @@ bool Item_user_var_as_out_param::fix_fields(THD *thd, Item **ref)
   DBUG_ASSERT(fixed == 0);
   DBUG_ASSERT(thd->lex->exchange);
   if (Item::fix_fields(thd, ref) ||
-      !(entry= get_variable(&thd->user_vars, &name, 1)))
+      !(entry= get_variable(&thd->user_vars, &org_name, 1)))
     return TRUE;
   entry->type= STRING_RESULT;
   /*
@@ -5537,7 +5541,7 @@ my_decimal* Item_user_var_as_out_param::val_decimal(my_decimal *decimal_buffer)
 void Item_user_var_as_out_param::print_for_load(THD *thd, String *str)
 {
   str->append('@');
-  append_identifier(thd, str, name.str, name.length);
+  append_identifier(thd, str, &org_name);
 }
 
 
@@ -5609,7 +5613,7 @@ void Item_func_get_system_var::fix_length_and_dec()
         (char*) var->value_ptr(current_thd, var_type, &component) :
         *(char**) var->value_ptr(current_thd, var_type, &component);
       if (cptr)
-        max_length= system_charset_info->cset->numchars(system_charset_info,
+        max_length= (uint32)system_charset_info->cset->numchars(system_charset_info,
                                                         cptr,
                                                         cptr + strlen(cptr));
       mysql_mutex_unlock(&LOCK_global_system_variables);
@@ -5621,7 +5625,7 @@ void Item_func_get_system_var::fix_length_and_dec()
       {
         mysql_mutex_lock(&LOCK_global_system_variables);
         LEX_STRING *ls= ((LEX_STRING*)var->value_ptr(current_thd, var_type, &component));
-        max_length= system_charset_info->cset->numchars(system_charset_info,
+        max_length= (uint32)system_charset_info->cset->numchars(system_charset_info,
                                                         ls->str,
                                                         ls->str + ls->length);
         mysql_mutex_unlock(&LOCK_global_system_variables);
@@ -6410,8 +6414,8 @@ Item_func_sp::fix_fields(THD *thd, Item **ref)
       whether to return "Access denied" or "Routine does not exist".
     */
     res= sp ? sp->check_execute_access(thd) :
-              check_routine_access(thd, EXECUTE_ACL, m_name->m_db.str,
-                                   m_name->m_name.str,
+              check_routine_access(thd, EXECUTE_ACL, &m_name->m_db,
+                                   &m_name->m_name,
                                    &sp_handler_function, false);
     thd->security_ctx= save_security_ctx;
 
@@ -6629,7 +6633,7 @@ void Item_func_last_value::fix_length_and_dec()
 
 void Cursor_ref::print_func(String *str, const char *func_name)
 {
-  append_identifier(current_thd, str, m_cursor_name.str, m_cursor_name.length);
+  append_identifier(current_thd, str, &m_cursor_name);
   str->append(func_name);
 }
 
@@ -6751,8 +6755,9 @@ longlong Item_func_nextval::val_int()
 void Item_func_nextval::print(String *str, enum_query_type query_type)
 {
   char d_name_buff[MAX_ALIAS_NAME], t_name_buff[MAX_ALIAS_NAME];
-  const char *d_name= table_list->db, *t_name= table_list->table_name;
-  bool use_db_name= d_name && d_name[0];
+  LEX_CSTRING d_name= table_list->db;
+  LEX_CSTRING t_name= table_list->table_name;
+  bool use_db_name= d_name.str && d_name.str[0];
   THD *thd= current_thd;                        // Don't trust 'table'
 
   str->append(func_name());
@@ -6765,23 +6770,23 @@ void Item_func_nextval::print(String *str, enum_query_type query_type)
 
   if (lower_case_table_names > 0)
   {
-    strmake(t_name_buff, t_name, MAX_ALIAS_NAME-1);
-    my_casedn_str(files_charset_info, t_name_buff);
-    t_name= t_name_buff;
+    strmake(t_name_buff, t_name.str, MAX_ALIAS_NAME-1);
+    t_name.length= my_casedn_str(files_charset_info, t_name_buff);
+    t_name.str= t_name_buff;
     if (use_db_name)
     {
-      strmake(d_name_buff, d_name, MAX_ALIAS_NAME-1);
-      my_casedn_str(files_charset_info, d_name_buff);
-      d_name= d_name_buff;
+      strmake(d_name_buff, d_name.str, MAX_ALIAS_NAME-1);
+      d_name.length= my_casedn_str(files_charset_info, d_name_buff);
+      d_name.str= d_name_buff;
     }
   }
 
   if (use_db_name)
   {
-    append_identifier(thd, str, d_name, (uint)strlen(d_name));
+    append_identifier(thd, str, &d_name);
     str->append('.');
   }
-  append_identifier(thd, str, t_name, (uint) strlen(t_name));
+  append_identifier(thd, str, &t_name);
   str->append(')');
 }
 
@@ -6874,8 +6879,9 @@ longlong Item_func_setval::val_int()
 void Item_func_setval::print(String *str, enum_query_type query_type)
 {
   char d_name_buff[MAX_ALIAS_NAME], t_name_buff[MAX_ALIAS_NAME];
-  const char *d_name= table_list->db, *t_name= table_list->table_name;
-  bool use_db_name= d_name && d_name[0];
+  LEX_CSTRING d_name= table_list->db;
+  LEX_CSTRING t_name= table_list->table_name;
+  bool use_db_name= d_name.str && d_name.str[0];
   THD *thd= current_thd;                        // Don't trust 'table'
 
   str->append(func_name());
@@ -6888,23 +6894,23 @@ void Item_func_setval::print(String *str, enum_query_type query_type)
 
   if (lower_case_table_names > 0)
   {
-    strmake(t_name_buff, t_name, MAX_ALIAS_NAME-1);
-    my_casedn_str(files_charset_info, t_name_buff);
-    t_name= t_name_buff;
+    strmake(t_name_buff, t_name.str, MAX_ALIAS_NAME-1);
+    t_name.length= my_casedn_str(files_charset_info, t_name_buff);
+    t_name.str= t_name_buff;
     if (use_db_name)
     {
-      strmake(d_name_buff, d_name, MAX_ALIAS_NAME-1);
-      my_casedn_str(files_charset_info, d_name_buff);
-      d_name= d_name_buff;
+      strmake(d_name_buff, d_name.str, MAX_ALIAS_NAME-1);
+      d_name.length= my_casedn_str(files_charset_info, d_name_buff);
+      d_name.str= d_name_buff;
     }
   }
 
   if (use_db_name)
   {
-    append_identifier(thd, str, d_name, (uint)strlen(d_name));
+    append_identifier(thd, str, &d_name);
     str->append('.');
   }
-  append_identifier(thd, str, t_name, (uint) strlen(t_name));
+  append_identifier(thd, str, &t_name);
   str->append(',');
   str->append_longlong(nextval);
   str->append(',');

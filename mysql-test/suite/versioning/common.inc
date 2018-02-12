@@ -53,14 +53,10 @@ begin
   return NULL;
 end~~
 
-create function if not exists current_row(sys_trx_end varbinary(255))
+create or replace function current_row(sys_trx_end timestamp(6))
 returns int
 deterministic
-begin
-  declare continue handler for sqlwarning begin end;
-  return sys_trx_end = timestamp'2038-01-19 03:14:07.999999'
-    or sys_trx_end = 18446744073709551615;
-end~~
+  return sys_trx_end = timestamp'2038-01-19 03:14:07.999999';
 
 create function if not exists sys_commit_ts(sys_field varchar(255))
 returns varchar(255)
@@ -121,11 +117,21 @@ let $non_sys_datatype_null= $non_sys_datatype NULL;
 
 if ($MTR_COMBINATION_MYISAM)
 {
+  set @MTR_COMBINATION_MYISAM= 1;
   --let $MTR_COMBINATION_TIMESTAMP= 1
+}
+if ($MTR_COMBINATION_TIMESTAMP)
+{
+  set @MTR_COMBINATION_TIMESTAMP= 1;
 }
 if ($MTR_COMBINATION_TRX_ID)
 {
+  set @MTR_COMBINATION_TRX_ID= 1;
   let $sys_datatype_expl= bigint(20) unsigned;
   let $sys_datatype_expl_uc= BIGINT(20) UNSIGNED;
+  create or replace function current_row(sys_trx_end bigint unsigned)
+  returns int
+  deterministic
+    return sys_trx_end = 18446744073709551615;
 }
 --enable_query_log

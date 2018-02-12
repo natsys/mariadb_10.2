@@ -2,7 +2,7 @@
 --source suite/versioning/key_type.inc
 --source suite/versioning/engines.inc
 
-call create_table('t', 'x int');
+eval call create_table('t', 'x int');
 
 insert t values (1, 2);
 replace t values (1, 3);

@@ -404,7 +404,7 @@ static
 dberr_t
 btr_cur_instant_init_low(dict_index_t* index, mtr_t* mtr)
 {
-	ut_ad(index->is_clust());
+	ut_ad(index->is_primary());
 	ut_ad(index->n_core_null_bytes == dict_index_t::NO_CORE_NULL_BYTES);
 	ut_ad(index->table->supports_instant());
 	ut_ad(index->table->is_readable());
@@ -482,10 +482,11 @@ inconsistent:
 	/* In fact, because we only ever append fields to the 'default
 	value' record, it is also OK to perform READ UNCOMMITTED and
 	then ignore any extra fields, provided that
-	trx_sys->rw_trx_hash.find(DB_TRX_ID). */
+	trx_sys.is_registered(DB_TRX_ID). */
 	if (rec_offs_n_fields(offsets) > index->n_fields
-	    && !trx_sys->rw_trx_hash.find(row_get_rec_trx_id(rec, index,
-							     offsets))) {
+	    && !trx_sys.is_registered(current_trx(),
+				      row_get_rec_trx_id(rec, index,
+							 offsets))) {
 		goto inconsistent;
 	}
 
@@ -553,7 +554,7 @@ btr_cur_instant_root_init(dict_index_t* index, const page_t* page)
 {
 	ut_ad(page_is_root(page));
 	ut_ad(!page_is_comp(page) == !dict_table_is_comp(index->table));
-	ut_ad(index->is_clust());
+	ut_ad(index->is_primary());
 	ut_ad(!index->is_instant());
 	ut_ad(index->table->supports_instant());
 	/* This is normally executed as part of btr_cur_instant_init()
@@ -803,10 +804,10 @@ btr_cur_will_modify_tree(
 
 		/* is first, 2nd or last record */
 		if (page_rec_is_first(rec, page)
-		    || (mach_read_from_4(page + FIL_PAGE_NEXT) != FIL_NULL
+		    || (page_has_next(page)
 			&& (page_rec_is_last(rec, page)
 			    || page_rec_is_second_last(rec, page)))
-		    || (mach_read_from_4(page + FIL_PAGE_PREV) != FIL_NULL
+		    || (page_has_prev(page)
 			&& page_rec_is_second(rec, page))) {
 			return(true);
 		}
@@ -891,13 +892,10 @@ btr_cur_need_opposite_intention(
 {
 	switch (lock_intention) {
 	case BTR_INTENTION_DELETE:
-		return((mach_read_from_4(page + FIL_PAGE_PREV) != FIL_NULL
-			&& page_rec_is_first(rec, page))
-		       || (mach_read_from_4(page + FIL_PAGE_NEXT) != FIL_NULL
-			   && page_rec_is_last(rec, page)));
+		return (page_has_prev(page) && page_rec_is_first(rec, page)) ||
+			(page_has_next(page) && page_rec_is_last(rec, page));
 	case BTR_INTENTION_INSERT:
-		return(mach_read_from_4(page + FIL_PAGE_NEXT) != FIL_NULL
-		       && page_rec_is_last(rec, page));
+		return page_has_next(page) && page_rec_is_last(rec, page);
 	case BTR_INTENTION_BOTH:
 		return(false);
 	}
@@ -1168,7 +1166,7 @@ btr_cur_search_to_nth_level_func(
 		Free blocks and read IO bandwidth should be prior
 		for them, when the history list is glowing huge. */
 		if (lock_intention == BTR_INTENTION_DELETE
-		    && trx_sys->rseg_history_len > BTR_CUR_FINE_HISTORY_LENGTH
+		    && trx_sys.rseg_history_len > BTR_CUR_FINE_HISTORY_LENGTH
 			&& buf_get_n_pending_read_ios()) {
 			mtr_x_lock(dict_index_get_lock(index), mtr);
 		} else if (dict_index_is_spatial(index)
@@ -1969,7 +1967,7 @@ need_opposite_intention:
 				MTR_MEMO_PAGE_S_FIX
 				| MTR_MEMO_PAGE_X_FIX));
 
-			if (btr_page_get_prev(page, mtr) != FIL_NULL
+			if (page_has_prev(page)
 			    && page_rec_is_first(node_ptr, page)) {
 
 				if (leftmost_from_level == 0) {
@@ -2086,7 +2084,7 @@ need_opposite_intention:
 	} else if (!dict_index_is_spatial(index)
 		   && latch_mode == BTR_MODIFY_TREE
 		   && lock_intention == BTR_INTENTION_INSERT
-		   && mach_read_from_4(page + FIL_PAGE_NEXT) != FIL_NULL
+		   && page_has_next(page)
 		   && page_rec_is_last(page_cur_get_rec(page_cursor), page)) {
 
 		/* btr_insert_into_right_sibling() might cause
@@ -2308,7 +2306,7 @@ btr_cur_open_at_index_side_func(
 		Free blocks and read IO bandwidth should be prior
 		for them, when the history list is glowing huge. */
 		if (lock_intention == BTR_INTENTION_DELETE
-		    && trx_sys->rseg_history_len > BTR_CUR_FINE_HISTORY_LENGTH
+		    && trx_sys.rseg_history_len > BTR_CUR_FINE_HISTORY_LENGTH
 		    && buf_get_n_pending_read_ios()) {
 			mtr_x_lock(dict_index_get_lock(index), mtr);
 		} else {
@@ -2654,7 +2652,7 @@ btr_cur_open_at_rnd_pos_func(
 		Free blocks and read IO bandwidth should be prior
 		for them, when the history list is glowing huge. */
 		if (lock_intention == BTR_INTENTION_DELETE
-		    && trx_sys->rseg_history_len > BTR_CUR_FINE_HISTORY_LENGTH
+		    && trx_sys.rseg_history_len > BTR_CUR_FINE_HISTORY_LENGTH
 		    && buf_get_n_pending_read_ios()) {
 			mtr_x_lock(dict_index_get_lock(index), mtr);
 		} else {
@@ -3028,24 +3026,22 @@ btr_cur_ins_lock_and_undo(
 	}
 
 	if (flags & BTR_NO_UNDO_LOG_FLAG) {
-		roll_ptr = 0;
+		roll_ptr = roll_ptr_t(1) << ROLL_PTR_INSERT_FLAG_POS;
+		if (!(flags & BTR_KEEP_SYS_FLAG)) {
+upd_sys:
+			row_upd_index_entry_sys_field(entry, index,
+						      DATA_ROLL_PTR, roll_ptr);
+		}
 	} else {
 		err = trx_undo_report_row_operation(thr, index, entry,
 						    NULL, 0, NULL, NULL,
 						    &roll_ptr);
-		if (err != DB_SUCCESS) {
-			return(err);
+		if (err == DB_SUCCESS) {
+			goto upd_sys;
 		}
 	}
 
-	/* Now we can fill in the roll ptr field in entry */
-	if (!(flags & BTR_KEEP_SYS_FLAG)) {
-
-		row_upd_index_entry_sys_field(entry, index,
-					      DATA_ROLL_PTR, roll_ptr);
-	}
-
-	return(DB_SUCCESS);
+	return(err);
 }
 
 /**
@@ -3233,7 +3229,7 @@ fail_err:
 
 	DBUG_LOG("ib_cur",
 		 "insert " << index->name << " (" << index->id << ") by "
-		 << ib::hex(thr ? trx_get_id_for_print(thr_get_trx(thr)) : 0)
+		 << ib::hex(thr ? thr->graph->trx->id : 0)
 		 << ' ' << rec_printer(entry).str());
 	DBUG_EXECUTE_IF("do_page_reorganize",
 			btr_page_reorganize(page_cursor, index, mtr););
@@ -3249,6 +3245,36 @@ fail_err:
 		if (err != DB_SUCCESS) {
 			goto fail_err;
 		}
+
+#ifdef UNIV_DEBUG
+		if (!(flags & BTR_CREATE_FLAG)
+		    && index->is_primary() && page_is_leaf(page)) {
+			const dfield_t* trx_id = dtuple_get_nth_field(
+				entry, dict_col_get_clust_pos(
+					dict_table_get_sys_col(index->table,
+							       DATA_TRX_ID),
+					index));
+
+			ut_ad(trx_id->len == DATA_TRX_ID_LEN);
+			ut_ad(trx_id[1].len == DATA_ROLL_PTR_LEN);
+			if (flags & BTR_NO_UNDO_LOG_FLAG) {
+				ut_ad(!memcmp(trx_id->data, reset_trx_id,
+					      DATA_TRX_ID_LEN));
+				ut_ad(!memcmp(trx_id[1].data,
+					      reset_trx_id + DATA_TRX_ID_LEN,
+					      DATA_ROLL_PTR_LEN));
+			} else {
+				ut_ad(thr->graph->trx->id);
+				ut_ad(thr->graph->trx->id
+				      == trx_read_trx_id(
+					      static_cast<const byte*>(
+						      trx_id->data)));
+				ut_ad(!memcmp(field_ref_zero, trx_id[1].data,
+					      DATA_ROLL_PTR_LEN)
+				      == !(~flags & BTR_NO_UNDO_LOG_FLAG));
+			}
+		}
+#endif
 
 		*rec = page_cur_tuple_insert(
 			page_cursor, entry, index, offsets, heap,
@@ -5334,7 +5360,7 @@ btr_cur_optimistic_delete_func(
 			index->is_instant() will hold until the
 			insert into SYS_COLUMNS is rolled back. */
 			ut_ad(index->table->supports_instant());
-			ut_ad(index->is_clust());
+			ut_ad(index->is_primary());
 		} else {
 			lock_update_delete(block, rec);
 		}
@@ -5342,7 +5368,7 @@ btr_cur_optimistic_delete_func(
 			       index, 0, mtr);
 		page_cur_set_after_last(block, btr_cur_get_page_cur(cursor));
 
-		if (index->is_clust()) {
+		if (index->is_primary()) {
 			/* Concurrent access is prevented by
 			root_block->lock X-latch, so this should be
 			safe. */
@@ -5371,7 +5397,7 @@ btr_cur_optimistic_delete_func(
 			index->is_instant() will hold until the
 			insert into SYS_COLUMNS is rolled back. */
 			ut_ad(cursor->index->table->supports_instant());
-			ut_ad(cursor->index->is_clust());
+			ut_ad(cursor->index->is_primary());
 			ut_ad(!page_zip);
 			page_cur_delete_rec(btr_cur_get_page_cur(cursor),
 					    cursor->index, offsets, mtr);
@@ -5538,7 +5564,7 @@ btr_cur_pessimistic_delete(
 			insert into SYS_COLUMNS is rolled back. */
 			ut_ad(rollback);
 			ut_ad(index->table->supports_instant());
-			ut_ad(index->is_clust());
+			ut_ad(index->is_primary());
 		} else if (flags == 0) {
 			lock_update_delete(block, rec);
 		}
@@ -5564,7 +5590,7 @@ btr_cur_pessimistic_delete(
 			btr_page_empty(block, page_zip, index, 0, mtr);
 			page_cur_set_after_last(block,
 						btr_cur_get_page_cur(cursor));
-			if (index->is_clust()) {
+			if (index->is_primary()) {
 				/* Concurrent access is prevented by
 				index->lock and root_block->lock
 				X-latch, so this should be safe. */
@@ -5603,7 +5629,7 @@ discard_page:
 
 		rec_t*	next_rec = page_rec_get_next(rec);
 
-		if (btr_page_get_prev(page, mtr) == FIL_NULL) {
+		if (!page_has_prev(page)) {
 
 			/* If we delete the leftmost node pointer on a
 			non-leaf level, we must mark the new leftmost node
@@ -6585,7 +6611,8 @@ btr_estimate_number_of_different_key_vals(
 			}
 		}
 
-		if (n_cols == dict_index_get_n_unique_in_tree(index)) {
+		if (n_cols == dict_index_get_n_unique_in_tree(index)
+		    && page_has_siblings(page)) {
 
 			/* If there is more than one leaf page in the tree,
 			we add one because we know that the first record
@@ -6596,11 +6623,7 @@ btr_estimate_number_of_different_key_vals(
 			algorithm grossly underestimated the number of rows
 			in the table. */
 
-			if (btr_page_get_prev(page, &mtr) != FIL_NULL
-			    || btr_page_get_next(page, &mtr) != FIL_NULL) {
-
-				n_diff[n_cols - 1]++;
-			}
+			n_diff[n_cols - 1]++;
 		}
 
 		mtr_commit(&mtr);
@@ -7782,7 +7805,7 @@ btr_free_externally_stored_field(
 					 MLOG_4BYTES, &mtr);
 			/* Zero out the BLOB length.  If the server
 			crashes during the execution of this function,
-			trx_rollback_or_clean_all_recovered() could
+			trx_rollback_all_recovered() could
 			dereference the half-deleted BLOB, fetching a
 			wrong prefix for the BLOB. */
 			mlog_write_ulint(field_ref + BTR_EXTERN_LEN + 4,

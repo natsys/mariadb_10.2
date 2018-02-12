@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -57,16 +57,6 @@ trx_rsegf_get_new(
 	mtr_t*			mtr);
 
 /***************************************************************//**
-Gets the file page number of the nth undo log slot.
-@return page number of the undo log segment */
-UNIV_INLINE
-ulint
-trx_rsegf_get_nth_undo(
-/*===================*/
-	trx_rsegf_t*	rsegf,	/*!< in: rollback segment header */
-	ulint		n,	/*!< in: index of slot */
-	mtr_t*		mtr);	/*!< in: mtr */
-/***************************************************************//**
 Sets the file page number of the nth undo log slot. */
 UNIV_INLINE
 void
@@ -81,24 +71,21 @@ Looks for a free slot for an undo log segment.
 @return slot index or ULINT_UNDEFINED if not found */
 UNIV_INLINE
 ulint
-trx_rsegf_undo_find_free(
-/*=====================*/
-	trx_rsegf_t*	rsegf,	/*!< in: rollback segment header */
-	mtr_t*		mtr);	/*!< in: mtr */
+trx_rsegf_undo_find_free(const trx_rsegf_t* rsegf);
 
 /** Creates a rollback segment header.
 This function is called only when a new rollback segment is created in
 the database.
 @param[in]	space		space id
-@param[in]	max_size	max size in pages
-@param[in]	rseg_slot_no	rseg id == slot number in trx sys
+@param[in]	rseg_id		rollback segment identifier
+@param[in,out]	sys_header	the TRX_SYS page (NULL for temporary rseg)
 @param[in,out]	mtr		mini-transaction
 @return page number of the created segment, FIL_NULL if fail */
 ulint
 trx_rseg_header_create(
 	ulint			space,
-	ulint			max_size,
-	ulint			rseg_slot_no,
+	ulint			rseg_id,
+	buf_block_t*		sys_header,
 	mtr_t*			mtr);
 
 /** Initialize the rollback segments in memory at database startup. */
@@ -154,9 +141,6 @@ struct trx_rseg_t {
 
 	/** page number of the rollback segment header */
 	ulint				page_no;
-
-	/** maximum allowed size in pages */
-	ulint				max_size;
 
 	/** current size in pages */
 	ulint				curr_size;
@@ -228,18 +212,33 @@ struct trx_rseg_t {
 
 /* Transaction rollback segment header */
 /*-------------------------------------------------------------*/
-#define	TRX_RSEG_MAX_SIZE	0	/* Maximum allowed size for rollback
-					segment in pages */
-#define	TRX_RSEG_HISTORY_SIZE	4	/* Number of file pages occupied
-					by the logs in the history list */
-#define	TRX_RSEG_HISTORY	8	/* The update undo logs for committed
-					transactions */
+/** 0xfffffffe = pre-MariaDB 10.3.5 format; 0=MariaDB 10.3.5 or later */
+#define	TRX_RSEG_FORMAT		0
+/** Number of pages in the TRX_RSEG_HISTORY list */
+#define	TRX_RSEG_HISTORY_SIZE	4
+/** Committed transaction logs that have not been purged yet */
+#define	TRX_RSEG_HISTORY	8
 #define	TRX_RSEG_FSEG_HEADER	(8 + FLST_BASE_NODE_SIZE)
 					/* Header for the file segment where
 					this page is placed */
 #define TRX_RSEG_UNDO_SLOTS	(8 + FLST_BASE_NODE_SIZE + FSEG_HEADER_SIZE)
 					/* Undo log segment slots */
+/** Maximum transaction ID (valid only if TRX_RSEG_FORMAT is 0) */
+#define TRX_RSEG_MAX_TRX_ID	(TRX_RSEG_UNDO_SLOTS + TRX_RSEG_N_SLOTS	\
+				 * TRX_RSEG_SLOT_SIZE)
 /*-------------------------------------------------------------*/
+
+/** Read the page number of an undo log slot.
+@param[in]	rsegf	rollback segment header
+@param[in]	n	slot number */
+inline
+uint32_t
+trx_rsegf_get_nth_undo(const trx_rsegf_t* rsegf, ulint n)
+{
+	ut_ad(n < TRX_RSEG_N_SLOTS);
+	return mach_read_from_4(rsegf + TRX_RSEG_UNDO_SLOTS
+				+ n * TRX_RSEG_SLOT_SIZE);
+}
 
 #include "trx0rseg.ic"
 

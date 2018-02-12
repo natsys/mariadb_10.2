@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2005, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2017, MariaDB Corporation.
+Copyright (c) 2014, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -62,12 +62,6 @@ float my_log2f(float n)
 #if defined _WIN32
 # define posix_fadvise(fd, offset, len, advice) /* nothing */
 #endif /* _WIN32 */
-
-/** The DB_TRX_ID,DB_ROLL_PTR values for "no history is available" */
-const byte reset_trx_id[DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN] = {
-	0, 0, 0, 0, 0, 0,
-	0x80, 0, 0, 0, 0, 0, 0
-};
 
 /* Whether to disable file system cache */
 char	srv_disable_sort_file_cache;
@@ -2101,16 +2095,16 @@ end_of_index:
 			ONLINE_INDEX_COMPLETE state between the time
 			the DML thread has updated the clustered index
 			but has not yet accessed secondary index. */
-			ut_ad(MVCC::is_view_active(trx->read_view));
+			ut_ad(trx->read_view.is_open());
 			ut_ad(rec_trx_id != trx->id);
 
-			if (!trx->read_view->changes_visible(
+			if (!trx->read_view.changes_visible(
 				    rec_trx_id, old_table->name)) {
 				rec_t*	old_vers;
 
 				row_vers_build_for_consistent_read(
 					rec, &mtr, clust_index, &offsets,
-					trx->read_view, &row_heap,
+					&trx->read_view, &row_heap,
 					row_heap, &old_vers, NULL);
 
 				if (!old_vers) {
@@ -2263,7 +2257,7 @@ end_of_index:
 					if (dfield_get_type(dfield)->prtype & DATA_NOT_NULL) {
 						err = DB_UNSUPPORTED;
 						my_error(ER_UNSUPPORTED_EXTENSION, MYF(0),
-							 old_table->name);
+							 old_table->name.m_name);
 						goto func_exit;
 					}
 					dfield_set_null(dfield);
@@ -2881,7 +2875,7 @@ wait_again:
 				.insert(trx_mod_tables_t::value_type(
 					const_cast<dict_table_t*>(new_table), 0))
 				.first->second;
-		time.set_versioned(0, true);
+		time.set_versioned(0);
 	}
 
 	trx->op_info = "";
@@ -4526,8 +4520,8 @@ row_merge_is_index_usable(
 	return(!dict_index_is_corrupted(index)
 	       && (dict_table_is_temporary(index->table)
 		   || index->trx_id == 0
-		   || !MVCC::is_view_active(trx->read_view)
-		   || trx->read_view->changes_visible(
+		   || !trx->read_view.is_open()
+		   || trx->read_view.changes_visible(
 			   index->trx_id,
 			   index->table->name)));
 }
@@ -4771,8 +4765,8 @@ row_merge_build_indexes(
 			"Table %s is encrypted but encryption service or"
 			" used key_id is not available. "
 			" Can't continue reading table.",
-			!old_table->is_readable() ? old_table->name :
-				new_table->name);
+			!old_table->is_readable() ? old_table->name.m_name :
+				new_table->name.m_name);
 		goto func_exit;
 	}
 

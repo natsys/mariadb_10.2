@@ -753,7 +753,7 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
       else if (table->vers_conditions.user_defined() &&
               (table->is_non_derived() || !table->vers_conditions.used))
       {
-        my_error(ER_VERS_NOT_VERSIONED, MYF(0), table->alias);
+        my_error(ER_VERS_NOT_VERSIONED, MYF(0), table->alias.str);
         DBUG_RETURN(-1);
       }
     }
@@ -807,7 +807,7 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
         {
 #define PART_VERS_ERR_MSG "%s PARTITION (%s)"
           char buf[NAME_LEN*2 + sizeof(PART_VERS_ERR_MSG)];
-          my_snprintf(buf, sizeof(buf), PART_VERS_ERR_MSG, table->alias,
+          my_snprintf(buf, sizeof(buf), PART_VERS_ERR_MSG, table->alias.str,
                       table->partition_names->head()->c_ptr());
           my_error(ER_VERS_NOT_VERSIONED, MYF(0), buf);
           DBUG_RETURN(-1);
@@ -848,9 +848,9 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
     const LEX_CSTRING *fend= &table->table->vers_end_field()->field_name;
 
     Item *row_start=
-        newx Item_field(thd, &this->context, table->db, table->alias, fstart);
+        newx Item_field(thd, &this->context, table->db.str, table->alias.str, fstart);
     Item *row_end=
-        newx Item_field(thd, &this->context, table->db, table->alias, fend);
+        newx Item_field(thd, &this->context, table->db.str, table->alias.str, fend);
 
     bool tmp_from_ib=
         table->table->s->table_category == TABLE_CATEGORY_TEMPORARY &&
@@ -867,7 +867,7 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
       if (timestamps_only && (vers_conditions.start == VERS_TRX_ID ||
         vers_conditions.end == VERS_TRX_ID))
       {
-        my_error(ER_VERS_ENGINE_UNSUPPORTED, MYF(0), table->table_name);
+        my_error(ER_VERS_ENGINE_UNSUPPORTED, MYF(0), table->table_name.str);
         DBUG_RETURN(-1);
       }
     }
@@ -2870,7 +2870,7 @@ bool JOIN::make_aggr_tables_info()
                                        all_fields,
                                        NULL, query.distinct,
                                        TRUE, select_options, HA_POS_ERROR,
-                                       "", !need_tmp,
+                                       &empty_clex_str, !need_tmp,
                                        query.order_by || query.group_by);
         if (!table)
           DBUG_RETURN(1);
@@ -3154,7 +3154,15 @@ bool JOIN::make_aggr_tables_info()
         curr_tab->having= having;
         having->update_used_tables();
       }
-      curr_tab->distinct= true;
+      /*
+        We only need DISTINCT operation if the join is not degenerate.
+        If it is, we must not request DISTINCT processing, because
+        remove_duplicates() assumes there is a preceding computation step (and
+        in the degenerate join, there's none)
+      */
+      if (top_join_tab_count)
+        curr_tab->distinct= true;
+
       having= NULL;
       select_distinct= false;
     }
@@ -3365,7 +3373,7 @@ JOIN::create_postjoin_aggr_table(JOIN_TAB *tab, List<Item> *table_fields,
   TABLE* table= create_tmp_table(thd, tab->tmp_table_param, *table_fields,
                                  table_group, distinct,
                                  save_sum_fields, select_options, table_rows_limit, 
-                                 "", true, keep_row_order);
+                                 &empty_clex_str, true, keep_row_order);
   if (!table)
     DBUG_RETURN(true);
   tmp_table_param.using_outer_summary_function=
@@ -3387,6 +3395,7 @@ JOIN::create_postjoin_aggr_table(JOIN_TAB *tab, List<Item> *table_fields,
     THD_STAGE_INFO(thd, stage_sorting_for_group);
 
     if (ordered_index_usage != ordered_index_group_by &&
+        !only_const_tables() &&
         (join_tab + const_tables)->type != JT_CONST && // Don't sort 1 row
         !implicit_grouping &&
         add_sorting_to_table(join_tab + const_tables, group_list))
@@ -3420,6 +3429,7 @@ JOIN::create_postjoin_aggr_table(JOIN_TAB *tab, List<Item> *table_fields,
       THD_STAGE_INFO(thd, stage_sorting_for_order);
 
       if (ordered_index_usage != ordered_index_order_by &&
+          !only_const_tables() &&
           add_sorting_to_table(join_tab + const_tables, order))
         goto err;
       order= NULL;
@@ -4259,7 +4269,7 @@ err:
   if (free_join)
   {
     THD_STAGE_INFO(thd, stage_end);
-    err|= select_lex->cleanup();
+    err|= (int)(select_lex->cleanup());
     DBUG_RETURN(err || thd->is_error());
   }
   DBUG_RETURN(join->error ? join->error: err);
@@ -4553,12 +4563,6 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
                                skip_unprefixed_keyparts))
       goto error;
     DBUG_EXECUTE("opt", print_keyuse_array(keyuse_array););
-  }
-
-  for (s= stat; s < stat_end; s++)
-  {
-    if (s->table->is_splittable())
-      s->add_keyuses_for_splitting();
   }
 
   join->const_table_map= no_rows_const_tables;
@@ -4866,6 +4870,9 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     {
        s->scan_time();
     }
+
+    if (s->table->is_splittable())
+      s->add_keyuses_for_splitting();
 
     /*
       Set a max range of how many seeks we can expect when using keys
@@ -13348,6 +13355,8 @@ public:
                               size_t size __attribute__((unused)))
   { TRASH(ptr, size); }
 
+  static void operator delete(void *, MEM_ROOT*) {}
+
   Item *and_level;
   Item_bool_func2 *cmp_func;
   COND_CMP(Item *a,Item_bool_func2 *b) :and_level(a),cmp_func(b) {}
@@ -17032,7 +17041,7 @@ TABLE *
 create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
 		 ORDER *group, bool distinct, bool save_sum_fields,
 		 ulonglong select_options, ha_rows rows_limit,
-                 const char *table_alias, bool do_not_open,
+                 const LEX_CSTRING *table_alias, bool do_not_open,
                  bool keep_row_order)
 {
   MEM_ROOT *mem_root_save, own_root;
@@ -17069,7 +17078,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
   DBUG_ENTER("create_tmp_table");
   DBUG_PRINT("enter",
              ("table_alias: '%s'  distinct: %d  save_sum_fields: %d  "
-              "rows_limit: %lu  group: %d", table_alias,
+              "rows_limit: %lu  group: %d", table_alias->str,
               (int) distinct, (int) save_sum_fields,
               (ulong) rows_limit, MY_TEST(group)));
 
@@ -17138,7 +17147,8 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
   if (param->precomputed_group_by)
     copy_func_count+= param->sum_func_count;
   
-  init_sql_alloc(&own_root, TABLE_ALLOC_BLOCK_SIZE, 0, MYF(MY_THREAD_SPECIFIC));
+  init_sql_alloc(&own_root, "tmp_table", TABLE_ALLOC_BLOCK_SIZE, 0,
+                 MYF(MY_THREAD_SPECIFIC));
 
   if (!multi_alloc_root(&own_root,
                         &table, sizeof(*table),
@@ -17185,7 +17195,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
   thd->mem_root= &table->mem_root;
 
   table->field=reg_field;
-  table->alias.set(table_alias, strlen(table_alias), table_alias_charset);
+  table->alias.set(table_alias->str, table_alias->length, table_alias_charset);
 
   table->reginfo.lock_type=TL_WRITE;	/* Will be updated */
   table->map=1;
@@ -17892,18 +17902,19 @@ bool Virtual_tmp_table::init(uint field_count)
 {
   uint *blob_field;
   uchar *bitmaps;
+  DBUG_ENTER("Virtual_tmp_table::init");
   if (!multi_alloc_root(in_use->mem_root,
                         &s, sizeof(*s),
                         &field, (field_count + 1) * sizeof(Field*),
                         &blob_field, (field_count + 1) * sizeof(uint),
                         &bitmaps, bitmap_buffer_size(field_count) * 6,
                         NullS))
-    return true;
+    DBUG_RETURN(true);
   bzero(s, sizeof(*s));
   s->blob_field= blob_field;
   setup_tmp_table_column_bitmaps(this, bitmaps, field_count);
   m_alloced_field_count= field_count;
-  return false;
+  DBUG_RETURN(false);
 };
 
 
@@ -17912,17 +17923,18 @@ bool Virtual_tmp_table::add(List<Spvar_definition> &field_list)
   /* Create all fields and calculate the total length of record */
   Spvar_definition *cdef;            /* column definition */
   List_iterator_fast<Spvar_definition> it(field_list);
-  for ( ; (cdef= it++); )
+  DBUG_ENTER("Virtual_tmp_table::add");
+  while ((cdef= it++))
   {
     Field *tmp;
     if (!(tmp= cdef->make_field(s, in_use->mem_root, 0,
                              (uchar*) (f_maybe_null(cdef->pack_flag) ? "" : 0),
                              f_maybe_null(cdef->pack_flag) ? 1 : 0,
                              &cdef->field_name)))
-      return true;
-    add(tmp);
+      DBUG_RETURN(true);
+     add(tmp);
   }
-  return false;
+  DBUG_RETURN(false);
 }
 
 
@@ -17983,6 +17995,70 @@ bool Virtual_tmp_table::open()
     s->null_bytes= s->null_bytes_for_compare= null_pack_length;
   }
   setup_field_pointers();
+  return false;
+}
+
+
+bool Virtual_tmp_table::sp_find_field_by_name(uint *idx,
+                                              const LEX_CSTRING &name) const
+{
+  Field *f;
+  for (uint i= 0; (f= field[i]); i++)
+  {
+    // Use the same comparison style with sp_context::find_variable()
+    if (!my_strnncoll(system_charset_info,
+                      (const uchar *) f->field_name.str,
+                      f->field_name.length,
+                      (const uchar *) name.str, name.length))
+    {
+      *idx= i;
+      return false;
+    }
+  }
+  return true;
+}
+
+
+bool
+Virtual_tmp_table::sp_find_field_by_name_or_error(uint *idx,
+                                                  const LEX_CSTRING &var_name,
+                                                  const LEX_CSTRING &field_name)
+                                                  const
+{
+  if (sp_find_field_by_name(idx, field_name))
+  {
+    my_error(ER_ROW_VARIABLE_DOES_NOT_HAVE_FIELD, MYF(0),
+             var_name.str, field_name.str);
+    return true;
+  }
+  return false;
+}
+
+
+bool Virtual_tmp_table::sp_set_all_fields_from_item_list(THD *thd,
+                                                         List<Item> &items)
+{
+  DBUG_ASSERT(s->fields == items.elements);
+  List_iterator<Item> it(items);
+  Item *item;
+  for (uint i= 0 ; (item= it++) ; i++)
+  {
+    if (field[i]->sp_prepare_and_store_item(thd, &item))
+      return true;
+  }
+  return false;
+}
+
+
+bool Virtual_tmp_table::sp_set_all_fields_from_item(THD *thd, Item *value)
+{
+  DBUG_ASSERT(value->fixed);
+  DBUG_ASSERT(value->cols() == s->fields);
+  for (uint i= 0; i < value->cols(); i++)
+  {
+    if (field[i]->sp_prepare_and_store_item(thd, value->addr(i)))
+      return true;
+  }
   return false;
 }
 
@@ -24898,7 +24974,7 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
   if (table->derived_select_number)
   {
     /* Derived table name generation */
-    int len= my_snprintf(table_name_buffer, sizeof(table_name_buffer)-1,
+    size_t len= my_snprintf(table_name_buffer, sizeof(table_name_buffer)-1,
                          "<derived%u>",
                          table->derived_select_number);
     eta->table_name.copy(table_name_buffer, len, cs);
@@ -24907,7 +24983,7 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
   {
     JOIN_TAB *ctab= bush_children->start;
     /* table */
-    int len= my_snprintf(table_name_buffer, 
+    size_t len= my_snprintf(table_name_buffer, 
                          sizeof(table_name_buffer)-1,
                          "<subquery%d>", 
                          ctab->emb_sj_nest->sj_subq_pred->get_identifier());
@@ -24936,7 +25012,7 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
         }
       }
     }
-    eta->table_name.copy(real_table->alias, strlen(real_table->alias), cs);
+    eta->table_name.copy(real_table->alias.str, real_table->alias.length, cs);
   }
 
   /* "partitions" column */
@@ -25256,13 +25332,13 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
         {
           char namebuf[NAME_LEN];
           /* Derived table name generation */
-          int len= my_snprintf(namebuf, sizeof(namebuf)-1,
+          size_t len= my_snprintf(namebuf, sizeof(namebuf)-1,
                                "<derived%u>",
                                prev_table->derived_select_number);
           eta->firstmatch_table_name.append(namebuf, len);
         }
         else
-          eta->firstmatch_table_name.append(prev_table->pos_in_table_list->alias);
+          eta->firstmatch_table_name.append(&prev_table->pos_in_table_list->alias);
       }
     }
 
@@ -25861,8 +25937,8 @@ Index_hint::print(THD *thd, String *str)
                              strlen(primary_key_name)))
       str->append(primary_key_name);
     else
-      append_identifier(thd, str, key_name.str, key_name.length);
-  }
+      append_identifier(thd, str, &key_name);
+}
   str->append(')');
 }
 
@@ -25918,10 +25994,10 @@ void TABLE_LIST::print(THD *thd, table_map eliminated_tables, String *str,
       if (!(belong_to_view &&
             belong_to_view->compact_view_format))
       {
-        append_identifier(thd, str, view_db.str, view_db.length);
+        append_identifier(thd, str, &view_db);
         str->append('.');
       }
-      append_identifier(thd, str, view_name.str, view_name.length);
+      append_identifier(thd, str, &view_name);
       cmp_name= view_name.str;
     }
     else if (derived)
@@ -25936,8 +26012,8 @@ void TABLE_LIST::print(THD *thd, table_map eliminated_tables, String *str,
       }
       else
       {
-        append_identifier(thd, str, table_name, table_name_length);
-        cmp_name= table_name;        
+        append_identifier(thd, str, &table_name);
+        cmp_name= table_name.str;
       }
     }
     else
@@ -25947,19 +26023,18 @@ void TABLE_LIST::print(THD *thd, table_map eliminated_tables, String *str,
       if (!(belong_to_view &&
             belong_to_view->compact_view_format))
       {
-        append_identifier(thd, str, db, db_length);
+        append_identifier(thd, str, &db);
         str->append('.');
       }
       if (schema_table)
       {
-        append_identifier(thd, str, schema_table_name,
-                          strlen(schema_table_name));
-        cmp_name= schema_table_name;
+        append_identifier(thd, str, &schema_table_name);
+        cmp_name= schema_table_name.str;
       }
       else
       {
-        append_identifier(thd, str, table_name, table_name_length);
-        cmp_name= table_name;
+        append_identifier(thd, str, &table_name);
+        cmp_name= table_name.str;
       }
 #ifdef WITH_PARTITION_STORAGE_ENGINE
       if (partition_names && partition_names->elements)
@@ -25983,23 +26058,23 @@ void TABLE_LIST::print(THD *thd, table_map eliminated_tables, String *str,
       // versioning conditions are already unwrapped to WHERE clause
       str->append(" FOR SYSTEM_TIME ALL");
     }
-    if (my_strcasecmp(table_alias_charset, cmp_name, alias))
+    if (my_strcasecmp(table_alias_charset, cmp_name, alias.str))
     {
       char t_alias_buff[MAX_ALIAS_NAME];
-      const char *t_alias= alias;
+      LEX_CSTRING t_alias= alias;
 
       str->append(' ');
       if (lower_case_table_names== 1)
       {
-        if (alias && alias[0])
+        if (alias.str && alias.str[0])
         {
-          strmov(t_alias_buff, alias);
-          my_casedn_str(files_charset_info, t_alias_buff);
-          t_alias= t_alias_buff;
+          strmov(t_alias_buff, alias.str);
+          t_alias.length= my_casedn_str(files_charset_info, t_alias_buff);
+          t_alias.str= t_alias_buff;
         }
       }
 
-      append_identifier(thd, str, t_alias, strlen(t_alias));
+      append_identifier(thd, str, &t_alias);
     }
 
     if (index_hints)

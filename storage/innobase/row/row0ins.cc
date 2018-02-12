@@ -139,49 +139,44 @@ row_ins_alloc_sys_fields(
 {
 	dtuple_t*		row;
 	dict_table_t*		table;
-	mem_heap_t*		heap;
 	const dict_col_t*	col;
 	dfield_t*		dfield;
-	byte*			ptr;
 
 	row = node->row;
 	table = node->table;
-	heap = node->entry_sys_heap;
 
-	ut_ad(row && table && heap);
 	ut_ad(dtuple_get_n_fields(row) == dict_table_get_n_cols(table));
 
 	/* allocate buffer to hold the needed system created hidden columns. */
-	const uint len = DATA_ROW_ID_LEN + DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN;
-	ptr = static_cast<byte*>(mem_heap_zalloc(heap, len));
+	compile_time_assert(DATA_ROW_ID_LEN
+			    + DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN
+			    == sizeof node->sys_buf);
+	memset(node->sys_buf, 0, DATA_ROW_ID_LEN);
+	memcpy(node->sys_buf + DATA_ROW_ID_LEN, reset_trx_id,
+	       sizeof reset_trx_id);
 
 	/* 1. Populate row-id */
 	col = dict_table_get_sys_col(table, DATA_ROW_ID);
 
 	dfield = dtuple_get_nth_field(row, dict_col_get_no(col));
 
-	dfield_set_data(dfield, ptr, DATA_ROW_ID_LEN);
-
-	node->row_id_buf = ptr;
-
-	ptr += DATA_ROW_ID_LEN;
+	dfield_set_data(dfield, node->sys_buf, DATA_ROW_ID_LEN);
 
 	/* 2. Populate trx id */
 	col = dict_table_get_sys_col(table, DATA_TRX_ID);
 
 	dfield = dtuple_get_nth_field(row, dict_col_get_no(col));
 
-	dfield_set_data(dfield, ptr, DATA_TRX_ID_LEN);
-
-	node->trx_id_buf = ptr;
-
-	ptr += DATA_TRX_ID_LEN;
+	dfield_set_data(dfield, &node->sys_buf[DATA_ROW_ID_LEN],
+			DATA_TRX_ID_LEN);
 
 	col = dict_table_get_sys_col(table, DATA_ROLL_PTR);
 
 	dfield = dtuple_get_nth_field(row, dict_col_get_no(col));
 
-	dfield_set_data(dfield, ptr, DATA_ROLL_PTR_LEN);
+	dfield_set_data(dfield, &node->sys_buf[DATA_ROW_ID_LEN
+					       + DATA_TRX_ID_LEN],
+			DATA_ROLL_PTR_LEN);
 }
 
 /*********************************************************************//**
@@ -779,8 +774,6 @@ row_ins_foreign_trx_print(
 	heap_size = mem_heap_get_size(trx->lock.lock_heap);
 	lock_mutex_exit();
 
-	trx_sys_mutex_enter();
-
 	mutex_enter(&dict_foreign_err_mutex);
 	rewind(dict_foreign_err_file);
 	ut_print_timestamp(dict_foreign_err_file);
@@ -788,8 +781,6 @@ row_ins_foreign_trx_print(
 
 	trx_print_low(dict_foreign_err_file, trx, 600,
 		      n_rec_locks, n_trx_locks, heap_size);
-
-	trx_sys_mutex_exit();
 
 	ut_ad(mutex_own(&dict_foreign_err_mutex));
 }
@@ -1450,15 +1441,11 @@ row_ins_foreign_check_on_constraint(
 #endif /* WITH_WSREP */
 	node->new_upd_nodes->push_back(cascade);
 
-	my_atomic_addlint(&table->n_foreign_key_checks_running, 1);
-
-	ut_ad(foreign->foreign_table->n_foreign_key_checks_running > 0);
+	table->inc_fk_checks();
 
 	/* Release the data dictionary latch for a while, so that we do not
 	starve other threads from doing CREATE TABLE etc. if we have a huge
-	cascaded operation running. The counter n_foreign_key_checks_running
-	will prevent other users from dropping or ALTERing the table when we
-	release the latch. */
+	cascaded operation running. */
 
 	row_mysql_unfreeze_data_dictionary(thr_get_trx(thr));
 
@@ -1556,17 +1543,6 @@ row_ins_set_exclusive_rec_lock(
 
 	return(err);
 }
-
-/* Decrement a counter in the destructor. */
-class ib_dec_in_dtor {
-public:
-	ib_dec_in_dtor(ulint& c): counter(c) {}
-	~ib_dec_in_dtor() {
-		my_atomic_addlint(&counter, -1);
-	}
-private:
-	ulint&		counter;
-};
 
 /***************************************************************//**
 Checks if foreign key constraint fails for an index entry. Sets shared locks
@@ -1766,7 +1742,7 @@ row_ins_check_foreign_constraint(
 			if (check_table->versioned()) {
 				bool history_row = false;
 
-				if (check_index->is_clust()) {
+				if (check_index->is_primary()) {
 					history_row = check_index->
 						vers_history_row(rec, offsets);
 				} else if (check_index->
@@ -1915,19 +1891,13 @@ end_scan:
 
 do_possible_lock_wait:
 	if (err == DB_LOCK_WAIT) {
-		/* An object that will correctly decrement the FK check counter
-		when it goes out of this scope. */
-		ib_dec_in_dtor	dec(check_table->n_foreign_key_checks_running);
-
 		trx->error_state = err;
 
 		que_thr_stop_for_mysql(thr);
 
 		thr->lock_state = QUE_THR_LOCK_ROW;
 
-		/* To avoid check_table being dropped, increment counter */
-		my_atomic_addlint(
-			&check_table->n_foreign_key_checks_running, 1);
+		check_table->inc_fk_checks();
 
 		trx_kill_blocking(trx);
 
@@ -1938,6 +1908,8 @@ do_possible_lock_wait:
 		err = check_table->to_be_dropped
 			? DB_LOCK_WAIT_TIMEOUT
 			: trx->error_state;
+
+		check_table->dec_fk_checks();
 	}
 
 exit_func:
@@ -3253,10 +3225,21 @@ row_ins_clust_index_entry(
 
 	n_uniq = dict_index_is_unique(index) ? index->n_uniq : 0;
 
-	const ulint	flags = index->table->no_rollback() ? BTR_NO_ROLLBACK
+	ulint	flags = index->table->no_rollback() ? BTR_NO_ROLLBACK
 		: dict_table_is_temporary(index->table)
 		? BTR_NO_LOCKING_FLAG : 0;
 	const ulint	orig_n_fields = entry->n_fields;
+
+	/* Try first optimistic descent to the B-tree */
+	log_free_check();
+
+	/* For intermediate table during copy alter table,
+	   skip the undo log and record lock checking for
+	   insertion operation.
+	*/
+	if (index->table->skip_alter_undo) {
+		flags |= BTR_NO_UNDO_LOG_FLAG | BTR_NO_LOCKING_FLAG;
+	}
 
 	/* Try first optimistic descent to the B-tree */
 	log_free_check();
@@ -3306,6 +3289,7 @@ row_ins_sec_index_entry(
 	dberr_t		err;
 	mem_heap_t*	offsets_heap;
 	mem_heap_t*	heap;
+	trx_id_t	trx_id  = 0;
 
 	DBUG_EXECUTE_IF("row_ins_sec_index_entry_timeout", {
 			DBUG_SET("-d,row_ins_sec_index_entry_timeout");
@@ -3328,13 +3312,22 @@ row_ins_sec_index_entry(
 	/* Try first optimistic descent to the B-tree */
 
 	log_free_check();
-	const ulint flags = dict_table_is_temporary(index->table)
+	ulint flags = dict_table_is_temporary(index->table)
 		? BTR_NO_LOCKING_FLAG
 		: 0;
 
+	/* For intermediate table during copy alter table,
+	   skip the undo log and record lock checking for
+	   insertion operation.
+	*/
+	if (index->table->skip_alter_undo) {
+		trx_id = thr_get_trx(thr)->id;
+		flags |= BTR_NO_UNDO_LOG_FLAG | BTR_NO_LOCKING_FLAG;
+	}
+
 	err = row_ins_sec_index_entry_low(
 		flags, BTR_MODIFY_LEAF, index, offsets_heap, heap, entry,
-		0, thr, dup_chk_only);
+		trx_id, thr, dup_chk_only);
 	if (err == DB_FAIL) {
 		mem_heap_empty(heap);
 
@@ -3377,7 +3370,7 @@ row_ins_index_entry(
 			DBUG_SET("-d,row_ins_index_entry_timeout");
 			return(DB_LOCK_WAIT);});
 
-	if (index->is_clust()) {
+	if (index->is_primary()) {
 		return(row_ins_clust_index_entry(index, entry, thr, 0, false));
 	} else {
 		return(row_ins_sec_index_entry(index, entry, thr, false));
@@ -3559,7 +3552,7 @@ row_ins_alloc_row_id_step(
 
 	row_id = dict_sys_get_new_row_id();
 
-	dict_sys_write_row_id(node->row_id_buf, row_id);
+	dict_sys_write_row_id(node->sys_buf, row_id);
 }
 
 /***********************************************************//**
@@ -3850,7 +3843,7 @@ row_ins_step(
 	This happens, for example, when a row update moves it to another
 	partition. In that case, we have already set the IX lock on the
 	table during the search operation, and there is no need to set
-	it again here. But we must write trx->id to node->trx_id_buf. */
+	it again here. But we must write trx->id to node->sys_buf. */
 
 	if (node->table->no_rollback()) {
 		/* No-rollback tables should only be written to by a
@@ -3865,15 +3858,15 @@ row_ins_step(
 		restarting here. In theory, we could allow resumption
 		from the INS_NODE_INSERT_ENTRIES state here. */
 		DBUG_ASSERT(node->state == INS_NODE_SET_IX_LOCK);
-		memset(node->trx_id_buf, 0, DATA_TRX_ID_LEN);
-		memset(node->row_id_buf, 0, DATA_ROW_ID_LEN);
 		node->index = dict_table_get_first_index(node->table);
 		node->entry = UT_LIST_GET_FIRST(node->entry_list);
 		node->state = INS_NODE_INSERT_ENTRIES;
 		goto do_insert;
 	}
 
-	trx_write_trx_id(node->trx_id_buf, trx->id);
+	if (UNIV_LIKELY(!node->table->skip_alter_undo)) {
+		trx_write_trx_id(&node->sys_buf[DATA_ROW_ID_LEN], trx->id);
+	}
 
 	if (node->state == INS_NODE_SET_IX_LOCK) {
 

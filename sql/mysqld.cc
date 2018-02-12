@@ -626,7 +626,7 @@ char mysql_real_data_home[FN_REFLEN],
      *opt_init_file, *opt_tc_log_file;
 char *lc_messages_dir_ptr= lc_messages_dir, *log_error_file_ptr;
 char mysql_unpacked_real_data_home[FN_REFLEN];
-int mysql_unpacked_real_data_home_len;
+size_t mysql_unpacked_real_data_home_len;
 uint mysql_real_data_home_len, mysql_data_home_len= 1;
 uint reg_ext_length;
 const key_map key_map_empty(0);
@@ -779,7 +779,7 @@ mysql_mutex_t LOCK_prepared_stmt_count;
 mysql_mutex_t LOCK_des_key_file;
 #endif
 mysql_rwlock_t LOCK_grant, LOCK_sys_init_connect, LOCK_sys_init_slave;
-mysql_rwlock_t LOCK_system_variables_hash;
+mysql_prlock_t LOCK_system_variables_hash;
 mysql_cond_t COND_thread_count, COND_start_thread;
 pthread_t signal_thread;
 pthread_attr_t connection_attrib;
@@ -1246,7 +1246,7 @@ void net_after_header_psi(struct st_net *net, void *user_data,
   {
     thd->m_statement_psi= MYSQL_START_STATEMENT(&thd->m_statement_state,
                                                 stmt_info_new_packet.m_key,
-                                                thd->db, thd->db_length,
+                                                thd->get_db(), thd->db.length,
                                                 thd->charset());
 
     THD_STAGE_INFO(thd, stage_init);
@@ -1375,7 +1375,7 @@ private:
 
 void Buffered_logs::init()
 {
-  init_alloc_root(&m_root, 1024, 0, MYF(0));
+  init_alloc_root(&m_root, "Buffered_logs", 1024, 0, MYF(0));
 }
 
 void Buffered_logs::cleanup()
@@ -2384,7 +2384,7 @@ static void clean_up_mutexes()
   mysql_rwlock_destroy(&LOCK_sys_init_connect);
   mysql_rwlock_destroy(&LOCK_sys_init_slave);
   mysql_mutex_destroy(&LOCK_global_system_variables);
-  mysql_rwlock_destroy(&LOCK_system_variables_hash);
+  mysql_prlock_destroy(&LOCK_system_variables_hash);
   mysql_mutex_destroy(&LOCK_short_uuid_generator);
   mysql_mutex_destroy(&LOCK_prepared_stmt_count);
   mysql_mutex_destroy(&LOCK_error_messages);
@@ -2738,7 +2738,7 @@ static void network_init(void)
 
 #ifdef _WIN32
   /* create named pipe */
-  if (Service.IsNT() && mysqld_unix_port[0] && !opt_bootstrap &&
+  if (mysqld_unix_port[0] && !opt_bootstrap &&
       opt_enable_named_pipe)
   {
 
@@ -4742,7 +4742,7 @@ static int init_thread_environment()
                    &LOCK_global_system_variables, MY_MUTEX_INIT_FAST);
   mysql_mutex_record_order(&LOCK_active_mi, &LOCK_global_system_variables);
   mysql_mutex_record_order(&LOCK_status, &LOCK_thread_count);
-  mysql_rwlock_init(key_rwlock_LOCK_system_variables_hash,
+  mysql_prlock_init(key_rwlock_LOCK_system_variables_hash,
                     &LOCK_system_variables_hash);
   mysql_mutex_init(key_LOCK_prepared_stmt_count,
                    &LOCK_prepared_stmt_count, MY_MUTEX_INIT_FAST);
@@ -5681,8 +5681,8 @@ static void test_lc_time_sz()
   DBUG_ENTER("test_lc_time_sz");
   for (MY_LOCALE **loc= my_locales; *loc; loc++)
   {
-    uint max_month_len= 0;
-    uint max_day_len = 0;
+    size_t max_month_len= 0;
+    size_t max_day_len= 0;
     for (const char **month= (*loc)->month_names->type_names; *month; month++)
     {
       set_if_bigger(max_month_len,
@@ -6162,7 +6162,7 @@ int mysqld_main(int argc, char **argv)
   mysql_mutex_unlock(&LOCK_thread_count);
 
 #if defined(__WIN__) && !defined(EMBEDDED_LIBRARY)
-  if (Service.IsNT() && start_mode)
+  if (start_mode)
     Service.Stop();
   else
   {
@@ -6305,87 +6305,86 @@ int mysqld_main(int argc, char **argv)
     return 1;
   }
 
-  if (Service.GetOS())	/* true NT family */
-  {
-    char file_path[FN_REFLEN];
-    my_path(file_path, argv[0], "");		      /* Find name in path */
-    fn_format(file_path,argv[0],file_path,"",
-	      MY_REPLACE_DIR | MY_UNPACK_FILENAME | MY_RESOLVE_SYMLINKS);
 
-    if (argc == 2)
-    {
-      if (!default_service_handling(argv, MYSQL_SERVICENAME, MYSQL_SERVICENAME,
-				   file_path, "", NULL))
-	return 0;
-      if (Service.IsService(argv[1]))        /* Start an optional service */
-      {
-	/*
-	  Only add the service name to the groups read from the config file
-	  if it's not "MySQL". (The default service name should be 'mysqld'
-	  but we started a bad tradition by calling it MySQL from the start
-	  and we are now stuck with it.
-	*/
-	if (my_strcasecmp(system_charset_info, argv[1],"mysql"))
-	  load_default_groups[load_default_groups_sz-2]= argv[1];
-        start_mode= 1;
-        Service.Init(argv[1], mysql_service);
-        return 0;
-      }
-    }
-    else if (argc == 3) /* install or remove any optional service */
-    {
-      if (!default_service_handling(argv, argv[2], argv[2], file_path, "",
-                                    NULL))
-	return 0;
-      if (Service.IsService(argv[2]))
-      {
-	/*
-	  mysqld was started as
-	  mysqld --defaults-file=my_path\my.ini service-name
-	*/
-	use_opt_args=1;
-	opt_argc= 2;				// Skip service-name
-	opt_argv=argv;
-	start_mode= 1;
-	if (my_strcasecmp(system_charset_info, argv[2],"mysql"))
-	  load_default_groups[load_default_groups_sz-2]= argv[2];
-	Service.Init(argv[2], mysql_service);
-	return 0;
-      }
-    }
-    else if (argc == 4 || argc == 5)
+  char file_path[FN_REFLEN];
+  my_path(file_path, argv[0], "");		      /* Find name in path */
+  fn_format(file_path,argv[0],file_path,"",   MY_REPLACE_DIR | MY_UNPACK_FILENAME | MY_RESOLVE_SYMLINKS);
+
+  if (argc == 2)
+  {
+    if (!default_service_handling(argv, MYSQL_SERVICENAME, MYSQL_SERVICENAME,
+      file_path, "", NULL))
+      return 0;
+
+    if (Service.IsService(argv[1]))        /* Start an optional service */
     {
       /*
-        This may seem strange, because we handle --local-service while
-        preserving 4.1's behavior of allowing any one other argument that is
-        passed to the service on startup. (The assumption is that this is
-        --defaults-file=file, but that was not enforced in 4.1, so we don't
-        enforce it here.)
+      Only add the service name to the groups read from the config file
+      if it's not "MySQL". (The default service name should be 'mysqld'
+      but we started a bad tradition by calling it MySQL from the start
+      and we are now stuck with it.
       */
-      const char *extra_opt= NullS;
-      const char *account_name = NullS;
-      int index;
-      for (index = 3; index < argc; index++)
-      {
-        if (!strcmp(argv[index], "--local-service"))
-          account_name= "NT AUTHORITY\\LocalService";
-        else
-          extra_opt= argv[index];
-      }
-
-      if (argc == 4 || account_name)
-        if (!default_service_handling(argv, argv[2], argv[2], file_path,
-                                      extra_opt, account_name))
-          return 0;
-    }
-    else if (argc == 1 && Service.IsService(MYSQL_SERVICENAME))
-    {
-      /* start the default service */
+      if (my_strcasecmp(system_charset_info, argv[1],"mysql"))
+        load_default_groups[load_default_groups_sz-2]= argv[1];
       start_mode= 1;
-      Service.Init(MYSQL_SERVICENAME, mysql_service);
+      Service.Init(argv[1], mysql_service);
       return 0;
     }
   }
+  else if (argc == 3) /* install or remove any optional service */
+  {
+    if (!default_service_handling(argv, argv[2], argv[2], file_path, "",
+                                  NULL))
+      return 0;
+    if (Service.IsService(argv[2]))
+    {
+      /*
+       mysqld was started as
+       mysqld --defaults-file=my_path\my.ini service-name
+      */
+      use_opt_args=1;
+      opt_argc= 2;				// Skip service-name
+      opt_argv=argv;
+      start_mode= 1;
+      if (my_strcasecmp(system_charset_info, argv[2],"mysql"))
+        load_default_groups[load_default_groups_sz-2]= argv[2];
+      Service.Init(argv[2], mysql_service);
+      return 0;
+    }
+  }
+  else if (argc == 4 || argc == 5)
+  {
+    /*
+      This may seem strange, because we handle --local-service while
+      preserving 4.1's behavior of allowing any one other argument that is
+      passed to the service on startup. (The assumption is that this is
+      --defaults-file=file, but that was not enforced in 4.1, so we don't
+      enforce it here.)
+    */
+    const char *extra_opt= NullS;
+    const char *account_name = NullS;
+    int index;
+    for (index = 3; index < argc; index++)
+    {
+      if (!strcmp(argv[index], "--local-service"))
+        account_name= "NT AUTHORITY\\LocalService";
+      else
+        extra_opt= argv[index];
+    }
+
+    if (argc == 4 || account_name)
+      if (!default_service_handling(argv, argv[2], argv[2], file_path,
+                                    extra_opt, account_name))
+        return 0;
+  }
+  else if (argc == 1 && Service.IsService(MYSQL_SERVICENAME))
+  {
+    /* start the default service */
+    start_mode= 1;
+    Service.Init(MYSQL_SERVICENAME, mysql_service);
+    return 0;
+  }
+
   /* Start as standalone server */
   Service.my_argc=argc;
   Service.my_argv=argv;
@@ -8526,7 +8525,7 @@ SHOW_VAR status_vars[]= {
   {"Handler_commit",           (char*) offsetof(STATUS_VAR, ha_commit_count), SHOW_LONG_STATUS},
   {"Handler_delete",           (char*) offsetof(STATUS_VAR, ha_delete_count), SHOW_LONG_STATUS},
   {"Handler_discover",         (char*) offsetof(STATUS_VAR, ha_discover_count), SHOW_LONG_STATUS},
-  {"Handler_external_lock",    (char*) offsetof(STATUS_VAR, ha_external_lock_count), SHOW_LONGLONG_STATUS},
+  {"Handler_external_lock",    (char*) offsetof(STATUS_VAR, ha_external_lock_count), SHOW_LONG_STATUS},
   {"Handler_icp_attempts",     (char*) offsetof(STATUS_VAR, ha_icp_attempts), SHOW_LONG_STATUS},
   {"Handler_icp_match",        (char*) offsetof(STATUS_VAR, ha_icp_match), SHOW_LONG_STATUS},
   {"Handler_mrr_init",         (char*) offsetof(STATUS_VAR, ha_mrr_init_count),  SHOW_LONG_STATUS},
@@ -8753,7 +8752,7 @@ static int option_cmp(my_option *a, my_option *b)
 static void print_help()
 {
   MEM_ROOT mem_root;
-  init_alloc_root(&mem_root, 4096, 4096, MYF(0));
+  init_alloc_root(&mem_root, "help", 4096, 4096, MYF(0));
 
   pop_dynamic(&all_options);
   add_many_options(&all_options, pfs_early_options,
@@ -10000,7 +9999,7 @@ static int fix_paths(void)
 
   my_realpath(mysql_unpacked_real_data_home, mysql_real_data_home, MYF(0));
   mysql_unpacked_real_data_home_len= 
-    (int) strlen(mysql_unpacked_real_data_home);
+  strlen(mysql_unpacked_real_data_home);
   if (mysql_unpacked_real_data_home[mysql_unpacked_real_data_home_len-1] == FN_LIBCHAR)
     --mysql_unpacked_real_data_home_len;
 

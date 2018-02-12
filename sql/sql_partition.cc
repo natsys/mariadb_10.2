@@ -1863,7 +1863,7 @@ static int add_keyword_path(String *str, const char *keyword,
 #ifdef __WIN__
   /* Convert \ to / to be able to create table on unix */
   char *pos, *end;
-  uint length= strlen(temp_path);
+  size_t length= strlen(temp_path);
   for (pos= temp_path, end= pos+length ; pos < end ; pos++)
   {
     if (*pos == '\\')
@@ -4603,8 +4603,8 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
       object to allow fast_alter_partition_table to perform the changes.
     */
     DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE,
-                                               alter_ctx->db,
-                                               alter_ctx->table_name,
+                                               alter_ctx->db.str,
+                                               alter_ctx->table_name.str,
                                                MDL_INTENTION_EXCLUSIVE));
 
     tab_part_info= table->part_info;
@@ -5679,7 +5679,7 @@ static bool mysql_change_partitions(ALTER_PARTITION_PARAM_TYPE *lpt)
   THD *thd= lpt->thd;
   DBUG_ENTER("mysql_change_partitions");
 
-  build_table_filename(path, sizeof(path) - 1, lpt->db, lpt->table_name, "", 0);
+  build_table_filename(path, sizeof(path) - 1, lpt->db.str, lpt->table_name.str, "", 0);
 
   if(mysql_trans_prepare_alter_copy_data(thd))
     DBUG_RETURN(TRUE);
@@ -5725,7 +5725,7 @@ static bool mysql_rename_partitions(ALTER_PARTITION_PARAM_TYPE *lpt)
   int error;
   DBUG_ENTER("mysql_rename_partitions");
 
-  build_table_filename(path, sizeof(path) - 1, lpt->db, lpt->table_name, "", 0);
+  build_table_filename(path, sizeof(path) - 1, lpt->db.str, lpt->table_name.str, "", 0);
   if ((error= lpt->table->file->ha_rename_partitions(path)))
   {
     if (error != 1)
@@ -5771,7 +5771,7 @@ static bool mysql_drop_partitions(ALTER_PARTITION_PARAM_TYPE *lpt)
                                                 lpt->table->s->table_name.str,
                                                 MDL_EXCLUSIVE));
 
-  build_table_filename(path, sizeof(path) - 1, lpt->db, lpt->table_name, "", 0);
+  build_table_filename(path, sizeof(path) - 1, lpt->db.str, lpt->table_name.str, "", 0);
   if ((error= lpt->table->file->ha_drop_partitions(path)))
   {
     lpt->table->file->print_error(error, MYF(0));
@@ -6168,8 +6168,7 @@ static bool write_log_rename_frm(ALTER_PARTITION_PARAM_TYPE *lpt)
   DBUG_ENTER("write_log_rename_frm");
 
   part_info->first_log_entry= NULL;
-  build_table_filename(path, sizeof(path) - 1, lpt->db,
-                       lpt->table_name, "", 0);
+  build_table_filename(path, sizeof(path) - 1, lpt->db.str, lpt->table_name.str, "", 0);
   build_table_shadow_filename(shadow_path, sizeof(shadow_path) - 1, lpt);
   mysql_mutex_lock(&LOCK_gdl);
   if (write_log_replace_delete_frm(lpt, 0UL, shadow_path, path, TRUE))
@@ -6220,8 +6219,7 @@ static bool write_log_drop_partition(ALTER_PARTITION_PARAM_TYPE *lpt)
   DBUG_ENTER("write_log_drop_partition");
 
   part_info->first_log_entry= NULL;
-  build_table_filename(path, sizeof(path) - 1, lpt->db,
-                       lpt->table_name, "", 0);
+  build_table_filename(path, sizeof(path) - 1, lpt->db.str, lpt->table_name.str, "", 0);
   build_table_shadow_filename(tmp_path, sizeof(tmp_path) - 1, lpt);
   mysql_mutex_lock(&LOCK_gdl);
   if (write_log_dropped_partitions(lpt, &next_entry, (const char*)path,
@@ -6279,8 +6277,7 @@ static bool write_log_add_change_partition(ALTER_PARTITION_PARAM_TYPE *lpt)
   DBUG_ASSERT(old_first_log_entry);
   DBUG_ENTER("write_log_add_change_partition");
 
-  build_table_filename(path, sizeof(path) - 1, lpt->db,
-                       lpt->table_name, "", 0);
+  build_table_filename(path, sizeof(path) - 1, lpt->db.str, lpt->table_name.str, "", 0);
   build_table_shadow_filename(tmp_path, sizeof(tmp_path) - 1, lpt);
   mysql_mutex_lock(&LOCK_gdl);
 
@@ -6348,8 +6345,7 @@ static bool write_log_final_change_partition(ALTER_PARTITION_PARAM_TYPE *lpt)
     Replace the revert operations with forced retry operations.
   */
   part_info->first_log_entry= NULL;
-  build_table_filename(path, sizeof(path) - 1, lpt->db,
-                       lpt->table_name, "", 0);
+  build_table_filename(path, sizeof(path) - 1, lpt->db.str, lpt->table_name.str, "", 0);
   build_table_shadow_filename(shadow_path, sizeof(shadow_path) - 1, lpt);
   mysql_mutex_lock(&LOCK_gdl);
   if (write_log_changed_partitions(lpt, &next_entry, (const char*)path))
@@ -6534,8 +6530,8 @@ void handle_alter_part_error(ALTER_PARTITION_PARAM_TYPE *lpt,
       Better to do that here, than leave the cleaning up to others.
       Aquire EXCLUSIVE mdl lock if not already aquired.
     */
-    if (!thd->mdl_context.is_lock_owner(MDL_key::TABLE, lpt->db,
-                                        lpt->table_name,
+    if (!thd->mdl_context.is_lock_owner(MDL_key::TABLE, lpt->db.str,
+                                        lpt->table_name.str,
                                         MDL_EXCLUSIVE))
     {
       if (wait_while_table_is_used(thd, table, HA_EXTRA_FORCE_REOPEN))
@@ -6732,8 +6728,8 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
                                 Alter_info *alter_info,
                                 HA_CREATE_INFO *create_info,
                                 TABLE_LIST *table_list,
-                                const char *db,
-                                const char *table_name)
+                                const LEX_CSTRING *db,
+                                const LEX_CSTRING *table_name)
 {
   /* Set-up struct used to write frm files */
   partition_info *part_info;
@@ -6756,8 +6752,8 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
   lpt->table= table;
   lpt->key_info_buffer= 0;
   lpt->key_count= 0;
-  lpt->db= db;
-  lpt->table_name= table_name;
+  lpt->db= *db;
+  lpt->table_name= *table_name;
   lpt->copied= 0;
   lpt->deleted= 0;
   lpt->pack_frm_data= NULL;
@@ -7220,7 +7216,7 @@ void append_row_to_str(String &str, const uchar *row, TABLE *table)
   {
     Field *field= *field_ptr;
     str.append(" ");
-    str.append(field->field_name);
+    str.append(&field->field_name);
     str.append(":");
     field_unpack(&str, field, rec, 0, false);
   }

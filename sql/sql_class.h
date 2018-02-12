@@ -148,7 +148,6 @@ enum enum_binlog_row_image {
 
 extern char internal_table_name[2];
 extern char empty_c_string[1];
-extern LEX_STRING EMPTY_STR;
 extern MYSQL_PLUGIN_IMPORT const char **errmesg;
 
 extern bool volatile shutdown_in_progress;
@@ -195,7 +194,7 @@ typedef struct st_user_var_events
 {
   user_var_entry *user_var_event;
   char *value;
-  ulong length;
+  size_t length;
   Item_result type;
   uint charset_number;
   bool unsigned_flag;
@@ -284,8 +283,9 @@ class Alter_column :public Sql_alloc {
 public:
   const char *name;
   Virtual_column_info *default_value;
-  Alter_column(const char *par_name, Virtual_column_info *expr)
-    :name(par_name), default_value(expr) {}
+  bool alter_if_exists;
+  Alter_column(const char *par_name, Virtual_column_info *expr, bool par_exists)
+    :name(par_name), default_value(expr), alter_if_exists(par_exists) {}
   /**
     Used to make a clone of this object for ALTER/CREATE TABLE
     @sa comment for Key_part_spec::clone
@@ -443,7 +443,7 @@ typedef enum enum_diag_condition_item_name
   Name of each diagnostic condition item.
   This array is indexed by Diag_condition_item_name.
 */
-extern const LEX_STRING Diag_condition_item_names[];
+extern const LEX_CSTRING Diag_condition_item_names[];
 
 /**
   These states are bit coded with HARD. For each state there must be a pair
@@ -775,7 +775,6 @@ typedef struct system_status_var
   ulong ha_savepoint_rollback_count;
   ulong ha_external_lock_count;
 
-  ulong net_big_packet_count;
   ulong opened_tables;
   ulong opened_shares;
   ulong opened_views;               /* +1 opening a view */
@@ -1002,7 +1001,7 @@ public:
   { return strmake_root(mem_root,str,size); }
   inline void *memdup(const void *str, size_t size)
   { return memdup_root(mem_root,str,size); }
-  inline void *memdup_w_gap(const void *str, size_t size, uint gap)
+  inline void *memdup_w_gap(const void *str, size_t size, size_t gap)
   {
     void *ptr;
     if ((ptr= alloc_root(mem_root,size+gap)))
@@ -1141,18 +1140,13 @@ public:
   /**
     Name of the current (default) database.
 
-    If there is the current (default) database, "db" contains its name. If
-    there is no current (default) database, "db" is NULL and "db_length" is
-    0. In other words, "db", "db_length" must either be NULL, or contain a
+    If there is the current (default) database, "db.str" contains its name. If
+    there is no current (default) database, "db.str" is NULL and "db.length" is
+    0. In other words, db must either be NULL, or contain a
     valid database name.
-
-    @note this attribute is set and alloced by the slave SQL thread (for
-    the THD of that thread); that thread is (and must remain, for now) the
-    only responsible for freeing this member.
   */
 
-  char *db;
-  size_t db_length;
+  LEX_CSTRING db;
 
   /* This is set to 1 of last call to send_result_to_client() was ok */
   my_bool query_cache_is_applicable;
@@ -1335,6 +1329,25 @@ public:
     change_list.move_elements_to(&to->change_list);
   }
   bool is_empty() { return change_list.is_empty(); }
+};
+
+
+class Item_change_list_savepoint: public Item_change_list
+{
+public:
+  Item_change_list_savepoint(Item_change_list *list)
+  {
+    list->move_elements_to(this);
+  }
+  void rollback(Item_change_list *list)
+  {
+    list->rollback_item_tree_changes();
+    move_elements_to(list);
+  }
+  ~Item_change_list_savepoint()
+  {
+    DBUG_ASSERT(is_empty());
+  }
 };
 
 
@@ -1831,7 +1844,8 @@ public:
     m_reopen_array(NULL),
     m_locked_tables_count(0)
   {
-    init_sql_alloc(&m_locked_tables_root, MEM_ROOT_BLOCK_SIZE, 0,
+    init_sql_alloc(&m_locked_tables_root, "Locked_tables_list",
+                   MEM_ROOT_BLOCK_SIZE, 0,
                    MYF(MY_THREAD_SPECIFIC));
   }
   void unlock_locked_tables(THD *thd);
@@ -2222,7 +2236,7 @@ public:
     Protects THD data accessed from other threads:
     - thd->query and thd->query_length (used by SHOW ENGINE
       INNODB STATUS and SHOW PROCESSLIST
-    - thd->db and thd->db_length (used in SHOW PROCESSLIST)
+    - thd->db (used in SHOW PROCESSLIST)
     Is locked when THD is deleted.
   */
   mysql_mutex_t LOCK_thd_data;
@@ -2596,7 +2610,8 @@ public:
     {
       bzero((char*)this, sizeof(*this));
       xid_state.xid.null();
-      init_sql_alloc(&mem_root, ALLOC_ROOT_MIN_BLOCK_SIZE, 0,
+      init_sql_alloc(&mem_root, "THD::transactions",
+                     ALLOC_ROOT_MIN_BLOCK_SIZE, 0,
                      MYF(MY_THREAD_SPECIFIC));
     }
   } transaction;
@@ -3531,12 +3546,12 @@ public:
   {
     return !stmt_arena->is_stmt_prepare();
   }
-  inline void* trans_alloc(unsigned int size)
+  inline void* trans_alloc(size_t size)
   {
     return alloc_root(&transaction.mem_root,size);
   }
 
-  LEX_STRING *make_lex_string(LEX_STRING *lex_str, const char* str, uint length)
+  LEX_STRING *make_lex_string(LEX_STRING *lex_str, const char* str, size_t length)
   {
     if (!(lex_str->str= strmake_root(mem_root, str, length)))
     {
@@ -3546,7 +3561,7 @@ public:
     lex_str->length= length;
     return lex_str;
   }
-  LEX_CSTRING *make_lex_string(LEX_CSTRING *lex_str, const char* str, uint length)
+  LEX_CSTRING *make_lex_string(LEX_CSTRING *lex_str, const char* str, size_t length)
   {
     if (!(lex_str->str= strmake_root(mem_root, str, length)))
     {
@@ -3557,22 +3572,7 @@ public:
     return lex_str;
   }
 
-  LEX_STRING *make_lex_string(const char* str, uint length)
-  {
-    LEX_STRING *lex_str;
-    char *tmp;
-    if (!(lex_str= (LEX_STRING *) alloc_root(mem_root, sizeof(LEX_STRING) +
-                                             length+1)))
-      return 0;
-    tmp= (char*) (lex_str+1);
-    lex_str->str= tmp;
-    memcpy(tmp, str, length);
-    tmp[length]= 0;
-    lex_str->length= length;
-    return lex_str;
-  }
-
-  LEX_CSTRING *make_clex_string(const char* str, uint length)
+  LEX_CSTRING *make_clex_string(const char* str, size_t length)
   {
     LEX_CSTRING *lex_str;
     char *tmp;
@@ -3588,7 +3588,7 @@ public:
   }
 
   // Allocate LEX_STRING for character set conversion
-  bool alloc_lex_string(LEX_STRING *dst, uint length)
+  bool alloc_lex_string(LEX_STRING *dst, size_t length)
   {
     if ((dst->str= (char*) alloc(length)))
       return false;
@@ -3596,7 +3596,7 @@ public:
     return true;     // EOM
   }
   bool convert_string(LEX_STRING *to, CHARSET_INFO *to_cs,
-		      const char *from, uint from_length,
+		      const char *from, size_t from_length,
 		      CHARSET_INFO *from_cs);
   /*
     Convert a strings between character sets.
@@ -3604,7 +3604,7 @@ public:
     dstcs and srccs cannot be &my_charset_bin.
   */
   bool convert_fix(CHARSET_INFO *dstcs, LEX_STRING *dst,
-                   CHARSET_INFO *srccs, const char *src, uint src_length,
+                   CHARSET_INFO *srccs, const char *src, size_t src_length,
                    String_copier *status);
 
   /*
@@ -3613,7 +3613,7 @@ public:
   */
   bool convert_with_error(CHARSET_INFO *dstcs, LEX_STRING *dst,
                           CHARSET_INFO *srccs,
-                          const char *src, uint src_length);
+                          const char *src, size_t src_length);
 
   /*
     If either "dstcs" or "srccs" is &my_charset_bin,
@@ -3621,7 +3621,7 @@ public:
     Otherwise, performs Unicode conversion using convert_fix().
   */
   bool copy_fix(CHARSET_INFO *dstcs, LEX_STRING *dst,
-                CHARSET_INFO *srccs, const char *src, uint src_length,
+                CHARSET_INFO *srccs, const char *src, size_t src_length,
                 String_copier *status);
 
   /*
@@ -3629,7 +3629,7 @@ public:
     in case of bad byte sequences or Unicode conversion problems.
   */
   bool copy_with_error(CHARSET_INFO *dstcs, LEX_STRING *dst,
-                       CHARSET_INFO *srccs, const char *src, uint src_length);
+                       CHARSET_INFO *srccs, const char *src, size_t src_length);
 
   bool convert_string(String *s, CHARSET_INFO *from_cs, CHARSET_INFO *to_cs);
 
@@ -3651,8 +3651,8 @@ public:
                                     CHARSET_INFO *cs);
   Item *make_string_literal_concat(Item *item1, const LEX_CSTRING &str);
   void add_changed_table(TABLE *table);
-  void add_changed_table(const char *key, long key_length);
-  CHANGED_TABLE_LIST * changed_table_dup(const char *key, long key_length);
+  void add_changed_table(const char *key, size_t key_length);
+  CHANGED_TABLE_LIST * changed_table_dup(const char *key, size_t key_length);
   int send_explain_fields(select_result *result, uint8 explain_flags,
                           bool is_analyze);
   void make_explain_field_list(List<Item> &field_list, uint8 explain_flags,
@@ -4014,70 +4014,33 @@ public:
       @retval FALSE Success
       @retval TRUE  Out-of-memory error
   */
-  bool set_db(const char *new_db, size_t new_db_len)
-  {
-    /*
-      Acquiring mutex LOCK_thd_data as we either free the memory allocated
-      for the database and reallocating the memory for the new db or memcpy
-      the new_db to the db.
-    */
-    mysql_mutex_lock(&LOCK_thd_data);
-    /* Do not reallocate memory if current chunk is big enough. */
-    if (db && new_db && db_length >= new_db_len)
-      memcpy(db, new_db, new_db_len+1);
-    else
-    {
-      my_free(db);
-      if (new_db)
-        db= my_strndup(new_db, new_db_len, MYF(MY_WME | ME_FATALERROR));
-      else
-        db= NULL;
-    }
-    db_length= db ? new_db_len : 0;
-    bool result= new_db && !db;
-    mysql_mutex_unlock(&LOCK_thd_data);
-    if (result)
-      PSI_CALL_set_thread_db(new_db, (int) new_db_len);
-    return result;
-  }
+  bool set_db(const LEX_CSTRING *new_db);
 
-  /**
-    Set the current database; use shallow copy of C-string.
+  /** Set the current database, without copying */
+  void reset_db(const LEX_CSTRING *new_db);
 
-    @param new_db     a pointer to the new database name.
-    @param new_db_len length of the new database name.
-
-    @note This operation just sets {db, db_length}. Switching the current
-    database usually involves other actions, like switching other database
-    attributes including security context. In the future, this operation
-    will be made private and more convenient interface will be provided.
-  */
-  void reset_db(char *new_db, size_t new_db_len)
-  {
-    if (new_db != db || new_db_len != db_length)
-    {
-      mysql_mutex_lock(&LOCK_thd_data);
-      db= new_db;
-      db_length= new_db_len;
-      mysql_mutex_unlock(&LOCK_thd_data);
-      PSI_CALL_set_thread_db(new_db, (int) new_db_len);
-    }
-  }
   /*
     Copy the current database to the argument. Use the current arena to
     allocate memory for a deep copy: current database may be freed after
     a statement is parsed but before it's executed.
+
+    Can only be called by owner of thd (no mutex protection)
   */
-  bool copy_db_to(const char **p_db, size_t *p_db_length)
+  bool copy_db_to(LEX_CSTRING *to)
   {
-    if (db == NULL)
+    if (db.str == NULL)
     {
       my_message(ER_NO_DB_ERROR, ER(ER_NO_DB_ERROR), MYF(0));
       return TRUE;
     }
-    *p_db= strmake(db, db_length);
-    *p_db_length= db_length;
-    return FALSE;
+    to->str= strmake(db.str, db.length);
+    to->length= db.length;
+    return to->str == NULL;                     /* True on error */
+  }
+  /* Get db name or "". Use for printing current db */
+  const char *get_db()
+  {
+    return db.str ? db.str : "";
   }
   thd_scheduler event_scheduler;
 
@@ -4185,6 +4148,11 @@ public:
   {
     parse_error(ER_SYNTAX_ERROR);
   }
+#ifdef mysqld_error_find_printf_error_used
+  void parse_error(const char *t)
+  {
+  }
+#endif
 private:
   /*
     Only the implementation of the SIGNAL and RESIGNAL statements
@@ -4264,12 +4232,12 @@ public:
     Assign a new value to thd->query and thd->query_id and mysys_var.
     Protected with LOCK_thd_data mutex.
   */
-  void set_query(char *query_arg, uint32 query_length_arg,
+  void set_query(char *query_arg, size_t query_length_arg,
                  CHARSET_INFO *cs_arg)
   {
     set_query(CSET_STRING(query_arg, query_length_arg, cs_arg));
   }
-  void set_query(char *query_arg, uint32 query_length_arg) /*Mutex protected*/
+  void set_query(char *query_arg, size_t query_length_arg) /*Mutex protected*/
   {
     set_query(CSET_STRING(query_arg, query_length_arg, charset()));
   }
@@ -4337,7 +4305,7 @@ public:
     {
       Security_context *sctx= &main_security_ctx;
       sql_print_warning(ER_THD(this, ER_NEW_ABORTING_CONNECTION),
-                        thread_id, (db ? db : "unconnected"),
+                        thread_id, (db.str ? db.str : "unconnected"),
                         sctx->user ? sctx->user : "unauthenticated",
                         sctx->host_or_ip, reason);
     }
@@ -4474,14 +4442,14 @@ public:
   TMP_TABLE_SHARE *find_tmp_table_share(const char *db,
                                         const char *table_name);
   TMP_TABLE_SHARE *find_tmp_table_share(const TABLE_LIST *tl);
-  TMP_TABLE_SHARE *find_tmp_table_share(const char *key, uint key_length);
+  TMP_TABLE_SHARE *find_tmp_table_share(const char *key, size_t key_length);
 
   bool open_temporary_table(TABLE_LIST *tl);
   bool open_temporary_tables(TABLE_LIST *tl);
 
   bool close_temporary_tables();
-  bool rename_temporary_table(TABLE *table, const char *db,
-                              const char *table_name);
+  bool rename_temporary_table(TABLE *table, const LEX_CSTRING *db,
+                              const LEX_CSTRING *table_name);
   bool drop_temporary_table(TABLE *table, bool *is_trans, bool delete_table);
   bool rm_temporary_table(handlerton *hton, const char *path);
   void mark_tmp_tables_as_free_for_reuse();
@@ -4687,6 +4655,10 @@ public:
     See also sp_head::merge_lex().
   */
   bool restore_from_local_lex_to_old_lex(LEX *oldlex);
+
+  Item *sp_fix_func_item(Item **it_addr);
+  Item *sp_prepare_func_item(Item **it_addr, uint cols= 1);
+  bool sp_eval_expr(Field *result_field, Item **expr_item_ptr);
 
   inline void prepare_logs_for_admin_command()
   {
@@ -5313,7 +5285,7 @@ public:
   void cleanup();
   virtual bool create_result_table(THD *thd, List<Item> *column_types,
                                    bool is_distinct, ulonglong options,
-                                   const char *alias, 
+                                   const LEX_CSTRING *alias,
                                    bool bit_fields_as_long,
                                    bool create_table,
                                    bool keep_row_order,
@@ -5347,7 +5319,7 @@ class select_union_recursive :public select_unit
   int send_data(List<Item> &items);
   bool create_result_table(THD *thd, List<Item> *column_types,
                            bool is_distinct, ulonglong options,
-                           const char *alias, 
+                           const LEX_CSTRING *alias,
                            bool bit_fields_as_long,
                            bool create_table,
                            bool keep_row_order,
@@ -5514,7 +5486,7 @@ public:
   { tmp_table_param.init(); }
   bool create_result_table(THD *thd, List<Item> *column_types,
                            bool is_distinct, ulonglong options,
-                           const char *alias, 
+                           const LEX_CSTRING *alias,
                            bool bit_fields_as_long,
                            bool create_table,
                            bool keep_row_order,
@@ -5731,7 +5703,7 @@ class user_var_entry
   user_var_entry() {}                         /* Remove gcc warning */
   LEX_CSTRING name;
   char *value;
-  ulong length;
+  size_t length;
   query_id_t update_query_id, used_query_id;
   Item_result type;
   bool unsigned_flag;
@@ -6214,7 +6186,7 @@ void thd_exit_cond(MYSQL_THD thd, const PSI_stage_info *stage,
 #define THD_EXIT_COND(P1, P2) \
   thd_exit_cond(P1, P2, __func__, __FILE__, __LINE__)
 
-inline bool binlog_should_compress(ulong len)
+inline bool binlog_should_compress(size_t len)
 {
   return opt_bin_log_compress &&
     len >= opt_bin_log_compress_min_len;
@@ -6315,26 +6287,6 @@ public:
   }
 };
 
-/* Functions to compare if two lex strings are equal */
-inline bool lex_string_cmp(CHARSET_INFO *charset,
-                           const LEX_CSTRING *a,
-                           const LEX_CSTRING *b)
-{
-  return my_strcasecmp(charset, a->str, b->str);
-}
-
-/*
-  Compare if two LEX_CSTRING are equal. Assumption is that
-  character set is ASCII (like for plugin names)
-*/
-inline bool lex_string_eq(const LEX_CSTRING *a,
-                          const LEX_CSTRING *b)
-{
-  if (a->length != b->length)
-    return 1;                                   /* Different */
-  return strcasecmp(a->str, b->str) != 0;
-}
-
 class Type_holder: public Sql_alloc,
                    public Item_args,
                    public Type_handler_hybrid_field_type,
@@ -6389,6 +6341,48 @@ public:
        type_handler()->Item_hybrid_func_fix_attributes(thd,
                                                        "UNION", this, this,
                                                        args, arg_count);
+  }
+};
+
+
+/*
+  A helper class to set THD flags to emit warnings/errors in case of
+  overflow/type errors during assigning values into the SP variable fields.
+  Saves original flags values in constructor.
+  Restores original flags in destructor.
+*/
+class Sp_eval_expr_state
+{
+  THD *m_thd;
+  enum_check_fields m_count_cuted_fields;
+  bool m_abort_on_warning;
+  bool m_stmt_modified_non_trans_table;
+  void start()
+  {
+    m_thd->count_cuted_fields= CHECK_FIELD_ERROR_FOR_NULL;
+    m_thd->abort_on_warning= m_thd->is_strict_mode();
+    m_thd->transaction.stmt.modified_non_trans_table= false;
+  }
+  void stop()
+  {
+    m_thd->count_cuted_fields= m_count_cuted_fields;
+    m_thd->abort_on_warning= m_abort_on_warning;
+    m_thd->transaction.stmt.modified_non_trans_table=
+      m_stmt_modified_non_trans_table;
+  }
+public:
+  Sp_eval_expr_state(THD *thd)
+   :m_thd(thd),
+    m_count_cuted_fields(thd->count_cuted_fields),
+    m_abort_on_warning(thd->abort_on_warning),
+    m_stmt_modified_non_trans_table(thd->transaction.stmt.
+                                    modified_non_trans_table)
+  {
+    start();
+  }
+  ~Sp_eval_expr_state()
+  {
+    stop();
   }
 };
 
