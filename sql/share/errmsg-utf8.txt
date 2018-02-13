@@ -7911,3 +7911,6 @@ ER_INDEX_FILE_FULL
 
 WARN_VERS_FEDERATED
         eng "System versioning is skipped for FEDERATED %`s.%`s"
+
+ER_VERS_DROP_VERSIONING_IN_SYSTEM_TIME_PARTITION
+        eng "Can not DROP SYSTEM VERSIONING for table %`s partitioned BY SYSTEM_TIME"
