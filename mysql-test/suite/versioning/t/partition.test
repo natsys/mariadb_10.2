@@ -550,6 +550,49 @@ update t1 set a = 4;
 delete from t1;
 delete from t1 where a is not null;
 
+--echo # MDEV-14675 Questionable semantics of INTERVAL values in PARTITION BY system_time: converted into seconds
+create or replace table t1 (i int) with system versioning partition by system_time interval 1 year (partition p0 history, partition pn current);
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+create or replace table t1 (i int) with system versioning partition by system_time interval 1 quarter (partition p0 history, partition pn current);
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+create or replace table t1 (i int) with system versioning partition by system_time interval 1 month (partition p0 history, partition pn current);
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+create or replace table t1 (i int) with system versioning partition by system_time interval 1 week (partition p0 history, partition pn current);
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+create or replace table t1 (i int) with system versioning partition by system_time interval 1 day (partition p0 history, partition pn current);
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+create or replace table t1 (i int) with system versioning partition by system_time interval 1 hour (partition p0 history, partition pn current);
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+create or replace table t1 (i int) with system versioning partition by system_time interval 1 minute (partition p0 history, partition pn current);
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+create or replace table t1 (i int) with system versioning partition by system_time interval 1 second (partition p0 history, partition pn current);
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+--error ER_PART_WRONG_VALUE
+create or replace table t1 (i int) with system versioning partition by system_time interval 1 microsecond (partition p0 history, partition pn current);
+--error ER_PART_WRONG_VALUE
+create or replace table t1 (i int) with system versioning partition by system_time interval -1 second (partition p0 history, partition pn current);
+
+create or replace table t1 (i int) with system versioning
+  partition by system_time interval 1 year (
+    partition p0 history, partition p1 history, partition pn current);
+insert into t1 values (1), (2);
+delete from t1 where i=1;
+set timestamp = unix_timestamp(sysdate(6) + interval 2 year);
+delete from t1 where i=2;
+set timestamp = 0;
+
+select * from t1 partition(p0);
+select * from t1 partition(p1);
+
+
 --echo # Test cleanup
 set global debug_dbug=@old_dbug;
 drop database test;

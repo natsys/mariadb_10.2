@@ -2336,11 +2336,18 @@ char *generate_partition_syntax(THD *thd, partition_info *part_info,
   {
     Vers_part_info *vers_info= part_info->vers_info;
     DBUG_ASSERT(vers_info);
-    if (vers_info->interval)
+    const Typed_interval interval= vers_info->interval;
+    if (!interval.empty())
     {
       err+= str.append(STRING_WITH_LEN("INTERVAL "));
-      err+= str.append_ulonglong(vers_info->interval);
-      err+= str.append(STRING_WITH_LEN(" SECOND "));
+      err+= str.append_ulonglong(interval.interval);
+      err+= str.append(STRING_WITH_LEN(" "));
+      size_t it= str.length();
+      err+= str.append(get_interval_name(interval.type));
+      size_t end= str.length();
+      for (; it != end; ++it)
+        str[it]= my_toupper(system_charset_info, str[it]);
+      err+= str.append(STRING_WITH_LEN(" "));
     }
     if (vers_info->limit)
     {
