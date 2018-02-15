@@ -5844,7 +5844,7 @@ opt_part_option:
 
 opt_versioning_interval:
          /* empty */ {}
-       | INTERVAL_SYM expr interval
+       | INTERVAL_SYM expr interval_time_stamp
          {
            partition_info *part_info= Lex->part_info;
            DBUG_ASSERT(part_info->part_type == VERSIONING_PARTITION);

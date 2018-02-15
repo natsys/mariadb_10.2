@@ -184,13 +184,17 @@ typedef struct st_reginfo {		/* Extra info about reg */
 
 typedef enum enum_mysql_timestamp_type timestamp_type;
 
+struct INTERVAL
+{
+  bool empty() const
+  {
+    return !year && !month && !day && !hour && !minute && !second && !second_part;
+  }
 
-typedef struct {
-  ulong year,month,day,hour;
-  ulonglong minute,second,second_part;
+  ulong year, month, day, hour;
+  ulonglong minute, second, second_part;
   bool neg;
-} INTERVAL;
-
+};
 
 typedef struct st_known_date_time_format {
   const char *format_name;

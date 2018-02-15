@@ -2336,11 +2336,41 @@ char *generate_partition_syntax(THD *thd, partition_info *part_info,
   {
     Vers_part_info *vers_info= part_info->vers_info;
     DBUG_ASSERT(vers_info);
-    if (vers_info->interval)
+    const INTERVAL &interval= vers_info->interval;
+    if (!interval.empty())
     {
       err+= str.append(STRING_WITH_LEN("INTERVAL "));
-      err+= str.append_ulonglong(vers_info->interval);
-      err+= str.append(STRING_WITH_LEN(" SECOND "));
+      switch (vers_info->get_interval_type())
+      {
+      case INTERVAL_YEAR:
+        err+= str.append_ulonglong(interval.year);
+        break;
+      case INTERVAL_MONTH:
+        err+= str.append_ulonglong(interval.month);
+        break;
+      case INTERVAL_DAY:
+        err+= str.append_ulonglong(interval.day);
+        break;
+      case INTERVAL_HOUR:
+        err+= str.append_ulonglong(interval.hour);
+        break;
+      case INTERVAL_MINUTE:
+        err+= str.append_ulonglong(interval.minute);
+        break;
+      case INTERVAL_SECOND:
+        err+= str.append_ulonglong(interval.second);
+        break;
+      default:
+        DBUG_ASSERT(false);
+        break;
+      }
+      err+= str.append(STRING_WITH_LEN(" "));
+      size_t it = str.length();
+      err+= str.append(get_interval_name(vers_info->get_interval_type()));
+      size_t end = str.length();
+      for (; it != end; ++it)
+        str[it]= my_toupper(system_charset_info, str[it]);
+      err+= str.append(STRING_WITH_LEN(" "));
     }
     if (vers_info->limit)
     {
