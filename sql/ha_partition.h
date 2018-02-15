@@ -387,6 +387,9 @@ private:
   bool m_key_not_found;
   List<String> *m_partitions_to_open;
   MY_BITMAP m_opened_partitions;
+  /** This is one of the m_file-s that it guaranteed to be opened. */
+  /**  It is set in open_read_partitions() */
+  handler *m_file_sample;
 public:
   handler **get_child_handlers()
   {
@@ -840,8 +843,7 @@ public:
                                   uint part_id);
   void set_partitions_to_open(List<String> *partition_names);
   int change_partitions_to_open(List<String> *partition_names);
-  int open_read_partitions(char *name_buff, size_t name_buff_size,
-                           handler **sample);
+  int open_read_partitions(char *name_buff, size_t name_buff_size);
   virtual int extra(enum ha_extra_function operation);
   virtual int extra_opt(enum ha_extra_function operation, ulong cachesize);
   virtual int reset(void);
@@ -868,6 +870,7 @@ private:
   void late_extra_cache(uint partition_id);
   void late_extra_no_cache(uint partition_id);
   void prepare_extra_cache(uint cachesize);
+  handler *get_open_file_sample() const { return m_file_sample; }
 public:
 
   /*
@@ -1186,7 +1189,7 @@ public:
     wrapper function for handlerton alter_table_flags, since
     the ha_partition_hton cannot know all its capabilities
   */
-  virtual uint alter_table_flags(uint flags);
+  virtual ulonglong alter_table_flags(ulonglong flags);
   /*
     unireg.cc will call the following to make sure that the storage engine
     can handle the data it is about to send.

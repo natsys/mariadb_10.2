@@ -1207,8 +1207,6 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
     */
     mysql_derived_reinit(thd, NULL, table);
 
-    thd->select_number+= table->view->number_of_selects;
-
     DEBUG_SYNC(thd, "after_cached_view_opened");
     DBUG_RETURN(0);
   }
@@ -1362,7 +1360,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
 
     lex_start(thd);
     view_select= &lex->select_lex;
-    view_select->select_number= ++thd->select_number;
+    view_select->select_number= ++thd->stmt_lex->current_select_number;
 
     sql_mode_t saved_mode= thd->variables.sql_mode;
     /* switch off modes which can prevent normal parsing of VIEW
@@ -1396,9 +1394,6 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
     /* Parse the query. */
 
     parse_status= parse_sql(thd, & parser_state, table->view_creation_ctx);
-
-    lex->number_of_selects=
-      (thd->select_number - view_select->select_number) + 1;
 
     /* Restore environment. */
 
@@ -1934,19 +1929,19 @@ bool check_key_in_view(THD *thd, TABLE_LIST *view)
       this operation should not have influence on Field::query_id, to avoid
       marking as used fields which are not used
     */
-    enum_mark_columns save_mark_used_columns= thd->mark_used_columns;
-    thd->mark_used_columns= MARK_COLUMNS_NONE;
-    DBUG_PRINT("info", ("thd->mark_used_columns: %d", thd->mark_used_columns));
+    enum_column_usage saved_column_usage= thd->column_usage;
+    thd->column_usage= COLUMNS_WRITE;
+    DBUG_PRINT("info", ("thd->column_usage: %d", thd->column_usage));
     for (Field_translator *fld= trans; fld < end_of_trans; fld++)
     {
       if (!fld->item->fixed && fld->item->fix_fields(thd, &fld->item))
       {
-        thd->mark_used_columns= save_mark_used_columns;
+        thd->column_usage= saved_column_usage;
         DBUG_RETURN(TRUE);
       }
     }
-    thd->mark_used_columns= save_mark_used_columns;
-    DBUG_PRINT("info", ("thd->mark_used_columns: %d", thd->mark_used_columns));
+    thd->column_usage= saved_column_usage;
+    DBUG_PRINT("info", ("thd->column_usage: %d", thd->column_usage));
   }
   /* Loop over all keys to see if a unique-not-null key is used */
   for (;key_info != key_info_end ; key_info++)

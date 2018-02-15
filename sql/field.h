@@ -46,6 +46,8 @@ class Item_func;
 class Item_bool_func;
 class Item_equal;
 class Virtual_tmp_table;
+class Qualified_column_ident;
+class Table_ident;
 
 enum enum_check_fields
 {
@@ -640,7 +642,7 @@ public:
     DBUG_ASSERT(size < UINT_MAX32);
     return thd_alloc(current_thd, (uint) size);
   }
-  static void operator delete(void *ptr_arg, size_t size) { TRASH(ptr_arg, size); }
+  static void operator delete(void *ptr_arg, size_t size) { TRASH_FREE(ptr_arg, size); }
   static void operator delete(void *ptr, MEM_ROOT *mem_root)
   { DBUG_ASSERT(0); }
 
@@ -982,6 +984,10 @@ public:
   bool has_explicit_value()
   {
     return bitmap_is_set(&table->has_value_set, field_index);
+  }
+  void clear_has_explicit_value()
+  {
+    bitmap_clear_bit(&table->has_value_set, field_index);
   }
   bool set_explicit_default(Item *value);
 
@@ -4380,7 +4386,6 @@ public:
   bool resolve_type_refs(THD *);
 };
 
-
 /**
   This class is used during a stored routine or a trigger execution,
   at sp_rcontext::create() time.
@@ -4402,8 +4407,8 @@ public:
 */
 class Spvar_definition: public Column_definition
 {
-  class Qualified_column_ident *m_column_type_ref; // for %TYPE
-  class Table_ident *m_table_rowtype_ref;          // for table%ROWTYPE
+  Qualified_column_ident *m_column_type_ref; // for %TYPE
+  Table_ident *m_table_rowtype_ref;          // for table%ROWTYPE
   bool m_cursor_rowtype_ref;                       // for cursor%ROWTYPE
   uint m_cursor_rowtype_offset;                    // for cursor%ROWTYPE
   Row_definition_list *m_row_field_definitions;    // for ROW
@@ -4430,20 +4435,20 @@ public:
   bool is_column_type_ref() const { return m_column_type_ref != 0; }
   bool is_table_rowtype_ref() const { return m_table_rowtype_ref != 0; }
   bool is_cursor_rowtype_ref() const { return m_cursor_rowtype_ref; }
-  class Qualified_column_ident *column_type_ref() const
+  Qualified_column_ident *column_type_ref() const
   {
     return m_column_type_ref;
   }
-  void set_column_type_ref(class Qualified_column_ident *ref)
+  void set_column_type_ref(Qualified_column_ident *ref)
   {
     m_column_type_ref= ref;
   }
 
-  class Table_ident *table_rowtype_ref() const
+  Table_ident *table_rowtype_ref() const
   {
     return m_table_rowtype_ref;
   }
-  void set_table_rowtype_ref(class Table_ident *ref)
+  void set_table_rowtype_ref(Table_ident *ref)
   {
     DBUG_ASSERT(ref);
     set_handler(&type_handler_row);

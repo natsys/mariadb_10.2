@@ -1933,6 +1933,10 @@ public:
   {
     return unit;
   }
+  operator long ()
+  {
+    return unit;
+  }
   vers_sys_type_t operator= (vers_sys_type_t _unit)
   {
     return unit= _unit;
@@ -1968,6 +1972,8 @@ struct vers_select_conds_t
     start= _start;
     end= _end;
   }
+
+  void print(String *str, enum_query_type query_type);
 
   bool init_from_sysvar(THD *thd);
 

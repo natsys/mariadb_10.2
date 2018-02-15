@@ -3490,9 +3490,11 @@ void print_keydup_error(TABLE *table, KEY *key, const char *msg, myf errflag)
 
   if (key == NULL)
   {
-    /* Key is unknown */
-    str.copy("", 0, system_charset_info);
-    my_printf_error(ER_DUP_ENTRY, msg, errflag, str.c_ptr(), "*UNKNOWN*");
+    /*
+      Key is unknown. Should only happen if storage engine reports wrong
+      duplicate key number.
+    */
+    my_printf_error(ER_DUP_ENTRY, msg, errflag, "", "*UNKNOWN*");
   }
   else
   {
@@ -3593,11 +3595,9 @@ void handler::print_error(int error, myf errflag)
     if (table)
     {
       uint key_nr=get_dup_key(error);
-      if ((int) key_nr >= 0)
+      if ((int) key_nr >= 0 && key_nr < table->s->keys)
       {
-        print_keydup_error(table,
-                           key_nr == MAX_KEY ? NULL : &table->key_info[key_nr],
-                           errflag);
+        print_keydup_error(table, &table->key_info[key_nr], errflag);
         DBUG_VOID_RETURN;
       }
     }
@@ -4727,6 +4727,7 @@ void handler::get_dynamic_partition_info(PARTITION_STATS *stat_info,
   stat_info->data_file_length=     stats.data_file_length;
   stat_info->max_data_file_length= stats.max_data_file_length;
   stat_info->index_file_length=    stats.index_file_length;
+  stat_info->max_index_file_length=stats.max_index_file_length;
   stat_info->delete_length=        stats.delete_length;
   stat_info->create_time=          stats.create_time;
   stat_info->update_time=          stats.update_time;
@@ -7135,49 +7136,8 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
   return false;
 }
 
-static bool add_field_to_drop_list_if_not_exists(THD *thd, Alter_info *alter_info, Field *field)
-{
-  DBUG_ASSERT(field);
-  DBUG_ASSERT(field->field_name.str);
-  List_iterator_fast<Alter_drop> it(alter_info->drop_list);
-  while (Alter_drop *drop= it++)
-  {
-    if (!my_strcasecmp(system_charset_info, field->field_name.str, drop->name))
-      return false;
-  }
-
-  alter_info->flags|= Alter_info::ALTER_DROP_COLUMN;
-  Alter_drop *ad= new (thd->mem_root)
-      Alter_drop(Alter_drop::COLUMN, field->field_name.str, false);
-  return !ad || alter_info->drop_list.push_back(ad, thd->mem_root);
-}
-
-static bool is_dropping_primary_key(Alter_info *alter_info)
-{
-  List_iterator_fast<Alter_drop> it(alter_info->drop_list);
-  while (Alter_drop *ad= it++)
-  {
-    if (ad->type == Alter_drop::KEY &&
-        !my_strcasecmp(system_charset_info, ad->name, primary_key_name))
-      return true;
-  }
-  return false;
-}
-
-static bool is_adding_primary_key(Alter_info *alter_info)
-{
-  List_iterator_fast<Key> it(alter_info->key_list);
-  while (Key *key= it++)
-  {
-    if (key->type == Key::PRIMARY)
-      return true;
-  }
-  return false;
-}
-
 bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
-                                          HA_CREATE_INFO *create_info,
-                                          TABLE *table)
+                                     HA_CREATE_INFO *create_info, TABLE *table)
 {
   TABLE_SHARE *share= table->s;
   const char *table_name= share->table_name.str;
@@ -7224,49 +7184,7 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
   }
 
   if (drop_versioning)
-  {
-    if (add_field_to_drop_list_if_not_exists(thd, alter_info, share->vers_start_field()) ||
-        add_field_to_drop_list_if_not_exists(thd, alter_info, share->vers_end_field()))
-      return true;
-
-    if (share->primary_key != MAX_KEY && !is_adding_primary_key(alter_info) &&
-        !is_dropping_primary_key(alter_info))
-    {
-      alter_info->flags|= Alter_info::ALTER_DROP_INDEX;
-      Alter_drop *ad= new (thd->mem_root)
-          Alter_drop(Alter_drop::KEY, primary_key_name, false);
-      if (!ad || alter_info->drop_list.push_back(ad, thd->mem_root))
-        return true;
-
-      alter_info->flags|= Alter_info::ALTER_ADD_INDEX;
-      LEX_CSTRING key_name= {NULL, 0};
-      DDL_options_st options;
-      options.init();
-      Key *pk= new (thd->mem_root)
-          Key(Key::PRIMARY, &key_name, HA_KEY_ALG_UNDEF, false, options);
-      if (!pk)
-        return true;
-
-      st_key &key= table->key_info[share->primary_key];
-      for (st_key_part_info *it= key.key_part,
-                            *end= it + key.user_defined_key_parts;
-           it != end; ++it)
-      {
-        if (it->field->vers_sys_field())
-          continue;
-
-        Key_part_spec *key_part_spec= new (thd->mem_root)
-            Key_part_spec(&it->field->field_name, it->length);
-        if (!key_part_spec ||
-            pk->columns.push_back(key_part_spec, thd->mem_root))
-          return true;
-      }
-
-      alter_info->key_list.push_back(pk);
-    }
-
     return false;
-  }
 
   {
     List_iterator_fast<Create_field> it(alter_info->create_list);
@@ -7366,60 +7284,6 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
       }
     }
 
-    if (alter_info->drop_list.elements)
-    {
-      bool done_start= false;
-      bool done_end= false;
-      List_iterator<Alter_drop> it(alter_info->drop_list);
-      while (Alter_drop *d= it++)
-      {
-        const char *name= d->name;
-        Field *f= NULL;
-        if (!done_start && is_start(name))
-        {
-          f= share->vers_start_field();
-          done_start= true;
-        }
-        else if (!done_end && is_end(name))
-        {
-          f= share->vers_end_field();
-          done_end= true;
-        }
-        else
-          continue;
-        if (f->invisible > INVISIBLE_USER)
-        {
-          my_error(ER_CANT_DROP_FIELD_OR_KEY, MYF(0), d->type_name(), name);
-          return true;
-        }
-
-        bool integer= table->vers_start_field()->type() == MYSQL_TYPE_LONGLONG;
-        Create_field *field= vers_init_sys_field(thd, name, f->flags & VERS_SYSTEM_FIELD, integer);
-        if (!field)
-          return true;
-
-        field->change= f->field_name;
-
-        alter_info->flags|= Alter_info::ALTER_CHANGE_COLUMN;
-        alter_info->create_list.push_back(field);
-
-        it.remove();
-
-        if (done_start && done_end)
-          break;
-      }
-
-      if ((done_start || done_end) && done_start != done_end)
-      {
-        String tmp;
-        tmp.append("DROP COLUMN ");
-        tmp.append(done_start ? &table->vers_end_field()->field_name
-                              : &table->vers_start_field()->field_name);
-        my_error(ER_MISSING, MYF(0), table_name, tmp.c_ptr());
-        return true;
-      }
-    }
-
     return false;
   }
 
@@ -7452,7 +7316,7 @@ Vers_parse_info::fix_create_like(Alter_info &alter_info, HA_CREATE_INFO &create_
     int remove= 2;
     while (remove && (f= it++))
     {
-      if (f->flags & (VERS_SYS_START_FLAG|VERS_SYS_END_FLAG))
+      if (f->flags & VERS_SYSTEM_FIELD)
       {
         it.remove();
         remove--;

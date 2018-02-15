@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2017, MariaDB Corporation.
+Copyright (c) 2015, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1222,10 +1222,7 @@ trx_serialise(trx_t* trx)
 		mutex_enter(&purge_sys->pq_mutex);
 	}
 
-	trx->no = trx_sys.get_new_trx_id();
-	my_atomic_store64_explicit(reinterpret_cast<int64*>
-				   (&trx->rw_trx_hash_element->no),
-				   trx->no, MY_MEMORY_ORDER_RELAXED);
+	trx_sys.assign_new_trx_no(trx);
 
 	/* If the rollack segment is not empty then the
 	new trx_t::no can't be less than any trx_t::no

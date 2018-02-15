@@ -59,128 +59,6 @@
 
 bool mysql_user_table_is_in_short_password_format= false;
 
-static const
-TABLE_FIELD_TYPE mysql_db_table_fields[MYSQL_DB_FIELD_COUNT] = {
-  {
-    { STRING_WITH_LEN("Host") },
-    { STRING_WITH_LEN("char(60)") },
-    {NULL, 0}
-  },
-  {
-    { STRING_WITH_LEN("Db") },
-    { STRING_WITH_LEN("char(64)") },
-    {NULL, 0}
-  },
-  {
-    { STRING_WITH_LEN("User") },
-    { STRING_WITH_LEN("char(") },
-    {NULL, 0}
-  },
-  {
-    { STRING_WITH_LEN("Select_priv") },
-    { STRING_WITH_LEN("enum('N','Y')") },
-    { STRING_WITH_LEN("utf8") }
-  },
-  {
-    { STRING_WITH_LEN("Insert_priv") },
-    { STRING_WITH_LEN("enum('N','Y')") },
-    { STRING_WITH_LEN("utf8") }
-  },
-  {
-    { STRING_WITH_LEN("Update_priv") },
-    { STRING_WITH_LEN("enum('N','Y')") },
-    { STRING_WITH_LEN("utf8") }
-  },
-  {
-    { STRING_WITH_LEN("Delete_priv") },
-    { STRING_WITH_LEN("enum('N','Y')") },
-    { STRING_WITH_LEN("utf8") }
-  },
-  {
-    { STRING_WITH_LEN("Create_priv") },
-    { STRING_WITH_LEN("enum('N','Y')") },
-    { STRING_WITH_LEN("utf8") }
-  },
-  {
-    { STRING_WITH_LEN("Drop_priv") },
-    { STRING_WITH_LEN("enum('N','Y')") },
-    { STRING_WITH_LEN("utf8") }
-  },
-  {
-    { STRING_WITH_LEN("Grant_priv") },
-    { STRING_WITH_LEN("enum('N','Y')") },
-    { STRING_WITH_LEN("utf8") }
-  },
-  {
-    { STRING_WITH_LEN("References_priv") },
-    { STRING_WITH_LEN("enum('N','Y')") },
-    { STRING_WITH_LEN("utf8") }
-  },
-  {
-    { STRING_WITH_LEN("Index_priv") },
-    { STRING_WITH_LEN("enum('N','Y')") },
-    { STRING_WITH_LEN("utf8") }
-  },
-  {
-    { STRING_WITH_LEN("Alter_priv") },
-    { STRING_WITH_LEN("enum('N','Y')") },
-    { STRING_WITH_LEN("utf8") }
-  },
-  {
-    { STRING_WITH_LEN("Create_tmp_table_priv") },
-    { STRING_WITH_LEN("enum('N','Y')") },
-    { STRING_WITH_LEN("utf8") }
-  },
-  {
-    { STRING_WITH_LEN("Lock_tables_priv") },
-    { STRING_WITH_LEN("enum('N','Y')") },
-    { STRING_WITH_LEN("utf8") }
-  },
-  {
-    { STRING_WITH_LEN("Create_view_priv") },
-    { STRING_WITH_LEN("enum('N','Y')") },
-    { STRING_WITH_LEN("utf8") }
-  },
-  {
-    { STRING_WITH_LEN("Show_view_priv") },
-    { STRING_WITH_LEN("enum('N','Y')") },
-    { STRING_WITH_LEN("utf8") }
-  },
-  {
-    { STRING_WITH_LEN("Create_routine_priv") },
-    { STRING_WITH_LEN("enum('N','Y')") },
-    { STRING_WITH_LEN("utf8") }
-  },
-  {
-    { STRING_WITH_LEN("Alter_routine_priv") },
-    { STRING_WITH_LEN("enum('N','Y')") },
-    { STRING_WITH_LEN("utf8") }
-  },
-  {
-    { STRING_WITH_LEN("Execute_priv") },
-    { STRING_WITH_LEN("enum('N','Y')") },
-    { STRING_WITH_LEN("utf8") }
-  },
-  {
-    { STRING_WITH_LEN("Event_priv") },
-    { STRING_WITH_LEN("enum('N','Y')") },
-    { STRING_WITH_LEN("utf8") }
-  },
-  {
-    { STRING_WITH_LEN("Trigger_priv") },
-    { STRING_WITH_LEN("enum('N','Y')") },
-    { STRING_WITH_LEN("utf8") }
-  },
-  {
-    { STRING_WITH_LEN("Truncate_versioning_priv") },
-    { STRING_WITH_LEN("enum('N','Y')") },
-    { STRING_WITH_LEN("utf8") }
-  }
-};
-
-const TABLE_FIELD_DEF
-mysql_db_table_def= {MYSQL_DB_FIELD_COUNT, mysql_db_table_fields, 0, (uint*) 0 };
-
 static LEX_CSTRING native_password_plugin_name= {
   STRING_WITH_LEN("mysql_native_password")
 };
@@ -5956,8 +5834,8 @@ static bool merge_role_db_privileges(ACL_ROLE *grantee, const char *dbname,
     (that should be merged) are sorted together. The grantee's ACL_DB element
     is not necessarily the first and may be not present at all.
   */
-  ACL_DB **first= NULL, *UNINIT_VAR(merged);
-  ulong UNINIT_VAR(access), update_flags= 0;
+  ACL_DB **first= NULL, *merged= NULL;
+  ulong access= 0, update_flags= 0;
   for (ACL_DB **cur= dbs.front(); cur <= dbs.back(); cur++)
   {
     if (!first || (!dbname && strcmp(cur[0]->db, cur[-1]->db)))
@@ -6162,8 +6040,8 @@ static bool merge_role_table_and_column_privileges(ACL_ROLE *grantee,
   }
   grants.sort(table_name_sort);
 
-  GRANT_TABLE **first= NULL, *UNINIT_VAR(merged), **cur;
-  ulong UNINIT_VAR(privs), UNINIT_VAR(cols), update_flags= 0;
+  GRANT_TABLE **first= NULL, *merged= NULL, **cur;
+  ulong privs= 0, cols= 0, update_flags= 0;
   for (cur= grants.front(); cur <= grants.back(); cur++)
   {
     if (!first ||
@@ -6286,8 +6164,8 @@ static bool merge_role_routine_grant_privileges(ACL_ROLE *grantee,
   }
   grants.sort(routine_name_sort);
 
-  GRANT_NAME **first= NULL, *UNINIT_VAR(merged);
-  ulong UNINIT_VAR(privs);
+  GRANT_NAME **first= NULL, *merged= NULL;
+  ulong privs= 0 ;
   for (GRANT_NAME **cur= grants.front(); cur <= grants.back(); cur++)
   {
     if (!first ||

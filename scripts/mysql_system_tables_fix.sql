@@ -449,7 +449,8 @@ ALTER TABLE proc MODIFY name char(64) DEFAULT '' NOT NULL,
                             'HIGH_NOT_PRECEDENCE',
                             'NO_ENGINE_SUBSTITUTION',
                             'PAD_CHAR_TO_FULL_LENGTH',
-                            'EMPTY_STRING_IS_NULL'
+                            'EMPTY_STRING_IS_NULL',
+                            'SIMULTANEOUS_ASSIGNMENT'
                             ) DEFAULT '' NOT NULL,
                  DEFAULT CHARACTER SET utf8;
 
@@ -578,7 +579,8 @@ ALTER TABLE event MODIFY sql_mode
                             'HIGH_NOT_PRECEDENCE',
                             'NO_ENGINE_SUBSTITUTION',
                             'PAD_CHAR_TO_FULL_LENGTH',
-                            'EMPTY_STRING_IS_NULL'
+                            'EMPTY_STRING_IS_NULL',
+                            'SIMULTANEOUS_ASSIGNMENT'
                             ) DEFAULT '' NOT NULL AFTER on_completion;
 ALTER TABLE event MODIFY name char(64) CHARACTER SET utf8 NOT NULL default '';
 
@@ -649,16 +651,18 @@ UPDATE user SET Create_tablespace_priv = Super_priv WHERE @hadCreateTablespacePr
 # System versioning
 #
 
-SET @had_truncate_versioning_priv := 0;
-SELECT @had_truncate_versioning_priv :=1 FROM user WHERE Truncate_versioning_priv LIKE '%';
+ALTER TABLE user change Truncate_versioning_priv Delete_history_priv enum('N','Y') COLLATE utf8_general_ci NOT NULL DEFAULT 'N';
+ALTER TABLE db change Truncate_versioning_priv Delete_history_priv enum('N','Y') COLLATE utf8_general_ci NOT NULL DEFAULT 'N';
 
-ALTER TABLE user add Truncate_versioning_priv enum('N','Y') COLLATE utf8_general_ci NOT NULL DEFAULT 'N' after Create_tablespace_priv;
-ALTER TABLE user modify Truncate_versioning_priv enum('N','Y') COLLATE utf8_general_ci NOT NULL DEFAULT 'N';
-ALTER TABLE db add Truncate_versioning_priv enum('N','Y') COLLATE utf8_general_ci NOT NULL DEFAULT 'N' after Trigger_priv;
-ALTER TABLE db modify Truncate_versioning_priv enum('N','Y') COLLATE utf8_general_ci NOT NULL DEFAULT 'N';
+SET @had_user_delete_history_priv := 0;
+SELECT @had_user_delete_history_priv :=1 FROM user WHERE Delete_history_priv LIKE '%';
 
-UPDATE user SET Truncate_versioning_priv = Super_priv WHERE @had_truncate_versioning_priv = 0;
+ALTER TABLE user add Delete_history_priv enum('N','Y') COLLATE utf8_general_ci NOT NULL DEFAULT 'N' after Create_tablespace_priv;
+ALTER TABLE user modify Delete_history_priv enum('N','Y') COLLATE utf8_general_ci NOT NULL DEFAULT 'N';
+ALTER TABLE db add Delete_history_priv enum('N','Y') COLLATE utf8_general_ci NOT NULL DEFAULT 'N' after Trigger_priv;
+ALTER TABLE db modify Delete_history_priv enum('N','Y') COLLATE utf8_general_ci NOT NULL DEFAULT 'N';
 
+UPDATE user SET Delete_history_priv = Super_priv WHERE @had_user_delete_history_priv = 0;
 
 ALTER TABLE user ADD plugin char(64) DEFAULT '',  ADD authentication_string TEXT;
 ALTER TABLE user ADD password_expired ENUM('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL;

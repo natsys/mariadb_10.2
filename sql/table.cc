@@ -1632,9 +1632,10 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
   rec_buff_length= ALIGN_SIZE(share->reclength + 1);
   share->rec_buff_length= rec_buff_length;
-  if (!(record= (uchar *) alloc_root(&share->mem_root,
-                                     rec_buff_length)))
+  if (!(record= (uchar *) alloc_root(&share->mem_root, rec_buff_length)))
     goto err;                          /* purecov: inspected */
+  MEM_NOACCESS(record, rec_buff_length);
+  MEM_UNDEFINED(record, share->reclength);
   share->default_values= record;
   memcpy(record, frm_image + record_offset, share->reclength);
 
@@ -2868,12 +2869,12 @@ static bool fix_vcol_expr(THD *thd, Virtual_column_info *vcol)
 {
   DBUG_ENTER("fix_vcol_expr");
 
-  const enum enum_mark_columns save_mark_used_columns= thd->mark_used_columns;
-  thd->mark_used_columns= MARK_COLUMNS_NONE;
+  const enum enum_column_usage saved_column_usage= thd->column_usage;
+  thd->column_usage= COLUMNS_WRITE;
 
   int error= vcol->expr->fix_fields(thd, &vcol->expr);
 
-  thd->mark_used_columns= save_mark_used_columns;
+  thd->column_usage= saved_column_usage;
 
   if (unlikely(error))
   {
@@ -3221,6 +3222,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     if (!(record= (uchar*) alloc_root(&outparam->mem_root,
                                       share->rec_buff_length * records)))
       goto err;                                   /* purecov: inspected */
+    MEM_NOACCESS(record, share->rec_buff_length * records);
   }
 
   for (i= 0; i < 3;)
@@ -3229,6 +3231,8 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     if (++i < records)
       record+= share->rec_buff_length;
   }
+  MEM_UNDEFINED(outparam->record[0], share->reclength);
+  MEM_UNDEFINED(outparam->record[1], share->reclength);
 
   if (!(field_ptr = (Field **) alloc_root(&outparam->mem_root,
                                           (uint) ((share->fields+1)*
@@ -8975,12 +8979,21 @@ void Vers_history_point::fix_item()
 
 Field *TABLE::find_field_by_name(LEX_CSTRING *str) const
 {
+  Field **tmp;
   size_t length= str->length;
-  for (Field **tmp= field; *tmp; tmp++)
+  if (s->name_hash.records)
   {
-    if ((*tmp)->field_name.length == length &&
-        !lex_string_cmp(system_charset_info, &(*tmp)->field_name, str))
-      return *tmp;
+    tmp= (Field**) my_hash_search(&s->name_hash, (uchar*) str->str, length);
+    return tmp ? field[tmp - s->field] : NULL;
+  }
+  else
+  {
+    for (tmp= field; *tmp; tmp++)
+    {
+      if ((*tmp)->field_name.length == length &&
+          !lex_string_cmp(system_charset_info, &(*tmp)->field_name, str))
+        return *tmp;
+    }
   }
   return NULL;
 }

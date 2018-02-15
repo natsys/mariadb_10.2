@@ -3090,7 +3090,7 @@ void promote_first_timestamp_column(List<Create_field> *column_definitions)
           column_definition->default_value == NULL &&   // no constant default,
           column_definition->unireg_check == Field::NONE && // no function default
           column_definition->vcol_info == NULL &&
-          !(column_definition->flags & (VERS_SYS_START_FLAG | VERS_SYS_END_FLAG))) // column isn't generated
+          !(column_definition->flags & VERS_SYSTEM_FIELD)) // column isn't generated
       {
         DBUG_PRINT("info", ("First TIMESTAMP column '%s' was promoted to "
                             "DEFAULT CURRENT_TIMESTAMP ON UPDATE "
@@ -6379,6 +6379,7 @@ remove_key:
   
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   partition_info *tab_part_info= table->part_info;
+  thd->work_part_info= thd->lex->part_info;
   if (tab_part_info)
   {
     /* ALTER TABLE ADD PARTITION IF NOT EXISTS */
@@ -6399,7 +6400,7 @@ remove_key:
                                 ER_THD(thd, ER_SAME_NAME_PARTITION),
                                 pe->partition_name);
             alter_info->flags&= ~Alter_info::ALTER_ADD_PARTITION;
-            thd->lex->part_info= NULL;
+            thd->work_part_info= NULL;
             break;
           }
         }
@@ -7869,7 +7870,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   List<Virtual_column_info> new_constraint_list;
   uint db_create_options= (table->s->db_create_options
                            & ~(HA_OPTION_PACK_RECORD));
-  uint used_fields;
+  Item::func_processor_rename column_rename_param;
+  uint used_fields, dropped_sys_vers_fields= 0;
   KEY *key_info=table->key_info;
   bool rc= TRUE;
   bool modified_primary_key= FALSE;
@@ -7921,6 +7923,11 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   if (!(used_fields & HA_CREATE_USED_SEQUENCE))
     create_info->sequence= table->s->table_type == TABLE_TYPE_SEQUENCE;
 
+  column_rename_param.db_name=       table->s->db;
+  column_rename_param.table_name=    table->s->table_name;
+  if (column_rename_param.fields.copy(&alter_info->create_list, thd->mem_root))
+    DBUG_RETURN(1);                             // OOM
+
   restore_record(table, s->default_values);     // Empty record for DEFAULT
 
   if ((create_info->fields_option_struct= (ha_field_option_struct**)
@@ -7951,7 +7958,15 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
           !my_strcasecmp(system_charset_info,field->field_name.str, drop->name))
         break;
     }
-    if (drop && (field->invisible < INVISIBLE_SYSTEM || field->vers_sys_field()))
+    /*
+      DROP COLULMN xxx
+      1. it does not see INVISIBLE_SYSTEM columns
+      2. otherwise, normally a column is dropped
+      3. unless it's a system versioning column (but see below).
+    */
+    if (drop && field->invisible < INVISIBLE_SYSTEM &&
+        !(field->flags & VERS_SYSTEM_FIELD &&
+          !(alter_info->flags & Alter_info::ALTER_DROP_SYSTEM_VERSIONING)))
     {
       /* Reset auto_increment value if it was dropped */
       if (MTYP_TYPENR(field->unireg_check) == Field::NEXT_NUMBER &&
@@ -7967,6 +7982,34 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       bitmap_set_bit(dropped_fields, field->field_index);
       continue;
     }
+
+    /* invisible versioning column is dropped automatically on DROP SYSTEM VERSIONING */
+    if (!drop && field->invisible >= INVISIBLE_SYSTEM &&
+        field->flags & VERS_SYSTEM_FIELD &&
+        alter_info->flags & Alter_info::ALTER_DROP_SYSTEM_VERSIONING)
+    {
+      if (table->s->tmp_table == NO_TMP_TABLE)
+        (void) delete_statistics_for_column(thd, table, field);
+      continue;
+    }
+
+    /*
+      If we are doing a rename of a column, update all references in virtual
+      column expressions, constraints and defaults to use the new column name
+    */
+    if (alter_info->flags & Alter_info::ALTER_RENAME_COLUMN)
+    {
+      if (field->vcol_info)
+        field->vcol_info->expr->walk(&Item::rename_fields_processor, 1,
+                                     &column_rename_param);
+      if (field->check_constraint)
+        field->check_constraint->expr->walk(&Item::rename_fields_processor, 1,
+                                            &column_rename_param);
+      if (field->default_value)
+        field->default_value->expr->walk(&Item::rename_fields_processor, 1,
+                                         &column_rename_param);
+    }
+
     /* Check if field is changed */
     def_it.rewind();
     while ((def=def_it++))
@@ -7976,7 +8019,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
                           &def->change))
 	break;
     }
-    if (def && (field->invisible < INVISIBLE_SYSTEM || field->vers_sys_field()))
+    if (def && field->invisible < INVISIBLE_SYSTEM)
     {						// Field is changed
       def->field=field;
       /*
@@ -8001,6 +8044,29 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         */
 	def_it.remove();
       }
+    }
+    else if (alter_info->flags & Alter_info::ALTER_DROP_SYSTEM_VERSIONING &&
+             field->flags & VERS_SYSTEM_FIELD &&
+             field->invisible < INVISIBLE_SYSTEM)
+    {
+      my_error(ER_VERS_SYS_FIELD_EXISTS, MYF(0), field->field_name.str);
+      goto err;
+    }
+    else if (drop && field->invisible < INVISIBLE_SYSTEM &&
+             field->flags & VERS_SYSTEM_FIELD &&
+             !(alter_info->flags & Alter_info::ALTER_DROP_SYSTEM_VERSIONING))
+    {
+      /* "dropping" a versioning field only hides it from the user */
+      def= new (thd->mem_root) Create_field(thd, field, field);
+      def->invisible= INVISIBLE_SYSTEM;
+      dropped_sys_vers_fields|= field->flags;
+      alter_info->flags|= Alter_info::ALTER_CHANGE_COLUMN;
+      if (field->flags & VERS_SYS_START_FLAG)
+        create_info->vers_info.as_row.start= def->field_name= Vers_parse_info::default_start;
+      else
+        create_info->vers_info.as_row.end= def->field_name= Vers_parse_info::default_end;
+      new_create_list.push_back(def, thd->mem_root);
+      drop_it.remove();
     }
     else
     {
@@ -8027,6 +8093,18 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
 	alter_it.remove();
       }
     }
+  }
+  if (dropped_sys_vers_fields &&
+      ((dropped_sys_vers_fields & VERS_SYSTEM_FIELD) != VERS_SYSTEM_FIELD))
+  {
+    StringBuffer<NAME_LEN*2> tmp;
+    tmp.append(STRING_WITH_LEN("DROP COLUMN "));
+    if (dropped_sys_vers_fields & VERS_SYS_START_FLAG)
+      append_identifier(thd, &tmp, &table->vers_end_field()->field_name);
+    else
+      append_identifier(thd, &tmp, &table->vers_start_field()->field_name);
+    my_error(ER_MISSING, MYF(0), table->s->table_name.str, tmp.c_ptr());
+    goto err;
   }
   def_it.rewind();
   while ((def=def_it++))			// Add new columns
@@ -8071,6 +8149,12 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     {
         alter_ctx->datetime_field= def;
         alter_ctx->error_if_not_empty= TRUE;
+    }
+    if (def->flags & VERS_SYSTEM_FIELD &&
+        !(alter_info->flags & Alter_info::ALTER_ADD_SYSTEM_VERSIONING))
+    {
+      my_error(ER_VERS_NOT_VERSIONED, MYF(0), table->s->table_name.str);
+      goto err;
     }
     if (!def->after.str)
       new_create_list.push_back(def, thd->mem_root);
@@ -8203,9 +8287,10 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     bool delete_index_stat= FALSE;
     for (uint j=0 ; j < key_info->user_defined_key_parts ; j++,key_part++)
     {
-      if (!key_part->field)
+      Field *kfield= key_part->field;
+      if (!kfield)
 	continue;				// Wrong field (from UNIREG)
-      const char *key_part_name=key_part->field->field_name.str;
+      const char *key_part_name=kfield->field_name.str;
       Create_field *cfield;
       uint key_part_length;
 
@@ -8227,7 +8312,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         if (table->s->primary_key == i)
           modified_primary_key= TRUE;
         delete_index_stat= TRUE;
-        dropped_key_part= key_part_name;
+        if (!(kfield->flags & VERS_SYSTEM_FIELD))
+          dropped_key_part= key_part_name;
 	continue;				// Field is removed
       }
       key_part_length= key_part->length;
@@ -8264,10 +8350,10 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
                 cfield->real_field_type() <= MYSQL_TYPE_BLOB) ?
                 blob_length_by_type(cfield->real_field_type()) :
                 cfield->length) <
-	     key_part_length / key_part->field->charset()->mbmaxlen)))
+	     key_part_length / kfield->charset()->mbmaxlen)))
 	  key_part_length= 0;			// Use whole field
       }
-      key_part_length /= key_part->field->charset()->mbmaxlen;
+      key_part_length /= kfield->charset()->mbmaxlen;
       key_parts.push_back(new Key_part_spec(&cfield->field_name,
 					    key_part_length),
                           thd->mem_root);
@@ -8384,7 +8470,10 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         }
       }
       if (!drop)
+      {
+        check->expr->walk(&Item::rename_fields_processor, 1, &column_rename_param);
         new_constraint_list.push_back(check, thd->mem_root);
+      }
     }
   }
   /* Add new constraints */
@@ -10496,11 +10585,12 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
           if ((int) key_nr >= 0)
           {
             const char *err_msg= ER_THD(thd, ER_DUP_ENTRY_WITH_KEY_NAME);
-            if (key_nr == 0 &&
+            if (key_nr == 0 && to->s->keys > 0 &&
                 (to->key_info[0].key_part[0].field->flags &
                  AUTO_INCREMENT_FLAG))
               err_msg= ER_THD(thd, ER_DUP_ENTRY_AUTOINCREMENT_CASE);
-            print_keydup_error(to, key_nr == MAX_KEY ? NULL :
+            print_keydup_error(to,
+                               key_nr >= to->s->keys ? NULL :
                                    &to->key_info[key_nr],
                                err_msg, MYF(0));
           }

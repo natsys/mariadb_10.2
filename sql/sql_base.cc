@@ -5352,7 +5352,7 @@ Field *view_ref_found= (Field*) 0x2;
 static void update_field_dependencies(THD *thd, Field *field, TABLE *table)
 {
   DBUG_ENTER("update_field_dependencies");
-  if (thd->mark_used_columns != MARK_COLUMNS_NONE)
+  if (should_mark_column(thd->column_usage))
   {
     MY_BITMAP *bitmap;
 
@@ -5366,7 +5366,7 @@ static void update_field_dependencies(THD *thd, Field *field, TABLE *table)
     if (field->vcol_info)
       table->mark_virtual_col(field);
 
-    if (thd->mark_used_columns == MARK_COLUMNS_READ)
+    if (thd->column_usage == MARK_COLUMNS_READ)
       bitmap= table->read_set;
     else
       bitmap= table->write_set;
@@ -5374,13 +5374,13 @@ static void update_field_dependencies(THD *thd, Field *field, TABLE *table)
     /* 
        The test-and-set mechanism in the bitmap is not reliable during
        multi-UPDATE statements under MARK_COLUMNS_READ mode
-       (thd->mark_used_columns == MARK_COLUMNS_READ), as this bitmap contains
+       (thd->column_usage == MARK_COLUMNS_READ), as this bitmap contains
        only those columns that are used in the SET clause. I.e they are being
        set here. See multi_update::prepare()
     */
     if (bitmap_fast_test_and_set(bitmap, field->field_index))
     {
-      if (thd->mark_used_columns == MARK_COLUMNS_WRITE)
+      if (thd->column_usage == MARK_COLUMNS_WRITE)
       {
         DBUG_PRINT("warning", ("Found duplicated field"));
         thd->dup_field= field;
@@ -5391,11 +5391,9 @@ static void update_field_dependencies(THD *thd, Field *field, TABLE *table)
       }
       DBUG_VOID_RETURN;
     }
-    if (table->get_fields_in_item_tree)
-      field->flags|= GET_FIXED_FIELDS_FLAG;
     table->used_fields++;
   }
-  else if (table->get_fields_in_item_tree)
+  if (table->get_fields_in_item_tree)
     field->flags|= GET_FIXED_FIELDS_FLAG;
   DBUG_VOID_RETURN;
 }
@@ -5628,7 +5626,7 @@ Field *
 find_field_in_table(THD *thd, TABLE *table, const char *name, size_t length,
                     bool allow_rowid, uint *cached_field_index_ptr)
 {
-  Field **field_ptr, *field;
+  Field *field;
   uint cached_field_index= *cached_field_index_ptr;
   DBUG_ENTER("find_field_in_table");
   DBUG_PRINT("enter", ("table: '%s', field name: '%s'", table->alias.c_ptr(),
@@ -5638,38 +5636,23 @@ find_field_in_table(THD *thd, TABLE *table, const char *name, size_t length,
   if (cached_field_index < table->s->fields &&
       !my_strcasecmp(system_charset_info,
                      table->field[cached_field_index]->field_name.str, name))
-    field_ptr= table->field + cached_field_index;
-  else if (table->s->name_hash.records)
-  {
-    field_ptr= (Field**) my_hash_search(&table->s->name_hash, (uchar*) name,
-                                        length);
-    if (field_ptr)
-    {
-      /*
-        field_ptr points to field in TABLE_SHARE. Convert it to the matching
-        field in table
-      */
-      field_ptr= (table->field + (field_ptr - table->s->field));
-    }
-  }
+    field= table->field[cached_field_index];
   else
   {
-    if (!(field_ptr= table->field))
-      DBUG_RETURN((Field *)0);
-    for (; *field_ptr; ++field_ptr)
-      if (!my_strcasecmp(system_charset_info, (*field_ptr)->field_name.str,
-                         name))
-        break;
+    LEX_CSTRING fname= {name, length};
+    field= table->find_field_by_name(&fname);
   }
 
-  if (field_ptr && *field_ptr)
+  if (field)
   {
-    if ((*field_ptr)->invisible == INVISIBLE_FULL &&
+    if (field->invisible == INVISIBLE_FULL &&
         DBUG_EVALUATE_IF("test_completely_invisible", 0, 1))
       DBUG_RETURN((Field*)0);
 
-    *cached_field_index_ptr= (uint)(field_ptr - table->field);
-    field= *field_ptr;
+    if (field->invisible == INVISIBLE_SYSTEM &&
+        thd->column_usage != MARK_COLUMNS_READ &&
+        thd->column_usage != COLUMNS_READ)
+      DBUG_RETURN((Field*)0);
   }
   else
   {
@@ -5679,6 +5662,7 @@ find_field_in_table(THD *thd, TABLE *table, const char *name, size_t length,
       DBUG_RETURN((Field*) 0);
     field= table->field[table->s->rowid_field_offset-1];
   }
+  *cached_field_index_ptr= field->field_index;
 
   update_field_dependencies(thd, field, table);
 
@@ -5855,7 +5839,7 @@ find_field_in_table_ref(THD *thd, TABLE_LIST *table_list,
       fld= WRONG_GRANT;
     else
 #endif
-      if (thd->mark_used_columns != MARK_COLUMNS_NONE)
+      if (should_mark_column(thd->column_usage))
       {
         /*
           Get rw_set correct for this field so that the handler
@@ -5872,7 +5856,7 @@ find_field_in_table_ref(THD *thd, TABLE_LIST *table_list,
             field_to_set= ((Item_field*)it)->field;
           else
           {
-            if (thd->mark_used_columns == MARK_COLUMNS_READ)
+            if (thd->column_usage == MARK_COLUMNS_READ)
               it->walk(&Item::register_field_in_read_map, 0, 0);
             else
               it->walk(&Item::register_field_in_write_map, 0, 0);
@@ -5884,7 +5868,7 @@ find_field_in_table_ref(THD *thd, TABLE_LIST *table_list,
         {
           TABLE *table= field_to_set->table;
           DBUG_ASSERT(table);
-          if (thd->mark_used_columns == MARK_COLUMNS_READ)
+          if (thd->column_usage == MARK_COLUMNS_READ)
             bitmap_set_bit(table->read_set, field_to_set->field_index);
           else
             bitmap_set_bit(table->write_set, field_to_set->field_index);
@@ -6535,6 +6519,8 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
   Query_arena *arena, backup;
   bool result= TRUE;
   bool first_outer_loop= TRUE;
+  Field *field_1, *field_2;
+  field_visibility_t field_1_invisible, field_2_invisible;
   /*
     Leaf table references to which new natural join columns are added
     if the leaves are != NULL.
@@ -6562,7 +6548,10 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
     if (!(nj_col_1= it_1.get_or_create_column_ref(thd, leaf_1)))
       goto err;
 
-    if (nj_col_1->field() && nj_col_1->field()->vers_sys_field())
+    field_1= nj_col_1->field();
+    field_1_invisible= field_1 ? field_1->invisible : VISIBLE;
+
+    if (field_1_invisible == INVISIBLE_FULL)
       continue;
 
     field_name_1= nj_col_1->name();
@@ -6571,6 +6560,9 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
     DBUG_PRINT ("info", ("field_name_1=%s.%s", 
                          nj_col_1->safe_table_name(),
                          field_name_1->str));
+
+    if (field_1_invisible && !is_using_column_1)
+      continue;
 
     /*
       Find a field with the same name in table_ref_2.
@@ -6586,6 +6578,13 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
       const LEX_CSTRING *cur_field_name_2;
       if (!(cur_nj_col_2= it_2.get_or_create_column_ref(thd, leaf_2)))
         goto err;
+
+      field_2= cur_nj_col_2->field();
+      field_2_invisible= field_2 ? field_2->invisible : VISIBLE;
+
+      if (field_2_invisible == INVISIBLE_FULL)
+        continue;
+
       cur_field_name_2= cur_nj_col_2->name();
       DBUG_PRINT ("info", ("cur_field_name_2=%s.%s", 
                            cur_nj_col_2->safe_table_name(),
@@ -6606,14 +6605,17 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
                           cur_field_name_2))
       {
         DBUG_PRINT ("info", ("match c1.is_common=%d", nj_col_1->is_common));
-        if (cur_nj_col_2->is_common ||
-            (found && (!using_fields || is_using_column_1)))
+        if (cur_nj_col_2->is_common || found)
         {
           my_error(ER_NON_UNIQ_ERROR, MYF(0), field_name_1->str, thd->where);
           goto err;
         }
-        nj_col_2= cur_nj_col_2;
-        found= TRUE;
+        if ((!using_fields && !field_2_invisible) || is_using_column_1)
+        {
+          DBUG_ASSERT(nj_col_2 == NULL);
+          nj_col_2= cur_nj_col_2;
+          found= TRUE;
+        }
       }
     }
     if (first_outer_loop && leaf_2)
@@ -6633,7 +6635,7 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
       clause (if present), mark them as common fields, and add a new
       equi-join condition to the ON clause.
     */
-    if (nj_col_2 && (!using_fields ||is_using_column_1))
+    if (nj_col_2)
     {
       /*
         Create non-fixed fully qualified field and let fix_fields to
@@ -6641,8 +6643,6 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
       */
       Item *item_1=   nj_col_1->create_item(thd);
       Item *item_2=   nj_col_2->create_item(thd);
-      Field *field_1= nj_col_1->field();
-      Field *field_2= nj_col_2->field();
       Item_ident *item_ident_1, *item_ident_2;
       Item_func_eq *eq_cond;
 
@@ -6682,11 +6682,6 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
       if (!(eq_cond= new (thd->mem_root) Item_func_eq(thd, item_ident_1, item_ident_2)))
         goto err;                               /* Out of memory. */
 
-      if (field_1 && field_1->vcol_info)
-        field_1->table->mark_virtual_col(field_1);
-      if (field_2 && field_2->vcol_info)
-        field_2->table->mark_virtual_col(field_2);
-
       /*
         Add the new equi-join condition to the ON clause. Notice that
         fix_fields() is applied to all ON conditions in setup_conds()
@@ -6704,19 +6699,9 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
                            nj_col_2->name()->str));
 
       if (field_1)
-      {
-        TABLE *table_1= nj_col_1->table_ref->table;
-        /* Mark field_1 used for table cache. */
-        bitmap_set_bit(table_1->read_set, field_1->field_index);
-        table_1->covering_keys.intersect(field_1->part_of_key);
-      }
+        update_field_dependencies(thd, field_1, field_1->table);
       if (field_2)
-      {
-        TABLE *table_2= nj_col_2->table_ref->table;
-        /* Mark field_2 used for table cache. */
-        bitmap_set_bit(table_2->read_set, field_2->field_index);
-        table_2->covering_keys.intersect(field_2->part_of_key);
-      }
+        update_field_dependencies(thd, field_2, field_2->table);
 
       if (using_fields != NULL)
         ++(*found_using_fields);
@@ -7233,12 +7218,12 @@ int setup_wild(THD *thd, TABLE_LIST *tables, List<Item> &fields,
 ****************************************************************************/
 
 bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
-                  List<Item> &fields, enum_mark_columns mark_used_columns,
+                  List<Item> &fields, enum_column_usage column_usage,
                   List<Item> *sum_func_list, List<Item> *pre_fix,
                   bool allow_sum_func)
 {
   reg2 Item *item;
-  enum_mark_columns save_mark_used_columns= thd->mark_used_columns;
+  enum_column_usage saved_column_usage= thd->column_usage;
   nesting_map save_allow_sum_func= thd->lex->allow_sum_func;
   List_iterator<Item> it(fields);
   bool save_is_item_list_lookup;
@@ -7246,8 +7231,8 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
   DBUG_ENTER("setup_fields");
   DBUG_PRINT("enter", ("ref_pointer_array: %p", ref_pointer_array.array()));
 
-  thd->mark_used_columns= mark_used_columns;
-  DBUG_PRINT("info", ("thd->mark_used_columns: %d", thd->mark_used_columns));
+  thd->column_usage= column_usage;
+  DBUG_PRINT("info", ("thd->column_usage: %d", thd->column_usage));
   if (allow_sum_func)
     thd->lex->allow_sum_func|=
       (nesting_map)1 << thd->lex->current_select->nest_level;
@@ -7300,8 +7285,8 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
     {
       thd->lex->current_select->is_item_list_lookup= save_is_item_list_lookup;
       thd->lex->allow_sum_func= save_allow_sum_func;
-      thd->mark_used_columns= save_mark_used_columns;
-      DBUG_PRINT("info", ("thd->mark_used_columns: %d", thd->mark_used_columns));
+      thd->column_usage= saved_column_usage;
+      DBUG_PRINT("info", ("thd->column_usage: %d", thd->column_usage));
       DBUG_RETURN(TRUE); /* purecov: inspected */
     }
     if (!ref.is_null())
@@ -7328,8 +7313,8 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
   thd->lex->current_select->cur_pos_in_select_list= UNDEF_POS;
 
   thd->lex->allow_sum_func= save_allow_sum_func;
-  thd->mark_used_columns= save_mark_used_columns;
-  DBUG_PRINT("info", ("thd->mark_used_columns: %d", thd->mark_used_columns));
+  thd->column_usage= saved_column_usage;
+  DBUG_PRINT("info", ("thd->column_usage: %d", thd->column_usage));
   DBUG_RETURN(MY_TEST(thd->is_error()));
 }
 
@@ -8012,8 +7997,8 @@ int setup_conds(THD *thd, TABLE_LIST *tables, List<TABLE_LIST> &leaves,
 
   select_lex->is_item_list_lookup= 0;
 
-  thd->mark_used_columns= MARK_COLUMNS_READ;
-  DBUG_PRINT("info", ("thd->mark_used_columns: %d", thd->mark_used_columns));
+  thd->column_usage= MARK_COLUMNS_READ;
+  DBUG_PRINT("info", ("thd->column_usage: %d", thd->column_usage));
   select_lex->cond_count= 0;
   select_lex->between_count= 0;
   select_lex->max_equal_elems= 0;
@@ -8107,6 +8092,8 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
   List_iterator_fast<Item> f(fields),v(values);
   Item *value, *fld;
   Item_field *field;
+  Field *rfield;
+  TABLE *table;
   bool only_unvers_fields= update && table_arg->versioned();
   bool save_abort_on_warning= thd->abort_on_warning;
   bool save_no_errors= thd->no_errors;
@@ -8118,18 +8105,7 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
     only one row.
   */
   if (fields.elements)
-  {
-    /*
-      On INSERT or UPDATE fields are checked to be from the same table,
-      thus we safely can take table from the first field.
-    */
-    fld= (Item_field*)f++;
-    field= fld->field_for_view_update();
-    DBUG_ASSERT(field);
-    DBUG_ASSERT(field->field->table == table_arg);
     table_arg->auto_increment_field_not_null= FALSE;
-    f.rewind();
-  }
 
   while ((fld= f++))
   {
@@ -8140,8 +8116,8 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
     }
     value=v++;
     DBUG_ASSERT(value);
-    Field *rfield= field->field;
-    TABLE* table= rfield->table;
+    rfield= field->field;
+    table= rfield->table;
     if (table->next_number_field &&
         rfield->field_index ==  table->next_number_field->field_index)
       table->auto_increment_field_not_null= TRUE;
@@ -8162,13 +8138,39 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
     if (only_unvers_fields && !rfield->vers_update_unversioned())
       only_unvers_fields= false;
 
-    if (rfield->stored_in_db() &&
-        (value->save_in_field(rfield, 0)) < 0 && !ignore_errors)
+    if (rfield->stored_in_db())
     {
-      my_message(ER_UNKNOWN_ERROR, ER_THD(thd, ER_UNKNOWN_ERROR), MYF(0));
-      goto err;
+      if (value->save_in_field(rfield, 0) < 0 && !ignore_errors)
+      {
+        my_message(ER_UNKNOWN_ERROR, ER_THD(thd, ER_UNKNOWN_ERROR), MYF(0));
+        goto err;
+      }
+      /*
+        In sql MODE_SIMULTANEOUS_ASSIGNMENT,
+        move field pointer on value stored in record[1]
+        which contains row before update (see MDEV-13417)
+      */
+      if (update && thd->variables.sql_mode & MODE_SIMULTANEOUS_ASSIGNMENT)
+        rfield->move_field_offset((my_ptrdiff_t) (table->record[1] -
+                                                  table->record[0]));
     }
     rfield->set_explicit_default(value);
+  }
+
+  if (update && thd->variables.sql_mode & MODE_SIMULTANEOUS_ASSIGNMENT)
+  {
+    // restore fields pointers on record[0]
+    f.rewind();
+    while ((fld= f++))
+    {
+      rfield= fld->field_for_view_update()->field;
+      if (rfield->stored_in_db())
+      {
+        table= rfield->table;
+        rfield->move_field_offset((my_ptrdiff_t) (table->record[0] -
+                                                  table->record[1]));
+      }
+    }
   }
 
   if (!update && table_arg->default_field &&
@@ -8598,8 +8600,14 @@ int init_ftfuncs(THD *thd, SELECT_LEX *select_lex, bool no_order)
     Item_func_match *ifm;
 
     while ((ifm=li++))
-      if (ifm->init_search(thd, no_order))
-        return 1;
+      if (unlikely(!ifm->fixed))
+        /*
+          it mean that clause where was FT function was removed, so we have
+          to remove the function from the list.
+        */
+        li.remove();
+      else if (ifm->init_search(thd, no_order))
+	return 1;
   }
   return 0;
 }

@@ -1767,8 +1767,6 @@ private:
   void cleanup_item_list(List<Item> &items) const;
   bool add_having_as_table_cond(JOIN_TAB *tab);
   bool make_aggr_tables_info();
-
-  void vers_check_items();
 };
 
 enum enum_with_bush_roots { WITH_BUSH_ROOTS, WITHOUT_BUSH_ROOTS};
@@ -2033,7 +2031,7 @@ int report_error(TABLE *table, int error);
 int safe_index_read(JOIN_TAB *tab);
 int get_quick_record(SQL_SELECT *select);
 int setup_order(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
-		List<Item> &fields, List <Item> &all_fields, ORDER *order,
+                List<Item> &fields, List <Item> &all_fields, ORDER *order,
                 bool from_window_spec= false);
 int setup_group(THD *thd,  Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
 		List<Item> &fields, List<Item> &all_fields, ORDER *order,
@@ -2114,7 +2112,7 @@ public:
     @param thd         - Current thread.
   */
   static void *operator new(size_t size, THD *thd) throw();
-  static void operator delete(void *ptr, size_t size) { TRASH(ptr, size); }
+  static void operator delete(void *ptr, size_t size) { TRASH_FREE(ptr, size); }
   static void operator delete(void *, THD *) throw(){}
 
   Virtual_tmp_table(THD *thd)

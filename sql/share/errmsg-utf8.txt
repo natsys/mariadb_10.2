@@ -7825,8 +7825,8 @@ ER_VERS_FIELD_WRONG_TYPE
 ER_VERS_ENGINE_UNSUPPORTED
         eng "Transaction system versioning for %`s is not supported"
 
-ER_NON_VERSIONED_FIELD_IN_HISTORICAL_QUERY
-        eng "Non-versioned field %`s in historical query"
+ER_UNUSED_23
+        eng "You should never see it"
 
 ER_PARTITION_WRONG_TYPE
         eng "Wrong partitioning type, expected type: %`s"
@@ -7908,6 +7908,9 @@ ER_VERS_INPLACE_NOT_IMPLEMENTED
 
 ER_INDEX_FILE_FULL
         eng "The index file for table '%-.192s' is full"
+
+ER_UPDATED_COLUMN_ONLY_ONCE
+        eng "The column %`s.%`s cannot be changed more than once in a single UPDATE statement"
 
 WARN_VERS_FEDERATED
         eng "System versioning is skipped for FEDERATED %`s.%`s"
