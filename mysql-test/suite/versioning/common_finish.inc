@@ -6,6 +6,7 @@ drop function non_default_engine;
 drop function sys_commit_ts;
 drop function sys_datatype;
 drop function current_row;
+drop function check_row;
 drop procedure concat_exec2;
 drop procedure concat_exec3;
 drop function check_result;

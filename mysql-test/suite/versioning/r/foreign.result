@@ -115,6 +115,9 @@ engine innodb;
 create or replace table child (
 id int primary key,
 parent_id int not null,
+row_start SYS_DATATYPE as row start invisible,
+row_end SYS_DATATYPE as row end invisible,
+period for system_time(row_start, row_end),
 constraint `parent-fk`
   foreign key (parent_id) references parent (id)
 on delete cascade
@@ -126,9 +129,9 @@ insert into child (id, parent_id) values (3, 3);
 delete from parent;
 select * from child;
 id	parent_id
-select * from child for system_time all;
-id	parent_id
-3	3
+select *, check_row(row_start, row_end) from child for system_time all;
+id	parent_id	check_row(row_start, row_end)
+3	3	HISTORICAL ROW
 drop table child;
 drop table parent;
 #################
