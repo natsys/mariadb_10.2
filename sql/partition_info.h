@@ -38,38 +38,83 @@ struct st_ddl_log_memory_entry;
 struct Typed_interval
 {
   Typed_interval() : type(INTERVAL_SECOND) { bzero(&interval, sizeof(interval)); }
-  Typed_interval(interval_type type, const INTERVAL &interval) : type(type), interval(interval) {}
-
-  bool empty() const
+  Typed_interval(interval_type type, const INTERVAL &i) : type(type)
   {
-    DBUG_ASSERT(!interval.second_part);
-    DBUG_ASSERT(!interval.neg);
-
     switch (type)
     {
     case INTERVAL_YEAR:
-      return interval.year == 0;
+      interval= i.year;
+      break;
     case INTERVAL_QUARTER:
+      interval= i.month / 3;
+      break;
     case INTERVAL_MONTH:
-      return interval.month == 0;
+      interval= i.month;
+      break;
     case INTERVAL_WEEK:
+      interval= i.day / 7;
+      break;
     case INTERVAL_DAY:
-      return interval.day == 0;
+      interval= i.day;
+      break;
     case INTERVAL_HOUR:
-      return interval.hour == 0;
+      interval= i.hour;
+      break;
     case INTERVAL_MINUTE:
-      return interval.minute == 0;
+      interval= i.minute;
+      break;
     case INTERVAL_SECOND:
-      return interval.second == 0;
+      interval= i.second;
+      break;
     default:
       DBUG_ASSERT(false);
       break;
     }
-    return false;
+  }
+
+  bool empty() const { return interval == 0; }
+
+  INTERVAL to_interval()
+  {
+    INTERVAL result;
+    bzero(&result, sizeof(result));
+
+    switch (type)
+    {
+    case INTERVAL_YEAR:
+      result.year= interval;
+      break;
+    case INTERVAL_QUARTER:
+      result.month= interval * 3;
+      break;
+    case INTERVAL_MONTH:
+      result.month= interval;
+      break;
+    case INTERVAL_WEEK:
+      result.day= interval * 7;
+      break;
+    case INTERVAL_DAY:
+      result.day= interval;
+      break;
+    case INTERVAL_HOUR:
+      result.hour= interval;
+      break;
+    case INTERVAL_MINUTE:
+      result.minute= interval;
+      break;
+    case INTERVAL_SECOND:
+      result.second= interval;
+      break;
+    default:
+      DBUG_ASSERT(false);
+      break;
+    }
+
+    return result;
   }
 
   interval_type type;
-  INTERVAL interval;
+  ulong interval;
 };
 
 struct Vers_part_info : public Sql_alloc
@@ -431,7 +476,7 @@ public:
   bool has_unique_name(partition_element *element);
 
   bool vers_init_info(THD *thd);
-  bool vers_set_interval(const Typed_interval &i);
+  bool vers_set_interval(interval_type type, const INTERVAL &i);
   bool vers_set_limit(ulonglong limit);
   partition_element* vers_part_rotate(THD *thd);
   bool vers_set_expression(THD *thd, partition_element *el, MYSQL_TIME &t);

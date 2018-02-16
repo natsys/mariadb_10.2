@@ -2336,44 +2336,15 @@ char *generate_partition_syntax(THD *thd, partition_info *part_info,
   {
     Vers_part_info *vers_info= part_info->vers_info;
     DBUG_ASSERT(vers_info);
-    const Typed_interval &interval= vers_info->interval;
+    const Typed_interval interval= vers_info->interval;
     if (!interval.empty())
     {
       err+= str.append(STRING_WITH_LEN("INTERVAL "));
-      switch (interval.type)
-      {
-      case INTERVAL_YEAR:
-        err+= str.append_ulonglong(interval.interval.year);
-        break;
-      case INTERVAL_QUARTER:
-        err+= str.append_ulonglong(interval.interval.month / 3);
-        break;
-      case INTERVAL_MONTH:
-        err+= str.append_ulonglong(interval.interval.month);
-        break;
-      case INTERVAL_WEEK:
-        err+= str.append_ulonglong(interval.interval.day / 7);
-        break;
-      case INTERVAL_DAY:
-        err+= str.append_ulonglong(interval.interval.day);
-        break;
-      case INTERVAL_HOUR:
-        err+= str.append_ulonglong(interval.interval.hour);
-        break;
-      case INTERVAL_MINUTE:
-        err+= str.append_ulonglong(interval.interval.minute);
-        break;
-      case INTERVAL_SECOND:
-        err+= str.append_ulonglong(interval.interval.second);
-        break;
-      default:
-        DBUG_ASSERT(false);
-        break;
-      }
+      err+= str.append_ulonglong(interval.interval);
       err+= str.append(STRING_WITH_LEN(" "));
-      size_t it = str.length();
+      size_t it= str.length();
       err+= str.append(get_interval_name(interval.type));
-      size_t end = str.length();
+      size_t end= str.length();
       for (; it != end; ++it)
         str[it]= my_toupper(system_charset_info, str[it]);
       err+= str.append(STRING_WITH_LEN(" "));

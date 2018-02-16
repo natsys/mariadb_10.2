@@ -872,14 +872,14 @@ bool partition_info::vers_init_info(THD * thd)
   return false;
 }
 
-bool partition_info::vers_set_interval(const Typed_interval & i)
+bool partition_info::vers_set_interval(interval_type type, const INTERVAL &i)
 {
-  if (i.interval.neg || i.interval.second_part || i.empty())
+  if (i.neg || i.second_part)
     return true;
 
   DBUG_ASSERT(vers_info);
-  vers_info->interval= i;
-  return false;
+  vers_info->interval= Typed_interval(type, i);
+  return vers_info->interval.empty();
 }
 
 bool partition_info::vers_set_limit(ulonglong limit)
@@ -3499,7 +3499,7 @@ bool partition_info::vers_interval_exceed(my_time_t max_time, partition_element 
   MYSQL_TIME min;
   current_thd->variables.time_zone->gmt_sec_to_TIME(&max, max_time);
   current_thd->variables.time_zone->gmt_sec_to_TIME(&min, min_time);
-  date_add_interval(&min, vers_info->interval.type, vers_info->interval.interval);
+  date_add_interval(&min, vers_info->interval.type, vers_info->interval.to_interval());
   return my_time_compare(&max, &min) > 0;
 }
 
