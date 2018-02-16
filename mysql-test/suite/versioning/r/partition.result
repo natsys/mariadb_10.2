@@ -618,7 +618,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `i` int(11) DEFAULT NULL
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
- PARTITION BY SYSTEM_TIME INTERVAL 3 MONTH 
+ PARTITION BY SYSTEM_TIME INTERVAL 1 QUARTER 
 (PARTITION `p0` HISTORY ENGINE = DEFAULT_ENGINE,
  PARTITION `pn` CURRENT ENGINE = DEFAULT_ENGINE)
 create or replace table t1 (i int) with system versioning partition by system_time interval 1 month (partition p0 history, partition pn current);
@@ -636,7 +636,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `i` int(11) DEFAULT NULL
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
- PARTITION BY SYSTEM_TIME INTERVAL 7 DAY 
+ PARTITION BY SYSTEM_TIME INTERVAL 1 WEEK 
 (PARTITION `p0` HISTORY ENGINE = DEFAULT_ENGINE,
  PARTITION `pn` CURRENT ENGINE = DEFAULT_ENGINE)
 create or replace table t1 (i int) with system versioning partition by system_time interval 1 day (partition p0 history, partition pn current);

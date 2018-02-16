@@ -35,6 +35,43 @@ typedef int (*get_subpart_id_func)(partition_info *part_info,
  
 struct st_ddl_log_memory_entry;
 
+struct Typed_interval
+{
+  Typed_interval() : type(INTERVAL_SECOND) { bzero(&interval, sizeof(interval)); }
+  Typed_interval(interval_type type, const INTERVAL &interval) : type(type), interval(interval) {}
+
+  bool empty() const
+  {
+    DBUG_ASSERT(!interval.second_part);
+    DBUG_ASSERT(!interval.neg);
+
+    switch (type)
+    {
+    case INTERVAL_YEAR:
+      return interval.year == 0;
+    case INTERVAL_QUARTER:
+    case INTERVAL_MONTH:
+      return interval.month == 0;
+    case INTERVAL_WEEK:
+    case INTERVAL_DAY:
+      return interval.day == 0;
+    case INTERVAL_HOUR:
+      return interval.hour == 0;
+    case INTERVAL_MINUTE:
+      return interval.minute == 0;
+    case INTERVAL_SECOND:
+      return interval.second == 0;
+    default:
+      DBUG_ASSERT(false);
+      break;
+    }
+    return false;
+  }
+
+  interval_type type;
+  INTERVAL interval;
+};
+
 struct Vers_part_info : public Sql_alloc
 {
   Vers_part_info() :
@@ -67,25 +104,7 @@ struct Vers_part_info : public Sql_alloc
     }
     return false;
   }
-  interval_type get_interval_type() const
-  {
-    DBUG_ASSERT(!interval.second_part);
-    DBUG_ASSERT(!interval.neg);
-
-    if (interval.year)
-      return INTERVAL_YEAR;
-    if (interval.month)
-      return INTERVAL_MONTH;
-    if (interval.day)
-      return INTERVAL_DAY;
-    if (interval.hour)
-      return INTERVAL_HOUR;
-    if (interval.minute)
-      return INTERVAL_MINUTE;
-    DBUG_ASSERT(interval.second);
-    return INTERVAL_SECOND;
-  }
-  INTERVAL interval;
+  Typed_interval interval;
   ulonglong limit;
   partition_element *now_part;
   partition_element *hist_part;
@@ -412,7 +431,7 @@ public:
   bool has_unique_name(partition_element *element);
 
   bool vers_init_info(THD *thd);
-  bool vers_set_interval(const INTERVAL &i);
+  bool vers_set_interval(const Typed_interval &i);
   bool vers_set_limit(ulonglong limit);
   partition_element* vers_part_rotate(THD *thd);
   bool vers_set_expression(THD *thd, partition_element *el, MYSQL_TIME &t);

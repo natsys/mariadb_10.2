@@ -872,9 +872,9 @@ bool partition_info::vers_init_info(THD * thd)
   return false;
 }
 
-bool partition_info::vers_set_interval(const INTERVAL & i)
+bool partition_info::vers_set_interval(const Typed_interval & i)
 {
-  if (i.neg || i.second_part || i.empty())
+  if (i.interval.neg || i.interval.second_part || i.interval.empty())
     return true;
 
   DBUG_ASSERT(vers_info);
@@ -3499,7 +3499,7 @@ bool partition_info::vers_interval_exceed(my_time_t max_time, partition_element 
   MYSQL_TIME min;
   current_thd->variables.time_zone->gmt_sec_to_TIME(&max, max_time);
   current_thd->variables.time_zone->gmt_sec_to_TIME(&min, min_time);
-  date_add_interval(&min, vers_info->get_interval_type(), vers_info->interval);
+  date_add_interval(&min, vers_info->interval.type, vers_info->interval.interval);
   return my_time_compare(&max, &min) > 0;
 }
 
