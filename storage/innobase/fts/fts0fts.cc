@@ -2705,6 +2705,11 @@ retry:
 	fts_table.parent = table->name.m_name;
 
 	trx = trx_allocate_for_background();
+	if (srv_read_only_mode) {
+		trx_start_internal_read_only(trx);
+	} else {
+		trx_start_internal(trx);
+	}
 
 	trx->op_info = "update the next FTS document id";
 
@@ -2813,6 +2818,10 @@ fts_update_sync_doc_id(
 	fts_cache_t*	cache = table->fts->cache;
 	char		fts_name[MAX_FULL_NAME_LEN];
 
+	if (srv_read_only_mode) {
+		return DB_READ_ONLY;
+	}
+
 	fts_table.suffix = "CONFIG";
 	fts_table.table_id = table->id;
 	fts_table.type = FTS_COMMON_TABLE;
@@ -2825,6 +2834,7 @@ fts_update_sync_doc_id(
 
 	if (!trx) {
 		trx = trx_allocate_for_background();
+		trx_start_internal(trx);
 
 		trx->op_info = "setting last FTS document id";
 		local_trx = TRUE;
@@ -3056,11 +3066,17 @@ fts_commit_table(
 /*=============*/
 	fts_trx_table_t*	ftt)		/*!< in: FTS table to commit*/
 {
+	if (srv_read_only_mode) {
+		return DB_READ_ONLY;
+	}
+
 	const ib_rbt_node_t*	node;
 	ib_rbt_t*		rows;
 	dberr_t			error = DB_SUCCESS;
 	fts_cache_t*		cache = ftt->table->fts->cache;
 	trx_t*			trx = trx_allocate_for_background();
+
+	trx_start_internal(trx);
 
 	rows = ftt->rows;
 
@@ -3890,13 +3906,7 @@ fts_doc_fetch_by_doc_id(
 	}
 
 	error = fts_eval_sql(trx, graph);
-
-	if (error == DB_SUCCESS) {
-		fts_sql_commit(trx);
-	} else {
-		fts_sql_rollback(trx);
-	}
-
+	fts_sql_commit(trx);
 	trx_free_for_background(trx);
 
 	if (!get_doc) {
@@ -4149,6 +4159,7 @@ fts_sync_begin(
 	sync->start_time = ut_time();
 
 	sync->trx = trx_allocate_for_background();
+	trx_start_internal(sync->trx);
 
 	if (fts_enable_diag_print) {
 		ib::info() << "FTS SYNC for table " << sync->table->name
@@ -4364,6 +4375,10 @@ fts_sync(
 	bool		wait,
 	bool		has_dict)
 {
+	if (srv_read_only_mode) {
+		return DB_READ_ONLY;
+	}
+
 	ulint		i;
 	dberr_t		error = DB_SUCCESS;
 	fts_cache_t*	cache = sync->table->fts->cache;
@@ -5019,7 +5034,6 @@ fts_get_rows_count(
 	char		table_name[MAX_FULL_NAME_LEN];
 
 	trx = trx_allocate_for_background();
-
 	trx->op_info = "fetching FT table rows count";
 
 	info = pars_info_create();
@@ -7341,6 +7355,11 @@ fts_load_stopword(
 
 	if (!trx) {
 		trx = trx_allocate_for_background();
+		if (srv_read_only_mode) {
+			trx_start_internal_read_only(trx);
+		} else {
+			trx_start_internal(trx);
+		}
 		trx->op_info = "upload FTS stopword";
 		new_trx = TRUE;
 	}
