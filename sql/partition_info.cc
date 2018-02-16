@@ -874,7 +874,7 @@ bool partition_info::vers_init_info(THD * thd)
 
 bool partition_info::vers_set_interval(const Typed_interval & i)
 {
-  if (i.interval.neg || i.interval.second_part || i.interval.empty())
+  if (i.interval.neg || i.interval.second_part || i.empty())
     return true;
 
   DBUG_ASSERT(vers_info);
