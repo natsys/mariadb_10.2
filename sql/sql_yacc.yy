@@ -5849,7 +5849,8 @@ opt_versioning_interval:
            partition_info *part_info= Lex->part_info;
            DBUG_ASSERT(part_info->part_type == VERSIONING_PARTITION);
            INTERVAL interval;
-           if (get_interval_value($2, $3, &interval) || part_info->vers_set_interval($3, interval))
+           if (get_interval_value($2, $3, &interval) ||
+               part_info->vers_set_interval($3, interval, $2->val_uint()))
            {
              my_error(ER_PART_WRONG_VALUE, MYF(0),
                       Lex->create_last_non_select_table->table_name.str,

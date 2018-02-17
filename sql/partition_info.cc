@@ -872,9 +872,9 @@ bool partition_info::vers_init_info(THD * thd)
   return false;
 }
 
-bool partition_info::vers_set_interval(interval_type type, const INTERVAL &i)
+bool partition_info::vers_set_interval(interval_type type, const INTERVAL &interval, ulong i)
 {
-  if (i.neg || i.second_part)
+  if (interval.neg || interval.second_part)
     return true;
 
   DBUG_ASSERT(vers_info);

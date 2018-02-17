@@ -37,40 +37,8 @@ struct st_ddl_log_memory_entry;
 
 struct Typed_interval
 {
-  Typed_interval() : type(INTERVAL_SECOND) { bzero(&interval, sizeof(interval)); }
-  Typed_interval(interval_type type, const INTERVAL &i) : type(type)
-  {
-    switch (type)
-    {
-    case INTERVAL_YEAR:
-      interval= i.year;
-      break;
-    case INTERVAL_QUARTER:
-      interval= i.month / 3;
-      break;
-    case INTERVAL_MONTH:
-      interval= i.month;
-      break;
-    case INTERVAL_WEEK:
-      interval= i.day / 7;
-      break;
-    case INTERVAL_DAY:
-      interval= i.day;
-      break;
-    case INTERVAL_HOUR:
-      interval= i.hour;
-      break;
-    case INTERVAL_MINUTE:
-      interval= i.minute;
-      break;
-    case INTERVAL_SECOND:
-      interval= i.second;
-      break;
-    default:
-      DBUG_ASSERT(false);
-      break;
-    }
-  }
+  Typed_interval() : type(INTERVAL_SECOND), interval(0) {}
+  Typed_interval(interval_type type, uint interval) : type(type), interval(interval) {}
 
   bool empty() const { return interval == 0; }
 
@@ -476,7 +444,7 @@ public:
   bool has_unique_name(partition_element *element);
 
   bool vers_init_info(THD *thd);
-  bool vers_set_interval(interval_type type, const INTERVAL &i);
+  bool vers_set_interval(interval_type type, const INTERVAL &interval, ulong i);
   bool vers_set_limit(ulonglong limit);
   partition_element* vers_part_rotate(THD *thd);
   bool vers_set_expression(THD *thd, partition_element *el, MYSQL_TIME &t);
