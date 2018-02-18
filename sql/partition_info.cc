@@ -23,6 +23,7 @@
 #include "mariadb.h"
 #include <my_global.h>
 #include <tztime.h>
+#include "sql_time.h"
 #include "sql_priv.h"
 // Required to get server definitions for mysql/plugin.h right
 #include "sql_plugin.h"
@@ -871,26 +872,14 @@ bool partition_info::vers_init_info(THD * thd)
   return false;
 }
 
-bool partition_info::vers_set_interval(const INTERVAL & i)
+bool partition_info::vers_set_interval(interval_type type, const INTERVAL &interval, ulong i)
 {
-  if (i.neg || i.second_part)
+  if (interval.neg || interval.second_part)
     return true;
 
   DBUG_ASSERT(vers_info);
-
-  // TODO: INTERVAL conversion to seconds leads to mismatch with calendar intervals (MONTH and YEAR)
-  vers_info->interval= static_cast<my_time_t>(
-    i.second +
-    i.minute * 60 +
-    i.hour * 60 * 60 +
-    i.day * 24 * 60 * 60 +
-    i.month * 30 * 24 * 60 * 60 +
-    i.year * 365 * 30 * 24 * 60 * 60);
-
-  if (vers_info->interval == 0)
-    return true;
-
-  return false;
+  vers_info->interval= Typed_interval(type, i);
+  return vers_info->interval.empty();
 }
 
 bool partition_info::vers_set_limit(ulonglong limit)
@@ -2202,7 +2191,7 @@ bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
 
   if (hist_parts > 1)
   {
-    if (unlikely(vers_info->limit == 0 && vers_info->interval == 0))
+    if (unlikely(vers_info->limit == 0 && vers_info->interval.empty()))
     {
       push_warning_printf(thd,
         Sql_condition::WARN_LEVEL_WARN,
@@ -3495,6 +3484,24 @@ bool partition_info::vers_trx_id_to_ts(THD* thd, Field* in_trx_id, Field_timesta
   return false;
 }
 
+bool partition_info::vers_interval_exceed(my_time_t max_time, partition_element *part)
+{
+  DBUG_ASSERT(vers_info);
+  if (vers_info->interval.empty())
+    return false;
+  if (!part)
+  {
+    DBUG_ASSERT(vers_info->initialized());
+    part= vers_hist_part();
+  }
+  my_time_t min_time= vers_pruning_stat(Vers_pruning_stat::ROW_END, part).min_time();
+  MYSQL_TIME max;
+  MYSQL_TIME min;
+  current_thd->variables.time_zone->gmt_sec_to_TIME(&max, max_time);
+  current_thd->variables.time_zone->gmt_sec_to_TIME(&min, min_time);
+  date_add_interval(&min, vers_info->interval.type, vers_info->interval.to_interval());
+  return my_time_compare(&max, &min) > 0;
+}
 
 void partition_info::print_debug(const char *str, uint *value)
 {

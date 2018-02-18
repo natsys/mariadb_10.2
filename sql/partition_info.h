@@ -35,17 +35,67 @@ typedef int (*get_subpart_id_func)(partition_info *part_info,
  
 struct st_ddl_log_memory_entry;
 
+struct Typed_interval
+{
+  Typed_interval() : type(INTERVAL_SECOND), interval(0) {}
+  Typed_interval(interval_type type, uint interval) : type(type), interval(interval) {}
+
+  bool empty() const { return interval == 0; }
+
+  INTERVAL to_interval()
+  {
+    INTERVAL result;
+    bzero(&result, sizeof(result));
+
+    switch (type)
+    {
+    case INTERVAL_YEAR:
+      result.year= interval;
+      break;
+    case INTERVAL_QUARTER:
+      result.month= interval * 3;
+      break;
+    case INTERVAL_MONTH:
+      result.month= interval;
+      break;
+    case INTERVAL_WEEK:
+      result.day= interval * 7;
+      break;
+    case INTERVAL_DAY:
+      result.day= interval;
+      break;
+    case INTERVAL_HOUR:
+      result.hour= interval;
+      break;
+    case INTERVAL_MINUTE:
+      result.minute= interval;
+      break;
+    case INTERVAL_SECOND:
+      result.second= interval;
+      break;
+    default:
+      DBUG_ASSERT(false);
+      break;
+    }
+
+    return result;
+  }
+
+  interval_type type;
+  ulong interval;
+};
+
 struct Vers_part_info : public Sql_alloc
 {
   Vers_part_info() :
-    interval(0),
     limit(0),
     now_part(NULL),
     hist_part(NULL),
     stat_serial(0)
   {
+    bzero(&interval, sizeof(interval));
   }
-  Vers_part_info(Vers_part_info &src) :
+  Vers_part_info(const Vers_part_info &src) :
     interval(src.interval),
     limit(src.limit),
     now_part(NULL),
@@ -67,7 +117,7 @@ struct Vers_part_info : public Sql_alloc
     }
     return false;
   }
-  my_time_t interval;
+  Typed_interval interval;
   ulonglong limit;
   partition_element *now_part;
   partition_element *hist_part;
@@ -394,7 +444,7 @@ public:
   bool has_unique_name(partition_element *element);
 
   bool vers_init_info(THD *thd);
-  bool vers_set_interval(const INTERVAL &i);
+  bool vers_set_interval(interval_type type, const INTERVAL &interval, ulong i);
   bool vers_set_limit(ulonglong limit);
   partition_element* vers_part_rotate(THD *thd);
   bool vers_set_expression(THD *thd, partition_element *el, MYSQL_TIME &t);
@@ -462,19 +512,7 @@ public:
     DBUG_ASSERT(part);
     return vers_pruning_stat(fld, part->id);
   }
-  bool vers_interval_exceed(my_time_t max_time, partition_element *part= NULL)
-  {
-    DBUG_ASSERT(vers_info);
-    if (!vers_info->interval)
-      return false;
-    if (!part)
-    {
-      DBUG_ASSERT(vers_info->initialized());
-      part= vers_hist_part();
-    }
-    my_time_t min_time= vers_pruning_stat(Vers_pruning_stat::ROW_END, part).min_time();
-    return max_time - min_time > vers_info->interval;
-  }
+  bool vers_interval_exceed(my_time_t max_time, partition_element *part= NULL);
   bool vers_interval_exceed(partition_element *part)
   {
     return vers_interval_exceed(vers_pruning_stat(Vers_pruning_stat::ROW_END, part).max_time(), part);

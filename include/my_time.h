@@ -249,6 +249,8 @@ enum interval_type
   INTERVAL_MINUTE_MICROSECOND, INTERVAL_SECOND_MICROSECOND, INTERVAL_LAST
 };
 
+const char *get_interval_name(enum interval_type type);
+
 C_MODE_END
 
 #endif /* _my_time_h_ */
