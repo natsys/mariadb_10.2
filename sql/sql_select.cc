@@ -706,23 +706,23 @@ void vers_select_conds_t::print(String *str, enum_query_type query_type)
     break;
   case SYSTEM_TIME_AS_OF:
     str->append(STRING_WITH_LEN(" FOR SYSTEM_TIME AS OF "));
-    str->append(&unit_type[start]);
+    str->append(&unit_type[start.unit]);
     start->print(str, query_type);
     break;
   case SYSTEM_TIME_FROM_TO:
     str->append(STRING_WITH_LEN(" FOR SYSTEM_TIME FROM "));
-    str->append(&unit_type[start]);
+    str->append(&unit_type[start.unit]);
     start->print(str, query_type);
     str->append(STRING_WITH_LEN(" TO "));
-    str->append(&unit_type[end]);
+    str->append(&unit_type[end.unit]);
     end->print(str, query_type);
     break;
   case SYSTEM_TIME_BETWEEN:
     str->append(STRING_WITH_LEN(" FOR SYSTEM_TIME BETWEEN "));
-    str->append(&unit_type[start]);
+    str->append(&unit_type[start.unit]);
     start->print(str, query_type);
     str->append(STRING_WITH_LEN(" AND "));
-    str->append(&unit_type[end]);
+    str->append(&unit_type[end.unit]);
     end->print(str, query_type);
     break;
   case SYSTEM_TIME_BEFORE:
@@ -997,7 +997,7 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
       case SYSTEM_TIME_AS_OF:
         trx_id0= vers_conditions.start == VERS_TIMESTAMP ?
           newx Item_func_vtq_id(thd, vers_conditions.start, TR_table::FLD_TRX_ID) :
-          vers_conditions.start;
+          vers_conditions.start.item;
         cond1= newx Item_func_vtq_trx_sees_eq(thd, trx_id0, row_start);
         cond2= newx Item_func_vtq_trx_sees(thd, row_end, trx_id0);
         break;
@@ -1005,10 +1005,10 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
       case SYSTEM_TIME_BETWEEN:
         trx_id0= vers_conditions.start == VERS_TIMESTAMP ?
           newx Item_func_vtq_id(thd, vers_conditions.start, TR_table::FLD_TRX_ID, true) :
-          vers_conditions.start;
+          vers_conditions.start.item;
         trx_id1= vers_conditions.end == VERS_TIMESTAMP ?
           newx Item_func_vtq_id(thd, vers_conditions.end, TR_table::FLD_TRX_ID, false) :
-          vers_conditions.end;
+          vers_conditions.end.item;
         cond1= vers_conditions.type == SYSTEM_TIME_FROM_TO ?
           newx Item_func_vtq_trx_sees(thd, trx_id1, row_start) :
           newx Item_func_vtq_trx_sees_eq(thd, trx_id1, row_start);
@@ -1017,7 +1017,7 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
       case SYSTEM_TIME_BEFORE:
         trx_id0= vers_conditions.start == VERS_TIMESTAMP ?
           newx Item_func_vtq_id(thd, vers_conditions.start, TR_table::FLD_TRX_ID) :
-          vers_conditions.start;
+          vers_conditions.start.item;
         cond1= newx Item_func_lt(thd, row_end, trx_id0);
         break;
       default:
