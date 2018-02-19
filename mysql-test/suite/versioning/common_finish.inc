@@ -10,4 +10,5 @@ drop function check_row;
 drop procedure concat_exec2;
 drop procedure concat_exec3;
 drop function check_result;
+drop function get_token;
 --enable_query_log
