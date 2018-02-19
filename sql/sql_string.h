@@ -473,6 +473,7 @@ public:
   }
   bool append(const String &s);
   bool append(const char *s);
+  bool append_uc(const char *s, const CHARSET_INFO *cs);
   bool append(const LEX_STRING *ls)
   {
     DBUG_ASSERT(ls->length < UINT_MAX32 &&

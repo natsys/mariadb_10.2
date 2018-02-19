@@ -539,6 +539,16 @@ bool String::append(const char *s)
   return append(s, (uint) strlen(s));
 }
 
+bool String::append_uc(const char *s, const CHARSET_INFO *cs)
+{
+  size_t it= length();
+  if (append(s))
+    return true;
+  for (size_t end= length(); it < end; ++it)
+    (*this)[it]= my_toupper(cs, (*this)[it]);
+  return false;
+}
+
 bool String::append_longlong(longlong val)
 {
   if (realloc(str_length+MAX_BIGINT_WIDTH+2))
