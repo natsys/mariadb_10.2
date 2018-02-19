@@ -872,13 +872,12 @@ bool partition_info::vers_init_info(THD * thd)
   return false;
 }
 
-bool partition_info::vers_set_interval(interval_type type, const INTERVAL &interval, ulong i)
+bool partition_info::vers_set_interval(interval_type type, int interval)
 {
-  if (interval.neg || interval.second_part)
-    return true;
-
   DBUG_ASSERT(vers_info);
-  vers_info->interval= Typed_interval(type, i);
+  if (type > INTERVAL_SECOND)
+    return true;
+  vers_info->interval= Typed_interval(type, interval);
   return vers_info->interval.empty();
 }
 

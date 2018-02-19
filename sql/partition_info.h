@@ -444,7 +444,7 @@ public:
   bool has_unique_name(partition_element *element);
 
   bool vers_init_info(THD *thd);
-  bool vers_set_interval(interval_type type, const INTERVAL &interval, ulong i);
+  bool vers_set_interval(interval_type type, int interval);
   bool vers_set_limit(ulonglong limit);
   partition_element* vers_part_rotate(THD *thd);
   bool vers_set_expression(THD *thd, partition_element *el, MYSQL_TIME &t);
