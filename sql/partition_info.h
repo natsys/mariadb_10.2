@@ -35,14 +35,21 @@ typedef int (*get_subpart_id_func)(partition_info *part_info,
  
 struct st_ddl_log_memory_entry;
 
-struct Typed_interval
+struct Interval
 {
-  Typed_interval() : type(INTERVAL_SECOND), interval(0) {}
-  Typed_interval(interval_type type, uint interval) : type(type), interval(interval) {}
+  ulonglong interval;
+  interval_type type;
 
-  bool empty() const { return interval == 0; }
+  Interval() : interval(0), type((interval_type) 0) {}
+  Interval(uint interval, interval_type type) : interval(interval), type(type) {}
 
-  INTERVAL to_interval()
+  operator bool() const { return interval > 0; }
+  operator ulonglong() const { return interval; }
+  operator interval_type() const { return type; }
+
+  const char *name() const { return get_interval_name(type); }
+
+  operator INTERVAL()
   {
     INTERVAL result;
     bzero(&result, sizeof(result));
@@ -80,9 +87,6 @@ struct Typed_interval
 
     return result;
   }
-
-  interval_type type;
-  ulong interval;
 };
 
 struct Vers_part_info : public Sql_alloc
@@ -93,7 +97,6 @@ struct Vers_part_info : public Sql_alloc
     hist_part(NULL),
     stat_serial(0)
   {
-    bzero(&interval, sizeof(interval));
   }
   Vers_part_info(const Vers_part_info &src) :
     interval(src.interval),
@@ -117,7 +120,7 @@ struct Vers_part_info : public Sql_alloc
     }
     return false;
   }
-  Typed_interval interval;
+  Interval interval;
   ulonglong limit;
   partition_element *now_part;
   partition_element *hist_part;
@@ -444,7 +447,7 @@ public:
   bool has_unique_name(partition_element *element);
 
   bool vers_init_info(THD *thd);
-  bool vers_set_interval(interval_type type, int interval);
+  bool vers_set_interval(int interval, interval_type type);
   bool vers_set_limit(ulonglong limit);
   partition_element* vers_part_rotate(THD *thd);
   bool vers_set_expression(THD *thd, partition_element *el, MYSQL_TIME &t);

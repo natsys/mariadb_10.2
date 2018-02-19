@@ -5852,7 +5852,7 @@ opt_versioning_interval:
            interval->quick_fix_field();
            longlong i= interval->val_int();
            double d= interval->val_real();
-           if (i < 1 || i != d || part_info->vers_set_interval($3, i))
+           if (i < 1 || i != d || part_info->vers_set_interval(i, $3))
            {
              my_error(ER_PART_WRONG_VALUE, MYF(0),
                       Lex->create_last_non_select_table->table_name.str,

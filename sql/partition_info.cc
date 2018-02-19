@@ -872,13 +872,13 @@ bool partition_info::vers_init_info(THD * thd)
   return false;
 }
 
-bool partition_info::vers_set_interval(interval_type type, int interval)
+bool partition_info::vers_set_interval(int interval, interval_type type)
 {
   DBUG_ASSERT(vers_info);
   if (type > INTERVAL_SECOND)
     return true;
-  vers_info->interval= Typed_interval(type, interval);
-  return vers_info->interval.empty();
+  vers_info->interval= Interval(interval, type);
+  return !vers_info->interval;
 }
 
 bool partition_info::vers_set_limit(ulonglong limit)
@@ -2190,7 +2190,7 @@ bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
 
   if (hist_parts > 1)
   {
-    if (unlikely(vers_info->limit == 0 && vers_info->interval.empty()))
+    if (unlikely(vers_info->limit == 0 && !vers_info->interval))
     {
       push_warning_printf(thd,
         Sql_condition::WARN_LEVEL_WARN,
@@ -3486,7 +3486,7 @@ bool partition_info::vers_trx_id_to_ts(THD* thd, Field* in_trx_id, Field_timesta
 bool partition_info::vers_interval_exceed(my_time_t max_time, partition_element *part)
 {
   DBUG_ASSERT(vers_info);
-  if (vers_info->interval.empty())
+  if (!vers_info->interval)
     return false;
   if (!part)
   {
@@ -3498,7 +3498,7 @@ bool partition_info::vers_interval_exceed(my_time_t max_time, partition_element 
   MYSQL_TIME min;
   current_thd->variables.time_zone->gmt_sec_to_TIME(&max, max_time);
   current_thd->variables.time_zone->gmt_sec_to_TIME(&min, min_time);
-  date_add_interval(&min, vers_info->interval.type, vers_info->interval.to_interval());
+  date_add_interval(&min, vers_info->interval.type, vers_info->interval);
   return my_time_compare(&max, &min) > 0;
 }
 
