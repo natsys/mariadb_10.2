@@ -95,6 +95,24 @@ begin
   execute stmt;
   deallocate prepare stmt;
 end~~
+
+create or replace function get_token(arr varchar(255), delim varchar(255), idx int unsigned)
+returns varchar(255)
+deterministic
+begin
+  declare len0, len1 int unsigned;
+  declare res varchar(255);
+  set len0= length(substring_index(arr, delim, idx));
+  set res= substring_index(arr, delim, idx + 1);
+  set len1= length(res);
+  if len0 = len1 then
+    return NULL;
+  end if;
+  if len0 = 0 then
+    return res;
+  end if;
+  return right(res, len1 - len0 - 1);
+end~~
 delimiter ;~~
 
 create function check_result (cond boolean)

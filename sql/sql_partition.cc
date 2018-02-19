@@ -2340,7 +2340,9 @@ char *generate_partition_syntax(THD *thd, partition_info *part_info,
     {
       err+= str.append(STRING_WITH_LEN("INTERVAL "));
       err+= str.append_ulonglong(vers_info->interval);
-      err+= str.append(STRING_WITH_LEN(" SECOND "));
+      err+= str.append(STRING_WITH_LEN(" "));
+      err+= str.append_uc(vers_info->interval.name(), system_charset_info);
+      err+= str.append(STRING_WITH_LEN(" "));
     }
     if (vers_info->limit)
     {

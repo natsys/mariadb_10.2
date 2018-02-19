@@ -2237,19 +2237,24 @@ static const char *interval_names[]=
   "second_microsecond"
 };
 
+const char *get_interval_name(enum interval_type type)
+{
+  return interval_names[static_cast<size_t>(type)];
+}
+
 void Item_date_add_interval::print(String *str, enum_query_type query_type)
 {
   args[0]->print_parenthesised(str, query_type, ADDINTERVAL_PRECEDENCE);
   str->append(date_sub_interval?" - interval ":" + interval ");
   args[1]->print_parenthesised(str, query_type, INTERVAL_PRECEDENCE);
   str->append(' ');
-  str->append(interval_names[int_type]);
+  str->append(get_interval_name(int_type));
 }
 
 void Item_extract::print(String *str, enum_query_type query_type)
 {
   str->append(STRING_WITH_LEN("extract("));
-  str->append(interval_names[int_type]);
+  str->append(get_interval_name(int_type));
   str->append(STRING_WITH_LEN(" from "));
   args[0]->print(str, query_type);
   str->append(')');
