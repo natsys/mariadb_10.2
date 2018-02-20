@@ -3531,7 +3531,6 @@ static int init_slave_thread(THD* thd, Master_info *mi,
   thd->set_time();
   /* Do not use user-supplied timeout value for system threads. */
   thd->variables.lock_wait_timeout= LONG_TIMEOUT;
-  thd->variables.vers_alter_history= VERS_ALTER_HISTORY_KEEP;
   DBUG_RETURN(0);
 }
 
