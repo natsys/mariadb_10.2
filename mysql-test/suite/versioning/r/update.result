@@ -615,10 +615,16 @@ No	A	B	C	D
 1	1	1	1	1
 2	1	1	1	1
 3	1	1	1	1
-### Issue #365, bug 7 (duplicate of historical row)
+### tempesta-tech##365, bug 7: duplicate of historical row
 create or replace table t1 (a int primary key, b int)
 with system versioning engine myisam;
 insert into t1 (a) values (1);
 replace t1 values (1,2),(1,3),(2,4);
+### tempesta-tech#470: Wrong affected rows info on UPDATE
+create or replace table t1 (x int) engine=innodb;
+insert into t1 values (1);
+update t1 set x= 1;
+affected rows: 0
+info: Rows matched: 1  Changed: 0  Warnings: 0
 drop database test;
 create database test;
