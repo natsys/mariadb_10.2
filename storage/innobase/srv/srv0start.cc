@@ -1262,7 +1262,7 @@ srv_shutdown_all_bg_threads()
 
 		if (srv_start_state_is_set(SRV_START_STATE_LOCK_SYS)) {
 			/* a. Let the lock timeout thread exit */
-			os_event_set(lock_sys->timeout_event);
+			os_event_set(lock_sys.timeout_event);
 		}
 
 		if (!srv_read_only_mode) {
@@ -1853,7 +1853,7 @@ innobase_start_or_create_for_mysql()
 	log_sys_init();
 
 	recv_sys_init();
-	lock_sys_create(srv_lock_table_size);
+	lock_sys.create(srv_lock_table_size);
 
 	/* Create i/o-handler threads: */
 
@@ -2230,6 +2230,8 @@ files_checked:
 			if (err != DB_SUCCESS) {
 				return(srv_init_abort(err));
 			}
+			/* fall through */
+		case SRV_OPERATION_RESTORE:
 			/* This must precede
 			recv_apply_hashed_log_recs(true). */
 			trx_lists_init_at_db_start();
@@ -2237,12 +2239,6 @@ files_checked:
 		case SRV_OPERATION_RESTORE_DELTA:
 		case SRV_OPERATION_BACKUP:
 			ut_ad(!"wrong mariabackup mode");
-			/* fall through */
-		case SRV_OPERATION_RESTORE:
-			/* mariabackup --prepare only deals with
-			the redo log and the data files, not with
-			transactions or the data dictionary. */
-			break;
 		}
 
 		if (srv_force_recovery < SRV_FORCE_NO_LOG_REDO) {
@@ -2569,7 +2565,7 @@ files_checked:
 			lock_wait_timeout_thread,
 			NULL, thread_ids + 2 + SRV_MAX_N_IO_THREADS);
 		thread_started[2 + SRV_MAX_N_IO_THREADS] = true;
-		lock_sys->timeout_thread_active = true;
+		lock_sys.timeout_thread_active = true;
 
 		/* Create the thread which warns of long semaphore waits */
 		srv_error_monitor_active = true;
@@ -2587,7 +2583,8 @@ files_checked:
 		srv_start_state |= SRV_START_STATE_LOCK_SYS
 			| SRV_START_STATE_MONITOR;
 
-		ut_a(trx_purge_state() == PURGE_STATE_INIT);
+		ut_ad(srv_force_recovery >= SRV_FORCE_NO_UNDO_LOG_SCAN
+		      || trx_purge_state() == PURGE_STATE_INIT);
 
 		if (srv_force_recovery < SRV_FORCE_NO_BACKGROUND) {
 			srv_undo_sources = true;
@@ -2665,7 +2662,7 @@ files_checked:
 
 		srv_start_state_set(SRV_START_STATE_PURGE);
 	} else {
-		purge_sys->state = PURGE_STATE_DISABLED;
+		purge_sys.state = PURGE_STATE_DISABLED;
 	}
 
 	srv_is_being_started = false;
@@ -2839,7 +2836,7 @@ innodb_shutdown()
 	ut_ad(trx_sys.is_initialised() || !srv_was_started);
 	ut_ad(buf_dblwr || !srv_was_started || srv_read_only_mode
 	      || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO);
-	ut_ad(lock_sys || !srv_was_started);
+	ut_ad(lock_sys.is_initialised() || !srv_was_started);
 #ifdef BTR_CUR_HASH_ADAPT
 	ut_ad(btr_search_sys || !srv_was_started);
 #endif /* BTR_CUR_HASH_ADAPT */
@@ -2875,15 +2872,11 @@ innodb_shutdown()
 		log_shutdown();
 	}
 	trx_sys.close();
-	UT_DELETE(purge_sys);
-	purge_sys = NULL;
+	purge_sys.close();
 	if (buf_dblwr) {
 		buf_dblwr_free();
 	}
-	if (lock_sys) {
-		lock_sys_close();
-	}
-
+	lock_sys.close();
 	trx_pool_close();
 
 	/* We don't create these mutexes in RO mode because we don't create

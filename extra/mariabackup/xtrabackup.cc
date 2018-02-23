@@ -255,8 +255,9 @@ it every INNOBASE_WAKE_INTERVAL'th step. */
 #define INNOBASE_WAKE_INTERVAL	32
 ulong	innobase_active_counter	= 0;
 
-
+#ifndef _WIN32
 static char *xtrabackup_debug_sync = NULL;
+#endif
 
 my_bool xtrabackup_incremental_force_scan = FALSE;
 
@@ -2455,7 +2456,7 @@ xtrabackup_copy_logfile(copy_logfile copy)
 	return(false);
 }
 
-static os_thread_ret_t log_copying_thread(void*)
+static os_thread_ret_t DECLARE_THREAD(log_copying_thread)(void*)
 {
 	/*
 	  Initialize mysys thread-specific memory so we can
@@ -2478,7 +2479,7 @@ static os_thread_ret_t log_copying_thread(void*)
 }
 
 /* io throttle watching (rough) */
-static os_thread_ret_t io_watching_thread(void*)
+static os_thread_ret_t DECLARE_THREAD(io_watching_thread)(void*)
 {
 	/* currently, for --backup only */
 	ut_a(xtrabackup_backup);
@@ -2504,7 +2505,7 @@ static os_thread_ret_t io_watching_thread(void*)
 Datafiles copying thread.*/
 static
 os_thread_ret_t
-data_copy_thread_func(
+DECLARE_THREAD(data_copy_thread_func)(
 /*==================*/
 	void *arg) /* thread context */
 {
@@ -3670,8 +3671,6 @@ fail:
 	fil_space_t*	space = fil_space_create(
 		"innodb_redo_log", SRV_LOG_SPACE_FIRST_ID, 0,
 		FIL_TYPE_LOG, NULL);
-
-	lock_sys_create(srv_lock_table_size);
 
 	for (i = 0; i < srv_n_log_files; i++) {
 		err = open_or_create_log_file(space, &log_file_created, i);
@@ -4843,37 +4842,23 @@ xtrabackup_prepare_func(char** argv)
 	}
 
 	if (ok) {
-		mtr_t			mtr;
-		mtr.start();
-		const buf_block_t*	sys_header = trx_sysf_get(&mtr, false);
+		msg("Last binlog file %s, position %lld\n",
+		    trx_sys.recovered_binlog_filename,
+		    longlong(trx_sys.recovered_binlog_offset));
 
-		if (mach_read_from_4(TRX_SYS_MYSQL_LOG_INFO
-				     + TRX_SYS_MYSQL_LOG_MAGIC_N_FLD
-				     + TRX_SYS + sys_header->frame)
-		    == TRX_SYS_MYSQL_LOG_MAGIC_N) {
-			ulonglong pos = mach_read_from_8(
-				TRX_SYS_MYSQL_LOG_INFO
-				+ TRX_SYS_MYSQL_LOG_OFFSET
-				+ TRX_SYS + sys_header->frame);
-			const char* name = reinterpret_cast<const char*>(
-				TRX_SYS_MYSQL_LOG_INFO + TRX_SYS_MYSQL_LOG_NAME
-				+ TRX_SYS + sys_header->frame);
-			msg("Last binlog file %s, position %llu\n", name, pos);
-
-			/* output to xtrabackup_binlog_pos_innodb and
-			(if backup_safe_binlog_info was available on
-			the server) to xtrabackup_binlog_info. In the
-			latter case xtrabackup_binlog_pos_innodb
-			becomes redundant and is created only for
-			compatibility. */
-			ok = store_binlog_info(
-				"xtrabackup_binlog_pos_innodb", name, pos)
-				&& (!recover_binlog_info || store_binlog_info(
-					    XTRABACKUP_BINLOG_INFO,
-					    name, pos));
-		}
-
-		mtr.commit();
+		/* output to xtrabackup_binlog_pos_innodb and
+		   (if backup_safe_binlog_info was available on
+		   the server) to xtrabackup_binlog_info. In the
+		   latter case xtrabackup_binlog_pos_innodb
+		   becomes redundant and is created only for
+		   compatibility. */
+		ok = store_binlog_info("xtrabackup_binlog_pos_innodb",
+				       trx_sys.recovered_binlog_filename,
+				       trx_sys.recovered_binlog_offset)
+		  && (!recover_binlog_info
+		      || store_binlog_info(XTRABACKUP_BINLOG_INFO,
+					   trx_sys.recovered_binlog_filename,
+					   trx_sys.recovered_binlog_offset));
 	}
 
 	/* Check whether the log is applied enough or not. */

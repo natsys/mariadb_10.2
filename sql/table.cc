@@ -3232,8 +3232,8 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     if (++i < records)
       record+= share->rec_buff_length;
   }
-  MEM_UNDEFINED(outparam->record[0], share->reclength);
-  MEM_UNDEFINED(outparam->record[1], share->reclength);
+  for (i= 0; i < records; i++)
+    MEM_UNDEFINED(outparam->record[i], share->reclength);
 
   if (!(field_ptr = (Field **) alloc_root(&outparam->mem_root,
                                           (uint) ((share->fields+1)*
@@ -8391,7 +8391,6 @@ bool TABLE_LIST::is_with_table()
 {
   return derived && derived->with_element;
 }
-
 
 uint TABLE_SHARE::actual_n_key_parts(THD *thd)
 {
