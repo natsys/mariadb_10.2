@@ -3,4 +3,5 @@ drop procedure verify_trt;
 drop procedure verify_trt_dummy;
 drop function current_row;
 drop function check_row;
+drop function check_result;
 --enable_query_log
