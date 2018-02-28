@@ -1613,6 +1613,13 @@ row_ins_check_foreign_constraint(
 		}
 	}
 
+	if (1 < my_atomic_loadlint(&table->n_foreign_key_checks_running)
+	    && que_node_get_type(thr->run_node) == QUE_NODE_INSERT) {
+		/* This is current system row insert caused BY CASCADE
+		UPDATE/SET NULL on a system versioned table. No need to check.*/
+		goto exit_func;
+	}
+
 	if (check_ref) {
 		check_table = foreign->referenced_table;
 		check_index = foreign->referenced_index;
