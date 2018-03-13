@@ -150,8 +150,6 @@ public:
   /* List of derived tables containing recursive references to this CTE */
   SQL_I_List<TABLE_LIST> derived_with_rec_ref;
 
-  vers_select_conds_t vers_conditions;
-
   With_element(LEX_CSTRING *name,
                List <LEX_CSTRING> list,
                st_select_lex_unit *unit)
@@ -248,8 +246,6 @@ public:
 
   void prepare_for_next_iteration();
 
-  st_select_lex* outer_select() const;
-
   friend class With_clause;
 };
 
@@ -325,7 +321,6 @@ public:
   }
 
   void set_owner(st_select_lex_unit *unit) { owner= unit; }
-  st_select_lex_unit *get_owner() const { return owner; }
 
   With_clause *pop() { return embedding_with_clause; }
       

@@ -763,24 +763,11 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
   if (outer_slex)
   {
     TABLE_LIST* derived= master_unit()->derived;
-    if (derived && derived->is_recursive_with_table())
-    {
-      outer_slex= derived->with->outer_select();
-      derived= outer_slex->table_list.first;
-    }
     // inner SELECT may not be a derived table (derived == NULL)
     while (derived && outer_slex && !derived->vers_conditions)
     {
       derived= outer_slex->master_unit()->derived;
-      if (derived && derived->is_recursive_with_table())
-      {
-        outer_slex= derived->with->outer_select();
-        derived= outer_slex->table_list.first;
-      }
-      else
-      {
-        outer_slex= outer_slex->outer_select();
-      }
+      outer_slex= outer_slex->outer_select();
     }
     if (derived && outer_slex)
     {

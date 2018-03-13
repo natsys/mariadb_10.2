@@ -54,7 +54,6 @@
 #include "sql_array.h"
 #include "sql_hset.h"
 #include "password.h"
-#include "sql_cte.h"
 
 #include "sql_plugin_compat.h"
 
@@ -7537,23 +7536,7 @@ bool check_grant(THD *thd, ulong want_access, TABLE_LIST *tables,
     if (tl->with ||
         (tl->select_lex &&
          (tl->with= tl->select_lex->find_table_def_in_with_clauses(tl))))
-    {
-      if (tl->with)
-      {
-        if (tl->with->vers_conditions.used)
-        {
-          if (tl->with->vers_conditions != tl->vers_conditions)
-            goto err;
-        }
-        else
-        {
-          if (tl->vers_conditions)
-            tl->with->vers_conditions= tl->vers_conditions;
-          tl->with->vers_conditions.used= true;
-        }
-      }
       continue;
-    }
 
     const ACL_internal_table_access *access=
       get_cached_table_access(&t_ref->grant.m_internal,
