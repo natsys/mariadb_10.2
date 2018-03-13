@@ -1870,6 +1870,15 @@ struct vers_select_conds_t
     end= _end;
   }
 
+  vers_select_conds_t& operator= (const vers_select_conds_t& src)
+  {
+    type= src.type;
+    used= src.used;
+    start= src.start;
+    end= src.end;
+    return *this;
+  }
+
   void print(String *str, enum_query_type query_type) const;
 
   bool init_from_sysvar(THD *thd);
