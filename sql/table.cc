@@ -8555,7 +8555,6 @@ bool fk_modifies_child(enum_fk_option opt)
   return can_write[opt];
 }
 
-
 enum TR_table::enabled TR_table::use_transaction_registry= TR_table::MAYBE;
 
 TR_table::TR_table(THD* _thd, bool rw) :
