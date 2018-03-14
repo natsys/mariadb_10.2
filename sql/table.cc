@@ -8555,6 +8555,7 @@ bool fk_modifies_child(enum_fk_option opt)
   return can_write[opt];
 }
 
+
 enum TR_table::enabled TR_table::use_transaction_registry= TR_table::MAYBE;
 
 TR_table::TR_table(THD* _thd, bool rw) :
@@ -8932,6 +8933,36 @@ void Vers_history_point::print(String *str, enum_query_type query_type,
   {
     item->print(str, query_type);
   }
+}
+
+bool TABLE_LIST::vers_outer_cte_table(TABLE_LIST *& cte_table, SELECT_LEX *& slex_out)
+{
+  uint cte_tables= 0;
+  TABLE_LIST *outer_cte= NULL;
+  SELECT_LEX *outer_slex;
+  for (SELECT_LEX *sl= with->get_owner()->get_owner()->first_select();
+        sl; sl= sl->next_select())
+  {
+    for (TABLE_LIST *tbl= sl->table_list.first; tbl; tbl= tbl->next_local)
+    {
+      if (tbl->with == with)
+      {
+        cte_tables++;
+        if (tbl->vers_conditions)
+        {
+          if (outer_cte || cte_tables > 1)
+            return true;
+          outer_cte= tbl;
+          outer_slex= sl;
+        }
+        if (outer_cte && cte_tables > 1)
+          return true;
+      }
+    }
+  }
+  cte_table= outer_cte;
+  slex_out= outer_slex;
+  return false;
 }
 
 Field *TABLE::find_field_by_name(LEX_CSTRING *str) const
