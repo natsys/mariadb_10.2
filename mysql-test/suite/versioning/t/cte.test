@@ -83,6 +83,7 @@ as
 )
 select * from ancestors;
 
+let $q=
 with recursive
 ancestors
 as
@@ -98,6 +99,8 @@ as
 )
 select * from ancestors
 for system_time as of timestamp @ts_2;
+eval $q;
+eval explain extended $q;
 
 create or replace table emp ( emp_id int, name varchar(127), mgr int) with system versioning;
 create or replace table addr ( emp_id int, address varchar(100)) with system versioning;
