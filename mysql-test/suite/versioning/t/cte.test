@@ -102,6 +102,13 @@ for system_time as of timestamp @ts_2;
 eval $q;
 eval explain extended $q;
 
+--echo # Multiple instances with SYSTEM_TIME are prohibited
+--error ER_VERS_MULTIPLE_CTE
+with cte as (select name from emp)
+select 0, 'x', 'y' union
+select 1, d.name, ctex.name from dept d, cte for system_time as of @ts_1 as ctex union
+select 2, name, 'z' from cte for system_time as of @ts_1 as ctey;
+
 create or replace table emp ( emp_id int, name varchar(127), mgr int) with system versioning;
 create or replace table addr ( emp_id int, address varchar(100)) with system versioning;
 insert emp values (1, 'bill', 0), (2, 'bill', 1), (3, 'kate', 1);
