@@ -2192,6 +2192,90 @@ row_mysql_unfreeze_data_dictionary(
 	trx->dict_operation_lock_mode = 0;
 }
 
+/** Function restores btr_pcur_t, creates dtuple_t from rec_t,
+sets row_end = CURRENT_TIMESTAMP/trx->id, inserts it to a table and updates
+table statistics.
+This is used in UPDATE CASCADE/SET NULL of a system versioning table.
+@param[in]	thr	current query thread
+@param[in]	node	a node which just updated a row in a foreign table
+@return DB_SUCCESS or some error */
+UNIV_INLINE
+dberr_t
+row_update_versioned_insert(que_thr_t* thr, const upd_node_t* node)
+{
+	const trx_t* trx = thr_get_trx(thr);
+	dict_table_t* table = node->table;
+	ut_ad(table->versioned());
+	dict_index_t* index = dict_table_get_first_index(table);
+
+	mtr_t mtr;
+	mtr.start();
+	mtr.set_named_space(index->space);
+	ut_a(node->pcur->rel_pos == BTR_PCUR_ON);
+
+	ulint mode = 0;
+	if (dict_index_is_online_ddl(index)) {
+		ut_ad(table->id != DICT_INDEXES_ID);
+		mode = BTR_MODIFY_LEAF | BTR_ALREADY_S_LATCHED;
+		mtr_s_lock(dict_index_get_lock(index), &mtr);
+	} else {
+		mode = BTR_MODIFY_LEAF;
+	}
+
+	bool success = btr_pcur_restore_position(mode, node->pcur, &mtr);
+	mtr.commit();
+
+	if (!success) {
+		return DB_RECORD_NOT_FOUND;
+	}
+
+	dtuple_t* insert_row =
+		row_build(ROW_COPY_DATA, index, btr_pcur_get_rec(node->pcur),
+			  NULL, table, NULL, NULL, NULL, thr->prebuilt->heap);
+
+	ins_node_t* insert_node =
+		ins_node_create(INS_DIRECT, table, thr->prebuilt->heap);
+
+	ins_node_set_new_row(insert_node, insert_row);
+
+	dfield_t* row_end = dtuple_get_nth_field(insert_row, table->vers_end);
+	char* where = static_cast<char*>(dfield_get_data(row_end));
+	if (dict_table_get_nth_col(table, table->vers_end)->vers_native()) {
+		mach_write_to_8(where, trx->id);
+	} else {
+		thd_get_query_start_data(trx->mysql_thd, where);
+	}
+
+	for (;;) {
+		thr->run_node = insert_node;
+		thr->prev_node = insert_node;
+
+		row_ins_step(thr);
+
+		switch (trx->error_state) {
+		case DB_LOCK_WAIT:
+			que_thr_stop_for_mysql(thr);
+			lock_wait_suspend_thread(thr);
+
+			if (trx->error_state == DB_SUCCESS) {
+				continue;
+			}
+
+			/* fall through */
+		default:
+			/* Other errors are handled for the parent node. */
+			thr->fk_cascade_depth = 0;
+			return trx->error_state;
+
+		case DB_SUCCESS:
+			srv_stats.n_rows_inserted.inc(
+				static_cast<size_t>(trx->id));
+			dict_stats_update_if_needed(table);
+			return DB_SUCCESS;
+		}
+	}
+}
+
 /**********************************************************************//**
 Does a cascaded delete or set null in a foreign key operation.
 @return error code or DB_SUCCESS */
@@ -2213,9 +2297,17 @@ row_update_cascade_for_mysql(
 
 	const trx_t* trx = thr_get_trx(thr);
 
-	bool vers_set_fields = node->table->versioned()
-				  && (node->is_delete == PLAIN_DELETE
-				      || node->update->affects_versioned());
+	bool vers_set_fields = table->versioned()
+				&& (node->is_delete == PLAIN_DELETE
+				    || node->update->affects_versioned());
+
+	if (table->versioned() && !node->is_delete
+	    && node->update->affects_versioned()) {
+		dberr_t err = row_update_versioned_insert(thr, node);
+		if (err != DB_SUCCESS) {
+			return err;
+		}
+	}
 
 	for (;;) {
 		if (vers_set_fields) {

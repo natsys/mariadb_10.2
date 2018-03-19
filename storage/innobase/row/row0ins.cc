@@ -1613,6 +1613,19 @@ row_ins_check_foreign_constraint(
 		}
 	}
 
+	if (que_node_get_type(thr->run_node) == QUE_NODE_INSERT) {
+		ins_node_t* insert_node =
+			static_cast<ins_node_t*>(thr->run_node);
+		dict_table_t* table = insert_node->index->table;
+		if (table->versioned()) {
+			dfield_t* row_end = dtuple_get_nth_field(
+				insert_node->row, table->vers_end);
+			if (row_end->vers_history_row()) {
+				goto exit_func;
+			}
+		}
+	}
+
 	if (check_ref) {
 		check_table = foreign->referenced_table;
 		check_index = foreign->referenced_index;
