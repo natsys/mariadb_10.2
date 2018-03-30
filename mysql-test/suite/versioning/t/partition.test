@@ -430,6 +430,16 @@ create or replace table t1 (i int) with system versioning partition by system_ti
 --error ER_VERS_QUERY_IN_PARTITION
 select * from t1 partition (p0) for system_time all;
 
+--echo # MDEV-15626 Assertion on update virtual column in partitioned table
+create or replace table t1 (i int, v int as (i) virtual)
+with system versioning
+partition by system_time
+subpartition by hash(v) subpartitions 3 (
+  partition p1 history,
+  partition pn current);
+insert into t1 set i= 0;
+set sql_mode= ''; update t1 set v= 1;
+
 --echo # Test cleanup
 drop database test;
 create database test;

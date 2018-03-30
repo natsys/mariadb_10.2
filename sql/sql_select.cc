@@ -740,7 +740,7 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
     {
       if (table->table && table->table->versioned())
         versioned_tables++;
-      else if (table->vers_conditions &&
+      else if (table->vers_conditions.is_set() &&
               (table->is_non_derived() || !table->vers_conditions.used))
       {
         my_error(ER_VERS_NOT_VERSIONED, MYF(0), table->alias.str);

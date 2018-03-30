@@ -1875,6 +1875,7 @@ struct vers_select_conds_t
     return type != SYSTEM_TIME_UNSPECIFIED;
   }
   void resolve_units(bool timestamps_only);
+  bool eq(const vers_select_conds_t &conds) const;
 };
 
 /*
