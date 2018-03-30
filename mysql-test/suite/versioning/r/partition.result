@@ -567,6 +567,18 @@ insert into t1 values (1),(2),(3);
 update t1 set a = 4;
 delete from t1;
 delete from t1 where a is not null;
+# MDEV-15626 Assertion on update virtual column in partitioned table
+create or replace table t1 (i int, v int as (i) virtual)
+with system versioning
+partition by system_time
+subpartition by hash(v) subpartitions 3 (
+partition p1 history,
+partition pn current);
+insert into t1 set i= 0;
+set sql_mode= '';
+update t1 set v= 1;
+Warnings:
+Warning	1906	The value specified for generated column 'v' in table 't1' ignored
 # Test cleanup
 drop database test;
 create database test;
