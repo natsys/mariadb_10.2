@@ -1645,6 +1645,18 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
   DEBUG_SYNC(thd,"dispatch_command_before_set_time");
 
   thd->set_time();
+
+  if (DBUG_EVALUATE_IF("mdev_15380_1", true, false))
+  {
+    thd->system_time.sec= 1523466002;
+    thd->system_time.sec_part= 799571;
+  }
+  if (DBUG_EVALUATE_IF("mdev_15380_2", true, false))
+  {
+    thd->system_time.sec= 1523466004;
+    thd->system_time.sec_part= 169435;
+  }
+
   if (!(server_command_flags[command] & CF_SKIP_QUERY_ID))
     thd->set_query_id(next_query_id());
   else
