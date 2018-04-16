@@ -254,10 +254,12 @@ int TABLE::delete_row()
 
   store_record(this, record[1]);
   vers_update_end();
-  file->extra(HA_EXTRA_REMEMBER_POS);
-  bool res= file->ha_update_row(record[1], record[0]);
-  file->extra(HA_EXTRA_RESTORE_POS);
-  return res;
+  int res;
+  if ((res= file->extra(HA_EXTRA_REMEMBER_POS)))
+    return res;
+  if ((res= file->ha_update_row(record[1], record[0])))
+    return res;
+  return file->extra(HA_EXTRA_RESTORE_POS);
 }
 
 

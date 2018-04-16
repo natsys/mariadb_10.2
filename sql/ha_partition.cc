@@ -8649,8 +8649,13 @@ err_handler:
 
   HA_EXTRA_REMEMBER_POS:
   HA_EXTRA_RESTORE_POS:
-    System versioning uses this for MyISAM and Aria tables. This is needed for
-    cases where Write in a middle of Search and Delete 'corrupts' saved rowid.
+    System versioning needs this for MyISAM and Aria tables.
+    On DELETE using PRIMARY KEY:
+    1) handler::ha_index_read_map() saves rowid used for row delete/update
+    2) handler::ha_update_row() can rewrite saved rowid
+    3) handler::ha_delete_row()/handler::ha_update_row() expects saved but got
+       different rowid and operation fails
+    Using those flags prevents harmful side effect of 2)
 
   4) Operations only used by temporary tables for query processing
   ----------------------------------------------------------------
