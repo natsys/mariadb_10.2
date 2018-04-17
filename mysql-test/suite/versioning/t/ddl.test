@@ -98,7 +98,7 @@ drop procedure drop_last_archive;
 select * from mysql.vtmd_template;
 show create table mysql.vtmd_template;
 
-call verify_vtq;
+call verify_trt;
 drop table t;
 drop table t_vtmd;
 

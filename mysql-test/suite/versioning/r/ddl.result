@@ -1,7 +1,7 @@
 set @@session.time_zone='+00:00';
 select ifnull(max(transaction_id), 0) into @start_trx_id from mysql.transaction_registry;
 set @test_start=now(6);
-create procedure if not exists verify_vtq()
+create procedure if not exists verify_trt()
 begin
 set @i= 0;
 select
@@ -40,17 +40,17 @@ returns varchar(255)
 deterministic
 begin
 if default_engine() = 'innodb' then
-return concat('vtq_commit_ts(', sys_field, ')');
+return concat('trt_commit_ts(', sys_field, ')');
 elseif default_engine() = 'myisam' then
 return sys_field;
 end if;
 return NULL;
 end~~
-create procedure if not exists innodb_verify_vtq(recs int)
+create procedure if not exists innodb_verify_trt(recs int)
 begin
 declare i int default 1;
 if default_engine() = 'innodb' then
-call verify_vtq;
+call verify_trt;
 elseif default_engine() = 'myisam' then
 create temporary table tmp (No int, A bool, B bool, C bool, D bool);
 while i <= recs do
@@ -186,7 +186,7 @@ vtmd_template	CREATE TABLE `vtmd_template` (
   KEY `archive_name` (`archive_name`),
   PERIOD FOR SYSTEM_TIME (`start`, `end`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin STATS_PERSISTENT=0 WITH SYSTEM VERSIONING
-call verify_vtq;
+call verify_trt;
 No	A	B	C	D
 1	1	1	1	1
 2	1	1	1	1
@@ -202,8 +202,8 @@ No	A	B	C	D
 12	1	1	1	1
 drop table t;
 drop table t_vtmd;
-drop procedure verify_vtq;
-drop procedure innodb_verify_vtq;
+drop procedure verify_trt;
+drop procedure innodb_verify_trt;
 drop function default_engine;
 drop function sys_commit_ts;
 drop function sys_datatype;

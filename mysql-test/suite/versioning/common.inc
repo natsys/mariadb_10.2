@@ -6,7 +6,7 @@ select ifnull(max(transaction_id), 0) into @start_trx_id from mysql.transaction_
 set @test_start=now(6);
 
 delimiter ~~;
-create procedure if not exists verify_vtq()
+create procedure if not exists verify_trt()
 begin
   set @i= 0;
   select
@@ -27,14 +27,14 @@ returns varchar(255)
 deterministic
 begin
   if @@default_storage_engine = 'InnoDB' then
-    return concat('vtq_commit_ts(', sys_field, ')');
+    return concat('trt_commit_ts(', sys_field, ')');
   elseif @@default_storage_engine = 'MyISAM' then
     return sys_field;
   end if;
   return NULL;
 end~~
 
-create procedure if not exists verify_vtq_dummy(recs int)
+create procedure if not exists verify_trt_dummy(recs int)
 begin
   declare i int default 1;
   create temporary table tmp (No int, A bool, B bool, C bool, D bool);
