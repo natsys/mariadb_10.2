@@ -511,6 +511,10 @@ insert into t1 values (11),(12);
 set global debug_dbug='+d,mdev_15380_2';
 delete from t1 where pk in (11, 12);
 set global debug_dbug=@old_dbug;
+# MDEV-14823 Wrong error message upon selecting from a system_time partition
+create or replace table t1 (i int) with system versioning partition by system_time limit 10 (partition p0 history, partition pn current);
+select * from t1 partition (p0) for system_time all;
+ERROR HY000: SYSTEM_TIME partitions in table `t1` does not support historical query
 # Test cleanup
 drop database test;
 create database test;
