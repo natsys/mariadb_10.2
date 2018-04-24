@@ -7919,3 +7919,6 @@ ER_VERS_DB_PROHIBITED
 
 ER_VERS_MULTIPLE_CTE
         eng "Multiple %`s prohibited in historical CTE query"
+
+ER_VERS_QUERY_IN_PARTITION
+        eng "SYSTEM_TIME partitions in table %`s does not support historical query"
