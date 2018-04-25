@@ -1,4 +1,4 @@
-call create_table('t', 'x int');
+call create_table_key('t', 'x int');
 insert t values (1, 2);
 replace t values (1, 3);
 select *, current_row(row_end) as current from t for system_time all

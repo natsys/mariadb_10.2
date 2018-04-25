@@ -1,7 +1,7 @@
 create table t (a int);
 delete history from t before system_time now();
 ERROR HY000: Table `t` is not system-versioned
-create or replace table t (a int) with system versioning;
+call create_table('t', 'a int');
 insert into t values (1);
 update t set a=2;
 set @test = 'correct';
@@ -12,7 +12,7 @@ select @test from t;
 @test
 correct
 drop table t;
-create table t (a int) with system versioning;
+call create_table('t', 'a int');
 insert into t values (1), (2);
 update t set a=11 where a=1;
 set @ts1=now(6);
@@ -48,7 +48,6 @@ drop procedure truncate_sp;
 # Truncate partitioned
 create or replace table t (a int)
 with system versioning
-engine myisam
 partition by system_time limit 1 (
 partition p0 history,
 partition p1 history,
@@ -61,7 +60,7 @@ select * from t for system_time all;
 a
 3
 # VIEW
-create or replace table t (i int) with system versioning;
+call create_table('t', 'i int');
 delete history from t;
 create or replace view v as select * from t;
 delete history from v;
@@ -86,3 +85,5 @@ ERROR 42S02: 'v' is a view
 unlock tables;
 drop view v;
 drop table t;
+drop database test;
+create database test;

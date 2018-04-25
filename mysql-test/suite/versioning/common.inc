@@ -84,4 +84,18 @@ begin
 end~~
 delimiter ;~~
 
+delimiter ~~;
+create procedure create_table(name varchar(255), cols varchar(255))
+begin
+  if (@MTR_COMBINATION_TRX_ID) then
+    set cols= concat(cols, ',
+      row_start bigint (20) unsigned as row start invisible,
+      row_end bigint (20) unsigned as row end invisible,
+      period for system_time (row_start, row_end)');
+  end if;
+  set @str= concat('create or replace table ', name, '(', cols, ') with system versioning');
+  prepare ct_stmt from @str; execute ct_stmt; drop prepare ct_stmt;
+end~~
+delimiter ;~~
+
 --enable_query_log
