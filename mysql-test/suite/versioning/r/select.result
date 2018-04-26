@@ -537,6 +537,17 @@ a
 1
 select * from t1 for system_time from @t2 to @t1;
 a
+#
+# MDEV-15947 ASAN heap-use-after-free in Item_ident::print or in my_strcasecmp_utf8 or unexpected ER_BAD_FIELD_ERROR upon call of stored procedure reading from versioned table
+#
+create or replace table t1 (i int) with system versioning;
+create or replace procedure p() select * from t1;
+call p;
+i
+flush tables;
+call p;
+i
+drop procedure p;
 drop table t1;
 #
 # MDEV-15991 Server crashes in setup_on_expr upon calling SP or function executing DML on versioned tables
