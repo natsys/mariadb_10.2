@@ -524,6 +524,30 @@ call p;
 i
 drop procedure p;
 drop table t1;
+#
+# MDEV-15980 FOR SYSTEM_TIME BETWEEN and FROM .. TO work with negative intervals
+#
+create or replace table t1 (
+a int,
+row_start SYS_DATATYPE as row start invisible,
+row_end SYS_DATATYPE as row end invisible,
+period for system_time (row_start, row_end)
+) with system versioning;
+insert into t1 values (1);
+delete from t1;
+select row_start from t1 for system_time all into @t1;
+select row_end from t1 for system_time all into @t2;
+select * from t1 for system_time between @t1 and @t2;
+a
+1
+select * from t1 for system_time between @t2 and @t1;
+a
+select * from t1 for system_time from @t1 to @t2;
+a
+1
+select * from t1 for system_time from @t2 to @t1;
+a
+drop table t1;
 call verify_trt_dummy(34);
 No	A	B	C	D
 1	1	1	1	1
