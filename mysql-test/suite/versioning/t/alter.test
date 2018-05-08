@@ -12,6 +12,10 @@ show create table t;
 
 --error ER_VERS_ALTER_NOT_ALLOWED
 alter table t add column y int;
+--error ER_VERS_ALTER_NOT_ALLOWED
+alter table t add primary key (a);
+--error ER_VERS_ALTER_NOT_ALLOWED
+alter table t add unique key (a);
 --error ER_VERS_ALTER_ENGINE_PROHIBITED
 alter table t engine innodb;
 
