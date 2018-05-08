@@ -7897,6 +7897,7 @@ void TABLE::vers_update_fields()
     if (vers_start_field()->store_timestamp(in_use->query_start(),
                                             in_use->query_start_sec_part()))
       DBUG_ASSERT(0);
+    bitmap_set_bit(read_set, vers_start_field()->field_index);
   }
   else
   {
