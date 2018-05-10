@@ -458,5 +458,4 @@ create or replace table t1 (i int, j int as (i), s timestamp(6) as row start, e 
 --error ER_VERS_ALTER_SYSTEM_FIELD
 alter table t1 modify s timestamp(6) as row start;
 
-drop database test;
-create database test;
+--source suite/versioning/common_finish.inc

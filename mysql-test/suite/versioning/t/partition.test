@@ -445,6 +445,5 @@ create or replace table t1 (i int) with system versioning partition by system_ti
 --error ER_VERS_QUERY_IN_PARTITION
 select * from t1 partition (p0) for system_time all;
 
---echo # Test cleanup
-drop database test;
-create database test;
+--source suite/versioning/common_finish.inc
+

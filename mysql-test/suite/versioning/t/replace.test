@@ -16,6 +16,5 @@ create or replace table t2 (c int);
 create or replace view v as select t1.* from t1 join t2;
 replace into v (a, b) select a, b from t1;
 
+--source suite/versioning/common_finish.inc
 
-drop database test;
-create database test;

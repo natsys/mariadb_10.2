@@ -532,5 +532,3 @@ use test;
 create or replace table t1 (i int, j int as (i), s timestamp(6) as row start, e timestamp(6) as row end, period for system_time(s,e)) with system versioning;
 alter table t1 modify s timestamp(6) as row start;
 ERROR HY000: Can not change system versioning field `s`
-drop database test;
-create database test;

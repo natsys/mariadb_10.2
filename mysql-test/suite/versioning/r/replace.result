@@ -12,5 +12,3 @@ insert into t1 values (1,1);
 create or replace table t2 (c int);
 create or replace view v as select t1.* from t1 join t2;
 replace into v (a, b) select a, b from t1;
-drop database test;
-create database test;
