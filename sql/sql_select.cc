@@ -725,7 +725,7 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
   TABLE_LIST *table;
 
   if (!thd->stmt_arena->is_conventional() &&
-      !thd->stmt_arena->is_stmt_prepare_or_first_sp_execute())
+      !thd->stmt_arena->is_stmt_prepare())
   {
     // statement is already prepared
     DBUG_RETURN(0);
