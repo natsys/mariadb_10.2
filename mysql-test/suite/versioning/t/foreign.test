@@ -1,4 +1,4 @@
---source suite/versioning/primary_only.inc
+--source suite/versioning/key_type.inc
 --source suite/versioning/common.inc
 
 --echo #################
