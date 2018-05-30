@@ -1,9 +1,10 @@
-create table t (
-id int primary key,
+create or replace table t(
+id int,
+KEY_TYPE(id),
 x int,
 row_start SYS_DATATYPE as row start invisible,
 row_end SYS_DATATYPE as row end invisible,
-period for system_time (row_start, row_end)
+period for system_time(row_start, row_end)
 ) with system versioning;
 insert t values (1, 2);
 replace t values (1, 3);
