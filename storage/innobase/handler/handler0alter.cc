@@ -87,7 +87,6 @@ static const alter_table_operations INNOBASE_ALTER_REBUILD
 	/*
 	| ALTER_STORED_COLUMN_TYPE
 	*/
-	| ALTER_COLUMN_UNVERSIONED
 	| ALTER_ADD_SYSTEM_VERSIONING
 	| ALTER_DROP_SYSTEM_VERSIONING
 	;
@@ -129,6 +128,7 @@ static const alter_table_operations INNOBASE_ALTER_INSTANT
 	| ALTER_ADD_VIRTUAL_COLUMN
 	| INNOBASE_FOREIGN_OPERATIONS
 	| ALTER_COLUMN_EQUAL_PACK_LENGTH
+	| ALTER_COLUMN_UNVERSIONED
 	| ALTER_DROP_VIRTUAL_COLUMN;
 
 static const alter_table_operations INNOBASE_DEFAULTS
@@ -8428,6 +8428,63 @@ innobase_update_foreign_cache(
 	DBUG_RETURN(err);
 }
 
+/** Changes WITH/WITHOUT SYSTEM VERSIONING for fields.
+@param ha_alter_info Data used during in-place alter
+@param ctx In-place ALTER TABLE context
+@param table MySQL table as it is before the ALTER operation */
+static
+void
+innobase_change_fields_versioning(
+	Alter_inplace_info*		ha_alter_info,
+	ha_innobase_inplace_ctx*	ctx,
+	const TABLE*			table)
+{
+	DBUG_ENTER("innobase_change_fields_versioning");
+
+	DBUG_ASSERT(ha_alter_info);
+	DBUG_ASSERT(ctx);
+	DBUG_ASSERT(ha_alter_info->handler_flags & ALTER_COLUMN_UNVERSIONED);
+
+	uint virtual_count = 0;
+
+	for (uint i = 0; i < table->s->fields; i++) {
+		Field* field = table->field[i];
+
+		if (innobase_is_v_fld(field)) {
+			virtual_count++;
+			continue;
+		}
+
+		Create_field* create_field = NULL;
+		List_iterator_fast<Create_field> it(
+		    ha_alter_info->alter_info->create_list);
+		while (Create_field* cf = it++) {
+			if (cf->field == field) {
+				create_field = cf;
+				break;
+			}
+		}
+		DBUG_ASSERT(create_field);
+
+		dict_col_t* col
+		    = dict_table_get_nth_col(ctx->new_table, i - virtual_count);
+
+		if (create_field->versioning
+		    == Column_definition::WITHOUT_VERSIONING) {
+			DBUG_ASSERT(!col->vers_sys_start()
+				    && !col->vers_sys_end());
+			col->prtype &= ~DATA_VERSIONED;
+		} else if (create_field->versioning
+			   == Column_definition::WITH_VERSIONING) {
+			DBUG_ASSERT(!col->vers_sys_start()
+				    && !col->vers_sys_end());
+			col->prtype |= DATA_VERSIONED;
+		}
+	}
+
+	DBUG_VOID_RETURN;
+}
+
 /** Commit the changes made during prepare_inplace_alter_table()
 and inplace_alter_table() inside the data dictionary tables,
 when rebuilding the table.
@@ -8804,6 +8861,11 @@ commit_try_norebuild(
 	    && innobase_enlarge_columns_try(ha_alter_info, old_table,
 					    ctx->old_table, trx, table_name)) {
 		DBUG_RETURN(true);
+	}
+
+	if (ha_alter_info->handler_flags & ALTER_COLUMN_UNVERSIONED) {
+		innobase_change_fields_versioning(ha_alter_info, ctx,
+						  old_table);
 	}
 
 #ifdef MYSQL_RENAME_INDEX

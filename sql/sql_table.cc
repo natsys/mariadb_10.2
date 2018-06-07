@@ -6488,8 +6488,7 @@ static bool fill_alter_inplace_info(THD *thd,
                                     ALTER_PARSER_DROP_COLUMN |
                                     ALTER_COLUMN_ORDER |
                                     ALTER_RENAME_COLUMN |
-                                    ALTER_CHANGE_COLUMN |
-                                    ALTER_COLUMN_UNVERSIONED));
+                                    ALTER_CHANGE_COLUMN));
   /*
     Comparing new and old default values of column is cumbersome.
     So instead of using such a comparison for detecting if default
