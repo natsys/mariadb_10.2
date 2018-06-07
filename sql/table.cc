@@ -1173,7 +1173,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   uint i;
   bool use_hash, mysql57_null_bits= 0;
   char *keynames, *names, *comment_pos;
-  const uchar *forminfo, *extra2;
+  const uchar *forminfo;
   const uchar *frm_image_end = frm_image + frm_length;
   uchar *record, *null_flags, *null_pos, *UNINIT_VAR(mysql57_vcol_null_pos);
   const uchar *disk_buff, *strpos;
@@ -1204,6 +1204,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
   MEM_ROOT *old_root= thd->mem_root;
   Virtual_column_info **table_check_constraints;
+  extra2_fields extra2;
+
   DBUG_ENTER("TABLE_SHARE::init_from_binary_frm_image");
 
   keyinfo= &first_keyinfo;
@@ -1232,90 +1234,31 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
   /* Length of the MariaDB extra2 segment in the form file. */
   len = uint2korr(frm_image+4);
-  extra2= frm_image + 64;
 
-  if (*extra2 != '/')   // old frm had '/' there
-  {
-    const uchar *e2end= extra2 + len;
-    while (extra2 + 3 <= e2end)
-    {
-      uchar type= *extra2++;
-      size_t length= *extra2++;
-      if (!length)
-      {
-        if (extra2 + 2 >= e2end)
-          goto err;
-        length= uint2korr(extra2);
-        extra2+= 2;
-        if (length < 256)
-          goto err;
-      }
-      if (extra2 + length > e2end)
-        goto err;
-      switch (type) {
-      case EXTRA2_TABLEDEF_VERSION:
-        if (tabledef_version.str) // see init_from_sql_statement_string()
-        {
-          if (length != tabledef_version.length ||
-              memcmp(extra2, tabledef_version.str, length))
-            goto err;
-        }
-        else
-        {
-          tabledef_version.length= length;
-          tabledef_version.str= (uchar*)memdup_root(&mem_root, extra2, length);
-          if (!tabledef_version.str)
-            goto err;
-        }
-        break;
-      case EXTRA2_ENGINE_TABLEOPTS:
-        if (options)
-          goto err;
-        /* remember but delay parsing until we have read fields and keys */
-        options= extra2;
-        options_len= length;
-        break;
-      case EXTRA2_DEFAULT_PART_ENGINE:
+  dd_read_extra2(frm_image, len, &extra2);
+  tabledef_version.length= extra2.version_len;
+  tabledef_version.str= (uchar*)memdup_root(&mem_root, extra2.version, extra2.version_len);
+  if (!tabledef_version.str)
+    goto err;
+
+  /* remember but delay parsing until we have read fields and keys */
+  options = extra2.options;
+  options_len = extra2.options_len;
+  gis_options = extra2.gis;
+  gis_options_len = extra2.gis_len;
+  system_period = extra2.system_period;
+  extra2_field_flags = extra2.field_flags;
+  extra2_field_flags_length = extra2.field_flags_len;
+
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-        {
-          LEX_CSTRING name= { (char*)extra2, length };
-          share->default_part_plugin= ha_resolve_by_name(NULL, &name, false);
-          if (!share->default_part_plugin)
-            goto err;
-        }
-#endif
-        break;
-      case EXTRA2_GIS:
-#ifdef HAVE_SPATIAL
-        {
-          if (gis_options)
-            goto err;
-          gis_options= extra2;
-          gis_options_len= length;
-        }
-#endif /*HAVE_SPATIAL*/
-        break;
-      case EXTRA2_PERIOD_FOR_SYSTEM_TIME:
-        if (system_period || length != 2 * sizeof(uint16))
-          goto err;
-        system_period = extra2;
-        break;
-      case EXTRA2_FIELD_FLAGS:
-        if (extra2_field_flags)
-          goto err;
-        extra2_field_flags= extra2;
-        extra2_field_flags_length= length;
-        break;
-      default:
-        /* abort frm parsing if it's an unknown but important extra2 value */
-        if (type >= EXTRA2_ENGINE_IMPORTANT)
-          goto err;
-      }
-      extra2+= length;
-    }
-    if (extra2 != e2end)
+  if (extra2.part_engine)
+  {
+    LEX_CSTRING name= { (char*)extra2.part_engine, extra2.part_engine_len };
+    share->default_part_plugin= ha_resolve_by_name(NULL, &name, false);
+    if (!share->default_part_plugin)
       goto err;
   }
+#endif
 
   if (frm_length < FRM_HEADER_SIZE + len ||
       !(pos= uint4korr(frm_image + FRM_HEADER_SIZE + len)))
