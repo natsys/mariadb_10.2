@@ -5228,7 +5228,7 @@ private:
 */
 
 bool ha_table_exists(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *table_name,
-                     handlerton **hton, bool *is_sequence)
+                     handlerton **hton, bool *is_sequence, bool *is_versioned)
 {
   handlerton *dummy;
   bool dummy2;
@@ -5240,6 +5240,9 @@ bool ha_table_exists(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *table_n
     hton= &dummy;
   if (!is_sequence)
     is_sequence= &dummy2;
+
+  if (is_versioned)
+    *is_versioned= 0;
   *is_sequence= 0;
 
   TDC_element *element= tdc_lock_share(thd, db->str, table_name->str);
@@ -5248,6 +5251,8 @@ bool ha_table_exists(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *table_n
     if (hton)
       *hton= element->share->db_type();
     *is_sequence= element->share->table_type == TABLE_TYPE_SEQUENCE;
+    if (is_versioned)
+      *is_versioned= element->share->versioned;
     tdc_unlock_share(element);
     DBUG_RETURN(TRUE);
   }
@@ -5266,7 +5271,7 @@ bool ha_table_exists(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *table_n
       LEX_CSTRING engine= { engine_buf, 0 };
       Table_type type;
 
-      if ((type= dd_frm_type(thd, path, &engine, is_sequence)) ==
+      if ((type= dd_frm_type(thd, path, &engine, is_sequence, is_versioned)) ==
           TABLE_TYPE_UNKNOWN)
         DBUG_RETURN(0);
       
@@ -5306,6 +5311,9 @@ bool ha_table_exists(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *table_n
     table.init_one_table(db, table_name, 0, TL_READ);
     TABLE_SHARE *share= tdc_acquire_share(thd, &table, flags);
     thd->pop_internal_handler();
+
+    if (share && is_versioned)
+      *is_versioned = share->versioned;
 
     if (hton && share)
     {
