@@ -7920,3 +7920,6 @@ ER_VERS_QUERY_IN_PARTITION
         eng "SYSTEM_TIME partitions in table %`s does not support historical query"
 ER_KEY_DOESNT_SUPPORT
         eng "%s index %`s does not support this operation"
+
+ER_TRUNCATE_ILLEGAL_VERS
+        eng "Cannot truncate a versioned table"
