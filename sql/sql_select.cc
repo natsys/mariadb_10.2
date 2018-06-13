@@ -675,14 +675,22 @@ setup_without_group(THD *thd, Ref_ptr_array ref_pointer_array,
 
 bool vers_select_conds_t::init_from_sysvar(THD *thd)
 {
-  vers_asof_timestamp_t &in= thd->variables.vers_asof_timestamp;
+  system_variables *vars = &thd->variables;
+  if (vars->vers_asof_timestamp.type == SYSTEM_TIME_UNSPECIFIED)
+    vars = &global_system_variables;
+
+  vers_asof_timestamp_t &in= vars->vers_asof_timestamp;
   type= (vers_system_time_t) in.type;
   start.unit= VERS_TIMESTAMP;
   if (type != SYSTEM_TIME_UNSPECIFIED && type != SYSTEM_TIME_ALL)
   {
     DBUG_ASSERT(type == SYSTEM_TIME_AS_OF);
+    MYSQL_TIME ltime;
+    thd->variables.time_zone->gmt_sec_to_TIME(&ltime, in.timestamp);
+    ltime.second_part = in.second_part;
+
     start.item= new (thd->mem_root)
-        Item_datetime_literal(thd, &in.ltime, TIME_SECOND_PART_DIGITS);
+        Item_datetime_literal(thd, &ltime, TIME_SECOND_PART_DIGITS);
     if (!start.item)
       return true;
   }
