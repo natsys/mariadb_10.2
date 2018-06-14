@@ -103,47 +103,35 @@ show session variables like 'system_versioning_asof';
 -- echo # global and local time zones should not interfer
 show global variables like 'system_versioning_asof';
 
-set session system_versioning_asof= FROM_UNIXTIME(@before);
+set time_zone= "+10:00";
+set system_versioning_asof= FROM_UNIXTIME(@before);
 select * from t as empty;
-set session system_versioning_asof= FROM_UNIXTIME(@after);
-select * from t as nonempty;
-
-set session time_zone= "+10:00";
-
-set session time_zone= "+10:00";
-set session system_versioning_asof= FROM_UNIXTIME(@before);
-select * from t as empty;
-set session system_versioning_asof= FROM_UNIXTIME(@after);
-select * from t as nonempty;
-
-set session time_zone= "+03:00";
-set session system_versioning_asof= FROM_UNIXTIME(@before);
-select * from t as empty;
-set session system_versioning_asof= FROM_UNIXTIME(@after);
-select * from t as nonempty;
-
--- echo # session variable is applied
-set global system_versioning_asof= FROM_UNIXTIME(@after);
-select * from t as nonempty;
-set global system_versioning_asof= FROM_UNIXTIME(@before);
-select * from t as nonempty;
-
-set system_versioning_asof= "DEFAULT";
-select * from t as empty;
-set global system_versioning_asof= CONVERT_TZ(FROM_UNIXTIME(@after),
-                                              @@session.time_zone,
-                                              @@global.time_zone);
+set system_versioning_asof= FROM_UNIXTIME(@after);
 select * from t as nonempty;
 
 set time_zone= "+03:00";
-set global system_versioning_asof= CONVERT_TZ(FROM_UNIXTIME(@before),
-                                              @@session.time_zone,
-                                              @@global.time_zone);
+set system_versioning_asof= FROM_UNIXTIME(@before);
 select * from t as empty;
-set global system_versioning_asof= CONVERT_TZ(FROM_UNIXTIME(@after),
-                                              @@session.time_zone,
-                                              @@global.time_zone);
+set system_versioning_asof= FROM_UNIXTIME(@after);
 select * from t as nonempty;
+
+set global system_versioning_asof= FROM_UNIXTIME(@after);
+select * from t as nonempty;
+
+--connect (subcon,127.0.0.1,root,,,$SERVER_MYPORT_1)
+--connection subcon
+select * from t as nonempty;
+--disconnect subcon
+--connection default
+
+set global system_versioning_asof= FROM_UNIXTIME(@before);
+select * from t as nonempty;
+
+--connect (subcon,127.0.0.1,root,,,$SERVER_MYPORT_1)
+--connection subcon
+select * from t as empty;
+--disconnect subcon
+--connection default
 
 set global time_zone= "SYSTEM";
 set time_zone= "SYSTEM";

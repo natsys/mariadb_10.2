@@ -152,27 +152,19 @@ system_versioning_asof	2000-09-08 07:00:00.000000
 show global variables like 'system_versioning_asof';
 Variable_name	Value
 system_versioning_asof	1999-09-07 17:00:00.000000
-set session system_versioning_asof= FROM_UNIXTIME(@before);
+set time_zone= "+10:00";
+set system_versioning_asof= FROM_UNIXTIME(@before);
 select * from t as empty;
 a
-set session system_versioning_asof= FROM_UNIXTIME(@after);
+set system_versioning_asof= FROM_UNIXTIME(@after);
 select * from t as nonempty;
 a
 1
-set session time_zone= "+10:00";
-set session time_zone= "+10:00";
-set session system_versioning_asof= FROM_UNIXTIME(@before);
+set time_zone= "+03:00";
+set system_versioning_asof= FROM_UNIXTIME(@before);
 select * from t as empty;
 a
-set session system_versioning_asof= FROM_UNIXTIME(@after);
-select * from t as nonempty;
-a
-1
-set session time_zone= "+03:00";
-set session system_versioning_asof= FROM_UNIXTIME(@before);
-select * from t as empty;
-a
-set session system_versioning_asof= FROM_UNIXTIME(@after);
+set system_versioning_asof= FROM_UNIXTIME(@after);
 select * from t as nonempty;
 a
 1
@@ -181,31 +173,23 @@ set global system_versioning_asof= FROM_UNIXTIME(@after);
 select * from t as nonempty;
 a
 1
+connect  con1,127.0.0.1,root,,,$SERVER_MYPORT_1;
+connection con1;
+select * from t as nonempty;
+a
+1
+disconnect con1;
+connection default;
 set global system_versioning_asof= FROM_UNIXTIME(@before);
 select * from t as nonempty;
 a
 1
-set system_versioning_asof= "DEFAULT";
+connect  con2,127.0.0.1,root,,,$SERVER_MYPORT_1;
+connection con2;
 select * from t as empty;
 a
-set global system_versioning_asof= CONVERT_TZ(FROM_UNIXTIME(@after),
-@@session.time_zone,
-@@global.time_zone);
-select * from t as nonempty;
-a
-1
-set time_zone= "+03:00";
-set global system_versioning_asof= CONVERT_TZ(FROM_UNIXTIME(@before),
-@@session.time_zone,
-@@global.time_zone);
-select * from t as empty;
-a
-set global system_versioning_asof= CONVERT_TZ(FROM_UNIXTIME(@after),
-@@session.time_zone,
-@@global.time_zone);
-select * from t as nonempty;
-a
-1
+disconnect con2;
+connection default;
 set global time_zone= "SYSTEM";
 set time_zone= "SYSTEM";
 set global system_versioning_asof= "DEFAULT";
