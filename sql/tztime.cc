@@ -1004,6 +1004,7 @@ TIME_to_gmt_sec(const MYSQL_TIME *t, const TIME_ZONE_INFO *sp, uint *error_code)
 */
 #endif /* !defined(TZINFO2SQL) */
 
+
 #if !defined(TESTTIME) && !defined(TZINFO2SQL)
 
 /*
