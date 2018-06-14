@@ -2645,7 +2645,7 @@ private:
         MYSQL_TIME ltime;
         uint error;
         res= var->value->get_date(&ltime, 0);
-        out.timestamp= pool.time_zone->TIME_to_gmt_sec(&ltime, &error);
+        out.unix_time= pool.time_zone->TIME_to_gmt_sec(&ltime, &error);
         out.second_part= ltime.second_part;
         res|= (error != 0);
       }
@@ -2682,7 +2682,7 @@ private:
       MYSQL_TIME ltime;
       system_variables *vars= (system_variables*)((uint8*)&val - offset);
 
-      vars->time_zone->gmt_sec_to_TIME(&ltime, val.timestamp);
+      vars->time_zone->gmt_sec_to_TIME(&ltime, val.unix_time);
       ltime.second_part= val.second_part;
 
       if (buf && !my_datetime_to_str(&ltime, (char*) buf, 6))
