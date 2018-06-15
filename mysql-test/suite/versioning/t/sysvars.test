@@ -100,7 +100,7 @@ set session system_versioning_asof = '2000-09-08 00:00:00.000000';
 show session variables like 'system_versioning_asof';
 set session time_zone = '+10:00';
 show session variables like 'system_versioning_asof';
--- echo # global and local time zones should not interfer
+-- echo # global and local time zones should not interfere
 show global variables like 'system_versioning_asof';
 
 set time_zone= "+10:00";
