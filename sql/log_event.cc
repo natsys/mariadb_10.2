@@ -3678,7 +3678,6 @@ bool Log_event::print_base64(IO_CACHE* file,
 {
   uchar *ptr= (uchar *)temp_buf;
   uint32 size= uint4korr(ptr + EVENT_LEN_OFFSET);
-  bool need_delimiter= false;
   DBUG_ENTER("Log_event::print_base64");
 
   if (is_flashback)
@@ -3741,22 +3740,14 @@ bool Log_event::print_base64(IO_CACHE* file,
       DBUG_ASSERT(0);
     }
 
-    if (!print_event_info->base64_starter_printed)
-    {
-      print_event_info->base64_starter_printed= true;
+    if (my_b_tell(file) == 0)
       if (unlikely(my_b_write_string(file, "\nBINLOG '\n")))
         error= 1;
-    }
     if (likely(!error) && unlikely(my_b_printf(file, "%s\n", tmp_str)))
       error= 1;
     if (!more && likely(!error))
-    {
-      print_event_info->base64_starter_printed= false;
       if (unlikely(my_b_printf(file, "'%s\n", print_event_info->delimiter)))
         error= 1;
-    }
-    else
-      need_delimiter= true;
     my_free(tmp_str);
     if (unlikely(error))
       goto err;
@@ -3849,12 +3840,6 @@ bool Log_event::print_base64(IO_CACHE* file,
       ev->need_flashback_review= need_flashback_review;
       if (print_event_info->verbose)
       {
-        if (need_delimiter)
-        {
-          print_event_info->base64_starter_printed= false;
-          if (unlikely(my_b_printf(file, "'%s\n", print_event_info->delimiter)))
-            goto err;
-        }
         if (ev->print_verbose(file, print_event_info))
           goto err;
       }
@@ -3879,16 +3864,7 @@ bool Log_event::print_base64(IO_CACHE* file,
       }
 #else
       if (print_event_info->verbose)
-      {
-        error= 0;
-        if (need_delimiter)
-        {
-          print_event_info->base64_starter_printed= false;
-          error= my_b_printf(file, "'%s\n", print_event_info->delimiter);
-        }
-        if (likely(!error))
-          error= ev->print_verbose(file, print_event_info);
-      }
+        error= ev->print_verbose(file, print_event_info);
       else
         ev->count_row_events(print_event_info);
 #endif
@@ -6020,6 +5996,9 @@ bool Start_log_event_v3::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
       print_event_info->base64_output_mode != BASE64_OUTPUT_NEVER &&
       !print_event_info->short_form)
   {
+    if (print_event_info->base64_output_mode != BASE64_OUTPUT_DECODE_ROWS)
+      if (my_b_printf(&cache, "BINLOG '\n"))
+        goto err;
     if (print_base64(&cache, print_event_info, FALSE))
       goto err;
     print_event_info->printed_fd_event= TRUE;
@@ -14708,7 +14687,6 @@ st_print_event_info::st_print_event_info()
   domain_id_printed= false;
   allow_parallel= true;
   allow_parallel_printed= false;
-  base64_starter_printed= false;
   found_row_event= false;
   print_row_count= false;
   short_form= false;
