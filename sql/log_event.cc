@@ -3840,44 +3840,24 @@ bool Log_event::print_base64(IO_CACHE* file,
       break;
     }
 
-    if (ev)
+    if (print_event_info->inside_binlog && print_event_info->verbose)
     {
-      bool error= 0;
-
-#ifdef WHEN_FLASHBACK_REVIEW_READY
-      ev->need_flashback_review= need_flashback_review;
-      if (print_event_info->verbose && !print_event_info->inside_binlog)
+      if (ev)
+        print_event_info->verbose_events.append(ev);
+    }
+    else
+    {
+      if (print_event_info->verbose)
       {
-        if (ev->print_verbose(file, print_event_info))
-          goto err;
-      }
-      else
-      {
-        IO_CACHE tmp_cache;
-
-        if (open_cached_file(&tmp_cache, NULL, NULL, 0,
-                              MYF(MY_WME | MY_NABP)))
+        Dynamic_array<Rows_log_event *> &evs= print_event_info->verbose_events;
+        for (size_t i= 0; i < evs.elements(); ++i)
         {
-          delete ev;
-          goto err;
+          if (describe_event(file, print_event_info, evs.at(i)))
+            goto err;
         }
-
-        error= ev->print_verbose(&tmp_cache, print_event_info);
-        close_cached_file(&tmp_cache);
-        if (unlikely(error))
-        {
-          delete ev;
-          goto err;
-        }
+        evs.clear();
       }
-#else
-      if (print_event_info->verbose && !print_event_info->inside_binlog)
-        error= ev->print_verbose(file, print_event_info);
-      else
-        ev->count_row_events(print_event_info);
-#endif
-      delete ev;
-      if (unlikely(error))
+      if (ev && describe_event(file, print_event_info, ev))
         goto err;
     }
   }
@@ -3885,6 +3865,49 @@ bool Log_event::print_base64(IO_CACHE* file,
 
 err:
   DBUG_RETURN(1);
+}
+
+
+bool Log_event::describe_event(IO_CACHE* file,
+                               PRINT_EVENT_INFO* print_event_info,
+                               Rows_log_event *ev)
+{
+  bool error= 0;
+
+#ifdef WHEN_FLASHBACK_REVIEW_READY
+  ev->need_flashback_review= need_flashback_review;
+  if (print_event_info->verbose)
+  {
+    if (ev->print_verbose(file, print_event_info))
+      goto err;
+  }
+  else
+  {
+    IO_CACHE tmp_cache;
+
+    if (open_cached_file(&tmp_cache, NULL, NULL, 0,
+                          MYF(MY_WME | MY_NABP)))
+    {
+      delete ev;
+      goto err;
+    }
+
+    error= ev->print_verbose(&tmp_cache, print_event_info);
+    close_cached_file(&tmp_cache);
+    if (unlikely(error))
+    {
+      delete ev;
+      goto err;
+    }
+  }
+#else
+  if (print_event_info->verbose)
+    error= ev->print_verbose(file, print_event_info);
+  else
+    ev->count_row_events(print_event_info);
+#endif
+  delete ev;
+  return error;
 }
 
 

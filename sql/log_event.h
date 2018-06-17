@@ -51,6 +51,7 @@
 #endif
 
 #include "rpl_gtid.h"
+#include "sql_array.h"
 
 /* Forward declarations */
 #ifndef MYSQL_CLIENT
@@ -817,6 +818,8 @@ enum enum_base64_output_mode {
 
 bool copy_event_cache_to_string_and_reinit(IO_CACHE *cache, LEX_STRING *to);
 
+class Rows_log_event;
+
 /*
   A structure for mysqlbinlog to know how to print events
 
@@ -881,6 +884,7 @@ typedef struct st_print_event_info
   */
   bool skip_replication;
   bool inside_binlog;
+  Dynamic_array<Rows_log_event *> verbose_events;
 
   /*
      These two caches are used by the row-based replication events to
@@ -1266,6 +1270,9 @@ public:
                     bool is_more);
   bool print_base64(IO_CACHE* file, PRINT_EVENT_INFO* print_event_info,
                     bool is_more);
+  static
+  bool describe_event(IO_CACHE* file, PRINT_EVENT_INFO* print_event_info,
+                      Rows_log_event *ev);
 #endif /* MYSQL_SERVER */
 
   /* The following code used for Flashback */
