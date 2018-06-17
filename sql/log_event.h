@@ -864,6 +864,7 @@ typedef struct st_print_event_info
   bool domain_id_printed;
   bool allow_parallel;
   bool allow_parallel_printed;
+  bool base64_starter_printed;
   bool found_row_event;
   bool print_row_count;
   /* Settings on how to print the events */
