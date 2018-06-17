@@ -3741,13 +3741,21 @@ bool Log_event::print_base64(IO_CACHE* file,
     }
 
     if (my_b_tell(file) == 0)
+    {
       if (unlikely(my_b_write_string(file, "\nBINLOG '\n")))
         error= 1;
+      else
+        print_event_info->inside_binlog= true;
+    }
     if (likely(!error) && unlikely(my_b_printf(file, "%s\n", tmp_str)))
       error= 1;
     if (!more && likely(!error))
+    {
       if (unlikely(my_b_printf(file, "'%s\n", print_event_info->delimiter)))
         error= 1;
+      else
+        print_event_info->inside_binlog= false;
+    }
     my_free(tmp_str);
     if (unlikely(error))
       goto err;
@@ -3838,7 +3846,7 @@ bool Log_event::print_base64(IO_CACHE* file,
 
 #ifdef WHEN_FLASHBACK_REVIEW_READY
       ev->need_flashback_review= need_flashback_review;
-      if (print_event_info->verbose)
+      if (print_event_info->verbose && !print_event_info->inside_binlog)
       {
         if (ev->print_verbose(file, print_event_info))
           goto err;
@@ -3863,7 +3871,7 @@ bool Log_event::print_base64(IO_CACHE* file,
         }
       }
 #else
-      if (print_event_info->verbose)
+      if (print_event_info->verbose && !print_event_info->inside_binlog)
         error= ev->print_verbose(file, print_event_info);
       else
         ev->count_row_events(print_event_info);
@@ -14692,6 +14700,7 @@ st_print_event_info::st_print_event_info()
   short_form= false;
   skip_replication= 0;
   printed_fd_event=FALSE;
+  inside_binlog= false;
   file= 0;
   base64_output_mode=BASE64_OUTPUT_UNSPEC;
   open_cached_file(&head_cache, NULL, NULL, 0, flags);

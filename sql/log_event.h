@@ -880,6 +880,7 @@ typedef struct st_print_event_info
     statement for it.
   */
   bool skip_replication;
+  bool inside_binlog;
 
   /*
      These two caches are used by the row-based replication events to
