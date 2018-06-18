@@ -1270,9 +1270,6 @@ public:
                     bool is_more);
   bool print_base64(IO_CACHE* file, PRINT_EVENT_INFO* print_event_info,
                     bool is_more);
-  static
-  bool describe_event(IO_CACHE* file, PRINT_EVENT_INFO* print_event_info,
-                      Rows_log_event *ev);
 #endif /* MYSQL_SERVER */
 
   /* The following code used for Flashback */

@@ -3672,6 +3672,10 @@ void free_table_map_log_event(Table_map_log_event *event)
   delete event;
 }
 
+static
+bool describe_event(IO_CACHE* file, PRINT_EVENT_INFO* print_event_info,
+                    Rows_log_event *ev);
+
 bool Log_event::print_base64(IO_CACHE* file,
                              PRINT_EVENT_INFO* print_event_info,
                              bool more)
@@ -3868,9 +3872,9 @@ err:
 }
 
 
-bool Log_event::describe_event(IO_CACHE* file,
-                               PRINT_EVENT_INFO* print_event_info,
-                               Rows_log_event *ev)
+static
+bool describe_event(IO_CACHE* file, PRINT_EVENT_INFO* print_event_info,
+                    Rows_log_event *ev)
 {
   bool error= 0;
 
