@@ -3883,7 +3883,10 @@ bool describe_event(IO_CACHE* file, PRINT_EVENT_INFO* print_event_info,
   if (print_event_info->verbose)
   {
     if (ev->print_verbose(file, print_event_info))
-      goto err;
+    {
+      delete ev;
+      return true;
+    }
   }
   else
   {
@@ -3893,7 +3896,7 @@ bool describe_event(IO_CACHE* file, PRINT_EVENT_INFO* print_event_info,
                           MYF(MY_WME | MY_NABP)))
     {
       delete ev;
-      goto err;
+      return true;
     }
 
     error= ev->print_verbose(&tmp_cache, print_event_info);
@@ -3901,7 +3904,7 @@ bool describe_event(IO_CACHE* file, PRINT_EVENT_INFO* print_event_info,
     if (unlikely(error))
     {
       delete ev;
-      goto err;
+      return true;
     }
   }
 #else
