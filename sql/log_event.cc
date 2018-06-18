@@ -6032,8 +6032,12 @@ bool Start_log_event_v3::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
       !print_event_info->short_form)
   {
     if (print_event_info->base64_output_mode != BASE64_OUTPUT_DECODE_ROWS)
+    {
       if (my_b_printf(&cache, "BINLOG '\n"))
         goto err;
+      else
+        print_event_info->inside_binlog= true;
+    }
     if (print_base64(&cache, print_event_info, FALSE))
       goto err;
     print_event_info->printed_fd_event= TRUE;
