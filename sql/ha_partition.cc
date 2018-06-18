@@ -8470,6 +8470,18 @@ err_handler:
 }
 
 
+static int start_keyread_cb(handler* h, void *p)
+{
+  return h->ha_start_keyread(*(uint*)p);
+}
+
+
+static int end_keyread_cb(handler* h, void *unused)
+{
+  return h->ha_end_keyread();
+}
+
+
 /**
   General function to prepare handler for certain behavior.
 
@@ -8798,8 +8810,9 @@ int ha_partition::extra(enum ha_extra_function operation)
 
   switch (operation) {
     /* Category 1), used by most handlers */
-  case HA_EXTRA_KEYREAD:
   case HA_EXTRA_NO_KEYREAD:
+    DBUG_RETURN(loop_partitions(end_keyread_cb, NULL));
+  case HA_EXTRA_KEYREAD:
   case HA_EXTRA_FLUSH:
   case HA_EXTRA_PREPARE_FOR_FORCED_CLOSE:
     DBUG_RETURN(loop_extra(operation));
@@ -8989,24 +9002,40 @@ int ha_partition::reset(void)
 }
 
 /*
-  Special extra method for HA_EXTRA_CACHE with cachesize as extra parameter
+  Special extra method with additional parameter
+  See @ref ha_partition::extra
 
-  SYNOPSIS
-    extra_opt()
-    operation                      Must be HA_EXTRA_CACHE
-    cachesize                      Size of cache in full table scan
+  @param[in]    operation       operation to execute
+  @param[in]    arg             extra argument
 
-  RETURN VALUE
-    >0                   Error code
-    0                    Success
+  @return       status
+    @retval     0               success
+    @retval     >0              error code
+
+  @detail
+    Operations supported by extra_opt:
+    HA_EXTRA_KEYREAD:
+      arg is interpreted as key index
+    HA_EXTRA_CACHE:
+      arg is interpreted as size of cache in full table scan
+
+    For detailed description refer to @ref ha_partition::extra
 */
 
-int ha_partition::extra_opt(enum ha_extra_function operation, ulong cachesize)
+int ha_partition::extra_opt(enum ha_extra_function operation, ulong arg)
 {
   DBUG_ENTER("ha_partition::extra_opt()");
 
-  DBUG_ASSERT(HA_EXTRA_CACHE == operation);
-  prepare_extra_cache(cachesize);
+  switch (operation)
+  {
+    case HA_EXTRA_KEYREAD:
+      DBUG_RETURN(loop_partitions(start_keyread_cb, &arg));
+    case HA_EXTRA_CACHE:
+      prepare_extra_cache(arg);
+      DBUG_RETURN(0);
+    default:
+      DBUG_ASSERT(0);
+  }
   DBUG_RETURN(0);
 }
 
@@ -9075,6 +9104,46 @@ int ha_partition::loop_extra_alter(enum ha_extra_function operation)
   DBUG_RETURN(result);
 }
 
+
+/**
+  Call f(part, param) on all partitions
+
+    @param f                     callback
+    @param param                 a void*-parameter passed to callback
+
+    @return Operation status
+      @retval >0                    Error code
+      @retval 0                     Success
+*/
+
+int ha_partition::loop_partitions(int f(handler *, void *), void *param)
+{
+  int result= 0, tmp;
+  uint i;
+  DBUG_ENTER("ha_partition::loop_partitions()");
+
+  for (i= bitmap_get_first_set(&m_part_info->lock_partitions);
+       i < m_tot_parts;
+       i= bitmap_get_next_set(&m_part_info->lock_partitions, i))
+  {
+    /*
+      This can be called after an error in ha_open.
+      In this case calling 'extra' can crash.
+    */
+    if (bitmap_is_set(&m_opened_partitions, i) &&
+        (tmp= f(m_file[i], param)))
+      result= tmp;
+  }
+  /* Add all used partitions to be called in reset(). */
+  bitmap_union(&m_partitions_to_reset, &m_part_info->lock_partitions);
+  DBUG_RETURN(result);
+}
+
+static int extra_cb(handler *h, void *operation)
+{
+  return h->extra(*(enum ha_extra_function*)operation);
+}
+
 /*
   Call extra on all partitions
 
@@ -9089,24 +9158,10 @@ int ha_partition::loop_extra_alter(enum ha_extra_function operation)
 
 int ha_partition::loop_extra(enum ha_extra_function operation)
 {
-  int result= 0, tmp;
-  uint i;
+  int result;
   DBUG_ENTER("ha_partition::loop_extra()");
 
-  for (i= bitmap_get_first_set(&m_part_info->lock_partitions);
-       i < m_tot_parts;
-       i= bitmap_get_next_set(&m_part_info->lock_partitions, i))
-  {
-    /*
-      This can be called after an error in ha_open.
-      In this case calling 'extra' can crash.
-    */
-    if (bitmap_is_set(&m_opened_partitions, i) &&
-        (tmp= m_file[i]->extra(operation)))
-      result= tmp;
-  }
-  /* Add all used partitions to be called in reset(). */
-  bitmap_union(&m_partitions_to_reset, &m_part_info->lock_partitions);
+  result= loop_partitions(extra_cb, &operation);
   DBUG_RETURN(result);
 }
 
