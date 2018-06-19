@@ -402,16 +402,15 @@ sub main {
   # --debug[-common] implies we run debug server
   $opt_debug_server= 1 if $opt_debug || $opt_debug_common;
 
+  # Run the mysqld to find out what features are available
+  collect_mysqld_features();
+
   if (using_extern())
   {
     # Connect to the running mysqld and find out what it supports
     collect_mysqld_features_from_running_server();
   }
-  else
-  {
-    # Run the mysqld to find out what features are available
-    collect_mysqld_features();
-  }
+
   check_ssl_support();
   check_debug_support();
 
