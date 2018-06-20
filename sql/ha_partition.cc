@@ -8470,6 +8470,12 @@ err_handler:
 }
 
 
+static int extra_cb(handler *h, void *operation)
+{
+  return h->extra(*(enum ha_extra_function*)operation);
+}
+
+
 static int start_keyread_cb(handler* h, void *p)
 {
   return h->ha_start_keyread(*(uint*)p);
@@ -8815,7 +8821,7 @@ int ha_partition::extra(enum ha_extra_function operation)
   case HA_EXTRA_KEYREAD:
   case HA_EXTRA_FLUSH:
   case HA_EXTRA_PREPARE_FOR_FORCED_CLOSE:
-    DBUG_RETURN(loop_extra(operation));
+    DBUG_RETURN(loop_partitions(extra_cb, &operation));
   case HA_EXTRA_PREPARE_FOR_RENAME:
   case HA_EXTRA_FORCE_REOPEN:
     DBUG_RETURN(loop_extra_alter(operation));
@@ -8827,7 +8833,7 @@ int ha_partition::extra(enum ha_extra_function operation)
   case HA_EXTRA_KEYREAD_PRESERVE_FIELDS:
   {
     if (!m_myisam)
-      DBUG_RETURN(loop_extra(operation));
+      DBUG_RETURN(loop_partitions(extra_cb, &operation));
   }
   break;
 
@@ -8854,7 +8860,7 @@ int ha_partition::extra(enum ha_extra_function operation)
   case HA_EXTRA_REMEMBER_POS:
   case HA_EXTRA_RESTORE_POS:
   {
-    DBUG_RETURN(loop_extra(operation));
+    DBUG_RETURN(loop_partitions(extra_cb, &operation));
   }
   case HA_EXTRA_NO_READCHECK:
   {
@@ -8886,7 +8892,7 @@ int ha_partition::extra(enum ha_extra_function operation)
     m_extra_cache_size= 0;
     m_extra_prepare_for_update= FALSE;
     m_extra_cache_part_id= NO_CURRENT_PART_ID;
-    DBUG_RETURN(loop_extra(operation));
+    DBUG_RETURN(loop_partitions(extra_cb, &operation));
   }
   case HA_EXTRA_IGNORE_NO_KEY:
   case HA_EXTRA_NO_IGNORE_NO_KEY:
@@ -8907,11 +8913,11 @@ int ha_partition::extra(enum ha_extra_function operation)
 
       At this time, this is safe by limitation of ha_partition
     */
-    DBUG_RETURN(loop_extra(operation));
+    DBUG_RETURN(loop_partitions(extra_cb, &operation));
   }
     /* Category 7), used by federated handlers */
   case HA_EXTRA_INSERT_WITH_UPDATE:
-    DBUG_RETURN(loop_extra(operation));
+    DBUG_RETURN(loop_partitions(extra_cb, &operation));
     /* Category 8) Operations only used by NDB */
   case HA_EXTRA_DELETE_CANNOT_BATCH:
   case HA_EXTRA_UPDATE_CANNOT_BATCH:
@@ -8921,13 +8927,13 @@ int ha_partition::extra(enum ha_extra_function operation)
   }
     /* Category 9) Operations only used by MERGE */
   case HA_EXTRA_ADD_CHILDREN_LIST:
-    DBUG_RETURN(loop_extra(operation));
+    DBUG_RETURN(loop_partitions(extra_cb, &operation));
   case HA_EXTRA_ATTACH_CHILDREN:
   {
     int result;
     uint num_locks;
     handler **file;
-    if ((result= loop_extra(operation)))
+    if ((result= loop_partitions(extra_cb, &operation)))
       DBUG_RETURN(result);
 
     /* Recalculate lock count as each child may have different set of locks */
@@ -8942,9 +8948,9 @@ int ha_partition::extra(enum ha_extra_function operation)
     break;
   }
   case HA_EXTRA_IS_ATTACHED_CHILDREN:
-    DBUG_RETURN(loop_extra(operation));
+    DBUG_RETURN(loop_partitions(extra_cb, &operation));
   case HA_EXTRA_DETACH_CHILDREN:
-    DBUG_RETURN(loop_extra(operation));
+    DBUG_RETURN(loop_partitions(extra_cb, &operation));
   case HA_EXTRA_MARK_AS_LOG_TABLE:
   /*
     http://dev.mysql.com/doc/refman/5.1/en/partitioning-limitations.html
@@ -8956,7 +8962,7 @@ int ha_partition::extra(enum ha_extra_function operation)
   case HA_EXTRA_BEGIN_ALTER_COPY:
   case HA_EXTRA_END_ALTER_COPY:
   case HA_EXTRA_FAKE_START_STMT:
-    DBUG_RETURN(loop_extra(operation));
+    DBUG_RETURN(loop_partitions(extra_cb, &operation));
   default:
   {
     /* Temporary crash to discover what is wrong */
@@ -9099,24 +9105,24 @@ int ha_partition::loop_extra_alter(enum ha_extra_function operation)
       if ((tmp= (*file)->extra(operation)))
         result= tmp;
   }
-  if ((tmp= loop_extra(operation)))
+  if ((tmp= loop_partitions(extra_cb, &operation)))
     result= tmp;
   DBUG_RETURN(result);
 }
 
 
 /**
-  Call f(part, param) on all partitions
+  Call callback(part, param) on all partitions
 
-    @param f                     callback
-    @param param                 a void*-parameter passed to callback
+    @param callback                 a callback to call for each partition
+    @param param                    a void*-parameter passed to callback
 
     @return Operation status
       @retval >0                    Error code
       @retval 0                     Success
 */
 
-int ha_partition::loop_partitions(int f(handler *, void *), void *param)
+int ha_partition::loop_partitions(handler_callback callback, void *param)
 {
   int result= 0, tmp;
   uint i;
@@ -9131,37 +9137,11 @@ int ha_partition::loop_partitions(int f(handler *, void *), void *param)
       In this case calling 'extra' can crash.
     */
     if (bitmap_is_set(&m_opened_partitions, i) &&
-        (tmp= f(m_file[i], param)))
+        (tmp= callback(m_file[i], param)))
       result= tmp;
   }
   /* Add all used partitions to be called in reset(). */
   bitmap_union(&m_partitions_to_reset, &m_part_info->lock_partitions);
-  DBUG_RETURN(result);
-}
-
-static int extra_cb(handler *h, void *operation)
-{
-  return h->extra(*(enum ha_extra_function*)operation);
-}
-
-/*
-  Call extra on all partitions
-
-  SYNOPSIS
-    loop_extra()
-    operation             extra operation type
-
-  RETURN VALUE
-    >0                    Error code
-    0                     Success
-*/
-
-int ha_partition::loop_extra(enum ha_extra_function operation)
-{
-  int result;
-  DBUG_ENTER("ha_partition::loop_extra()");
-
-  result= loop_partitions(extra_cb, &operation);
   DBUG_RETURN(result);
 }
 
