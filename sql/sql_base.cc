@@ -8160,7 +8160,6 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
   Field *rfield;
   TABLE *table;
   bool only_unvers_fields= update && table_arg->versioned();
-  bool vers_mod_history= false;
   bool save_abort_on_warning= thd->abort_on_warning;
   bool save_no_errors= thd->no_errors;
   DBUG_ENTER("fill_record");
@@ -8190,8 +8189,9 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
     Item::Type type= value->type();
     bool vers_sys_field= table->versioned() && rfield->vers_sys_field();
     if (vers_sys_field && thd->variables.vers_modify_history)
-      vers_mod_history= true;
-    if ((rfield->vcol_info || (vers_sys_field && !vers_mod_history)) &&
+      table->vers_write= false;
+    if ((rfield->vcol_info || (vers_sys_field &&
+                               !thd->variables.vers_modify_history)) &&
         type != Item::DEFAULT_VALUE_ITEM &&
         type != Item::NULL_ITEM &&
         table->s->table_category != TABLE_CATEGORY_TEMPORARY)
@@ -8248,7 +8248,7 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
   if (table_arg->vfield &&
       table_arg->update_virtual_fields(table_arg->file, VCOL_UPDATE_FOR_WRITE))
     goto err;
-  if (table_arg->versioned() && !only_unvers_fields && !vers_mod_history)
+  if (table_arg->versioned() && !only_unvers_fields)
     table_arg->vers_update_fields();
   thd->abort_on_warning= save_abort_on_warning;
   thd->no_errors=        save_no_errors;
