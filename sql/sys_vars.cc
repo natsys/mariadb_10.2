@@ -398,11 +398,15 @@ static Sys_var_vers_asof Sys_vers_asof_timestamp(
 
 static const char *vers_alter_history_keywords[]= {"ERROR", "KEEP", NullS};
 static Sys_var_enum Sys_vers_alter_history(
-       "system_versioning_alter_history", "Versioning ALTER TABLE mode. "
+       "system_versioning_alter_history", "System Versioning ALTER TABLE mode. "
        "ERROR: Fail ALTER with error; " /* TODO: fail only when history non-empty */
        "KEEP: Keep historical system rows and subject them to ALTER",
        SESSION_VAR(vers_alter_history), CMD_LINE(REQUIRED_ARG),
        vers_alter_history_keywords, DEFAULT(VERS_ALTER_HISTORY_ERROR));
+
+static Sys_var_mybool Sys_vers_modify_history(
+       "system_versioning_modify_history", "Allow history modification by DML",
+       SESSION_VAR(vers_modify_history), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
 static Sys_var_ulonglong Sys_binlog_cache_size(
        "binlog_cache_size", "The size of the transactional cache for "

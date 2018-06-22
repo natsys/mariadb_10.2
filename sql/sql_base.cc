@@ -5708,7 +5708,8 @@ find_field_in_table(THD *thd, TABLE *table, const char *name, size_t length,
 
     if (field->invisible == INVISIBLE_SYSTEM &&
         thd->column_usage != MARK_COLUMNS_READ &&
-        thd->column_usage != COLUMNS_READ)
+        thd->column_usage != COLUMNS_READ &&
+        !thd->variables.vers_modify_history)
       DBUG_RETURN((Field*)0);
   }
   else
@@ -8187,7 +8188,8 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
       table->auto_increment_field_not_null= TRUE;
     Item::Type type= value->type();
     bool vers_sys_field= table->versioned() && rfield->vers_sys_field();
-    if ((rfield->vcol_info || vers_sys_field) &&
+    if ((rfield->vcol_info || (vers_sys_field &&
+                               !thd->variables.vers_modify_history)) &&
         type != Item::DEFAULT_VALUE_ITEM &&
         type != Item::NULL_ITEM &&
         table->s->table_category != TABLE_CATEGORY_TEMPORARY)
