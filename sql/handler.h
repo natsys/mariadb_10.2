@@ -1951,6 +1951,8 @@ protected:
   bool is_start(const Create_field &f) const;
   bool is_end(const Create_field &f) const;
   bool fix_implicit(THD *thd, Alter_info *alter_info);
+  bool create_sys_field(THD *thd, const char *field_name,
+                        Alter_info *alter_info, int flags);
   operator bool() const
   {
     return as_row.start || as_row.end || system_time.start || system_time.end;
@@ -2059,7 +2061,8 @@ struct Table_scope_and_contents_source_st
                          bool create_select= false);
 
   bool vers_check_system_fields(THD *thd, Alter_info *alter_info,
-                                const TABLE_LIST &create_table);
+                                const Lex_table_name &table_name,
+                                const Lex_table_name &db);
 
   bool vers_native(THD *thd) const;
 
