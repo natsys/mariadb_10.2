@@ -6921,7 +6921,7 @@ Vers_parse_info::create_sys_field(THD *thd, const char *field_name,
     f->set_handler(&type_handler_timestamp2);
     f->length= MAX_DATETIME_PRECISION;
   }
-  f->invisible= DBUG_EVALUATE_IF("sysvers_show", VISIBLE, INVISIBLE_SYSTEM);
+  f->invisible= INVISIBLE_SYSTEM;
 
   if (f->check(thd))
     return true;
