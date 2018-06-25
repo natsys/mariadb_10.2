@@ -1984,6 +1984,9 @@ retry_share:
   table_list->updatable= 1; // It is not derived table nor non-updatable VIEW
   table_list->table= table;
 
+  if (table->versioned())
+    table->vers_write= true;
+
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   if (unlikely(table->part_info))
   {
@@ -8472,6 +8475,8 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
       value=v++;
 
     bool vers_sys_field= table->versioned() && field->vers_sys_field();
+    if (vers_sys_field && thd->variables.vers_modify_history)
+      table->vers_write= false;
 
     if (field->field_index == autoinc_index)
       table->auto_increment_field_not_null= TRUE;
