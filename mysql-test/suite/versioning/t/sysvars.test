@@ -151,4 +151,10 @@ set system_versioning_asof= "DEFAULT";
 
 show status like "Feature_system_versioning";
 
+set system_versioning_modify_history= on;
+update t set row_start= '1998-01-01 00:00', row_end= '1998-01-01 01:00' where a= 2;
+update t set row_start= '1999-01-01 00:00', row_end= '1999-01-01 01:00' where a= 1;
+insert into t (a, row_start, row_end) values (3, '2000-01-01 00:00', '2000-01-01 01:00');
+select *, row_start, row_end from t for system_time all;
+
 drop table t;
