@@ -155,14 +155,19 @@ show status like "Feature_system_versioning";
 
 set system_versioning_modify_history= on;
 set time_zone='+00:00';
-update t set row_start= '1998-01-01 00:00', row_end= '1998-01-01 01:00' where a= 2;
-update t set row_start= '1999-01-01 00:00', row_end= '1999-01-01 01:00' where a= 1;
+--echo # UPDATE of current row
+update t set row_start= '1998-01-01 00:00', row_end= '1998-01-01 00:00' where a= 2;
+--echo # UPDATE of historical row
+update t set row_start= '1999-01-01 01:00', row_end= '1999-01-01 00:00' where a= 1;
+--echo # INSERT historical row
 insert into t (a, row_start, row_end) values (3, '2000-01-01 00:00', '2000-01-01 01:00');
 select *, row_start, row_end from t for system_time all;
+--echo # normal INSERT
 insert into t (a) values (4);
 select * from t;
+--echo # normal UPDATE
 update t set a= 5;
-select *, check_row(row_start, row_end) from t for system_time all where a >= 4;
+select *, check_row(row_start, row_end) from t for system_time all order by a;
 
 drop database test;
 create database test;

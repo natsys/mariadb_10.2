@@ -8191,8 +8191,6 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
       table->auto_increment_field_not_null= TRUE;
     Item::Type type= value->type();
     bool vers_sys_field= table->versioned() && rfield->vers_sys_field();
-    if (vers_sys_field && thd->variables.vers_modify_history)
-      table->vers_write= false;
     if ((rfield->vcol_info || (vers_sys_field &&
                                !thd->variables.vers_modify_history)) &&
         type != Item::DEFAULT_VALUE_ITEM &&
@@ -8475,8 +8473,6 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
       value=v++;
 
     bool vers_sys_field= table->versioned() && field->vers_sys_field();
-    if (vers_sys_field && thd->variables.vers_modify_history)
-      table->vers_write= false;
 
     if (field->field_index == autoinc_index)
       table->auto_increment_field_not_null= TRUE;

@@ -205,12 +205,31 @@ show status like "Feature_system_versioning";
 Variable_name	Value
 Feature_system_versioning	2
 set system_versioning_modify_history= on;
-update t set row_start= '1998-01-01 00:00', row_end= '1998-01-01 01:00' where a= 2;
-update t set row_start= '1999-01-01 00:00', row_end= '1999-01-01 01:00' where a= 1;
+set time_zone='+00:00';
+# UPDATE of current row
+update t set row_start= '1998-01-01 00:00', row_end= '1998-01-01 00:00' where a= 2;
+# UPDATE of historical row
+update t set row_start= '1999-01-01 01:00', row_end= '1999-01-01 00:00' where a= 1;
+# INSERT historical row
 insert into t (a, row_start, row_end) values (3, '2000-01-01 00:00', '2000-01-01 01:00');
 select *, row_start, row_end from t for system_time all;
 a	row_start	row_end
-2	1998-01-01 00:00:00.000000	1998-01-01 01:00:00.000000
-1	1999-01-01 00:00:00.000000	1999-01-01 01:00:00.000000
+2	1998-01-01 00:00:00.000000	1998-01-01 00:00:00.000000
+1	1999-01-01 01:00:00.000000	1999-01-01 00:00:00.000000
 3	2000-01-01 00:00:00.000000	2000-01-01 01:00:00.000000
-drop table t;
+# normal INSERT
+insert into t (a) values (4);
+select * from t;
+a
+4
+# normal UPDATE
+update t set a= 5;
+select *, check_row(row_start, row_end) from t for system_time all order by a;
+a	check_row(row_start, row_end)
+1	ERROR: row_end < row_start
+2	ERROR: row_end == row_start
+3	HISTORICAL ROW
+4	HISTORICAL ROW
+5	CURRENT ROW
+drop database test;
+create database test;
