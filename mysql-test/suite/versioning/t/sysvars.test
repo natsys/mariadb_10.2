@@ -183,7 +183,11 @@ select *, check_row(row_start, row_end) from t for system_time all order by a;
 --echo ## INSERT..SELECT
 create or replace table t2 like t;
 insert into t2 (a, row_start, row_end) select a, row_start, row_end from t for system_time all;
+select *, check_row(row_start, row_end) from t2 for system_time all order by a;
+--echo ## Multi-UPDATE
+update t, t2 set t.row_start= @s1, t2.row_start= @s1, t.row_end= @s1, t2.row_end= @s1 where t.a > 3 and t2.a > 3;
 select *, check_row(row_start, row_end) from t for system_time all order by a;
+select *, check_row(row_start, row_end) from t2 for system_time all order by a;
 
 --echo ## Honor secure_timestamp option
 --let $restart_parameters= --secure-timestamp=YES --system-versioning-modify-history=on

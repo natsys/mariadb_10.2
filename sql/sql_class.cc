@@ -7129,7 +7129,8 @@ bool THD::vers_modify_history()
   if (!variables.vers_modify_history)
     return false;
   enum_sql_command c= lex->sql_command;
-  if (c != SQLCOM_UPDATE && c != SQLCOM_INSERT && c != SQLCOM_INSERT_SELECT)
+  if (c != SQLCOM_UPDATE && c != SQLCOM_INSERT && c != SQLCOM_INSERT_SELECT &&
+      c != SQLCOM_UPDATE_MULTI)
     return false;
   if (opt_secure_timestamp >= SECTIME_REPL)
   {

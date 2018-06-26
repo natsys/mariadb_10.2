@@ -237,13 +237,29 @@ a	check_row(row_start, row_end)
 ## INSERT..SELECT
 create or replace table t2 like t;
 insert into t2 (a, row_start, row_end) select a, row_start, row_end from t for system_time all;
-select *, check_row(row_start, row_end) from t for system_time all order by a;
+select *, check_row(row_start, row_end) from t2 for system_time all order by a;
 a	check_row(row_start, row_end)
 1	ERROR: row_end < row_start
 2	ERROR: row_end == row_start
 3	HISTORICAL ROW
 4	HISTORICAL ROW
 5	CURRENT ROW
+## Multi-UPDATE
+update t, t2 set t.row_start= @s1, t2.row_start= @s1, t.row_end= @s1, t2.row_end= @s1 where t.a > 3 and t2.a > 3;
+select *, check_row(row_start, row_end) from t for system_time all order by a;
+a	check_row(row_start, row_end)
+1	ERROR: row_end < row_start
+2	ERROR: row_end == row_start
+3	HISTORICAL ROW
+4	ERROR: row_end == row_start
+5	ERROR: row_end == row_start
+select *, check_row(row_start, row_end) from t2 for system_time all order by a;
+a	check_row(row_start, row_end)
+1	ERROR: row_end < row_start
+2	ERROR: row_end == row_start
+3	HISTORICAL ROW
+4	ERROR: row_end == row_start
+5	ERROR: row_end == row_start
 ## Honor secure_timestamp option
 insert into t (a, row_start, row_end) values (6, @s3, @e3);
 ERROR HY000: The value specified for generated column 'row_start' in table 't' ignored
