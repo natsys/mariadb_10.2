@@ -5712,7 +5712,7 @@ find_field_in_table(THD *thd, TABLE *table, const char *name, size_t length,
     if (field->invisible == INVISIBLE_SYSTEM &&
         thd->column_usage != MARK_COLUMNS_READ &&
         thd->column_usage != COLUMNS_READ &&
-        !thd->variables.vers_modify_history)
+        !thd->vers_modify_history())
       DBUG_RETURN((Field*)0);
   }
   else
@@ -7810,8 +7810,7 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
         Field_iterator_natural_join).
         But view fields can never be invisible.
       */
-      if ((field= field_iterator.field()) &&
-          DBUG_EVALUATE_IF("sysvers_show", false, field->invisible != VISIBLE))
+      if ((field= field_iterator.field()) && field->invisible != VISIBLE)
         continue;
 
       Item *item;
@@ -8191,8 +8190,7 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
       table->auto_increment_field_not_null= TRUE;
     Item::Type type= value->type();
     bool vers_sys_field= table->versioned() && rfield->vers_sys_field();
-    if ((rfield->vcol_info || (vers_sys_field &&
-                               !thd->variables.vers_modify_history)) &&
+    if ((rfield->vcol_info || (vers_sys_field && !thd->vers_modify_history())) &&
         type != Item::DEFAULT_VALUE_ITEM &&
         type != Item::NULL_ITEM &&
         table->s->table_category != TABLE_CATEGORY_TEMPORARY)

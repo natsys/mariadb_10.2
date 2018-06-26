@@ -4814,10 +4814,8 @@ public:
     query_plan_flags|= QPLAN_ADMIN;
   }
 
-  bool vers_modify_history() const
-  {
-    return variables.vers_modify_history;
-  }
+  bool modify_history_warned;
+  bool vers_modify_history();
 };
 
 inline void add_to_active_threads(THD *thd)
