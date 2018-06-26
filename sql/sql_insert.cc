@@ -3842,7 +3842,6 @@ int select_insert::send_data(List<Item> &values)
     DBUG_RETURN(1);
   }
 
-  table->vers_write= table->versioned();
   if (table_list)                               // Not CREATE ... SELECT
   {
     switch (table_list->view_check_option(thd, info.ignore)) {
@@ -3854,7 +3853,6 @@ int select_insert::send_data(List<Item> &values)
   }
 
   error= write_record(thd, table, &info);
-  table->vers_write= table->versioned();
   table->auto_increment_field_not_null= FALSE;
   
   if (likely(!error))
