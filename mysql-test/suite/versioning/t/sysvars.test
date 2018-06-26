@@ -154,6 +154,7 @@ show status like "Feature_system_versioning";
 --echo # MDEV-16546 System versioning setting to allow history modification
 --source suite/versioning/engines.inc
 --source suite/versioning/common.inc
+--source suite/versioning/t/sysvars.inc
 set system_versioning_modify_history= on;
 
 --replace_result $sys_datatype_expl SYS_DATATYPE
@@ -167,39 +168,41 @@ eval create or replace table t (
 insert into t values (1);
 update t set a= 2;
 
---disable_query_log
-if ($MTR_COMBINATION_TRX_ID)
-{
-  set @s1= 1;
-  set @e1= 1;
-  set @s2= 3;
-  set @e2= 2;
-  set @s3= 4;
-  set @e3= 5;
-}
-if (!$MTR_COMBINATION_TRX_ID)
-{
-  set @s1= '1998-01-01 00:00';
-  set @e1= '1998-01-01 00:00';
-  set @s2= '1999-01-01 01:00';
-  set @e2= '1999-01-01 00:00';
-  set @s3= '2000-01-01 00:00';
-  set @e3= '2000-01-01 01:00';
-}
---enable_query_log
-
---echo # UPDATE of current row
+--echo ## UPDATE of current row
 update t set row_start= @s1, row_end= @e1 where a= 2;
---echo # UPDATE of historical row
+--echo ## UPDATE of historical row
 update t set row_start= @s2, row_end= @e2 where a= 1;
---echo # INSERT historical row
+--echo ## INSERT historical row
 insert into t (a, row_start, row_end) values (3, @s3, @e3);
---echo # normal INSERT
+--echo ## normal INSERT
 insert into t (a) values (4);
 select * from t;
---echo # normal UPDATE
+--echo ## normal UPDATE
 update t set a= 5;
 select *, check_row(row_start, row_end) from t for system_time all order by a;
+
+--echo ## Honor secure_timestamp option
+--let $restart_parameters= --secure-timestamp=YES --system-versioning-modify-history=on
+--source include/restart_mysqld.inc
+--source suite/versioning/t/sysvars.inc
+--error ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN
+insert into t (a, row_start, row_end) values (6, @s3, @e3);
+show warnings;
+--let $restart_parameters= --secure-timestamp=REPLICATION --system-versioning-modify-history=on
+--source include/restart_mysqld.inc
+--source suite/versioning/t/sysvars.inc
+--error ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN
+insert into t (a, row_start, row_end) values (7, @s3, @e3);
+show warnings;
+--let $restart_parameters= --secure-timestamp=SUPER --system-versioning-modify-history=on
+--source include/restart_mysqld.inc
+--source suite/versioning/t/sysvars.inc
+insert into t (a, row_start, row_end) values (8, @s3, @e3);
+create user nobody;
+change_user nobody;
+use test;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+insert into t (a, row_start, row_end) values (9, @s3, @e3);
 
 drop database test;
 create database test;
