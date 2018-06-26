@@ -180,6 +180,10 @@ select * from t;
 --echo ## normal UPDATE
 update t set a= 5;
 select *, check_row(row_start, row_end) from t for system_time all order by a;
+--echo ## INSERT..SELECT
+create or replace table t2 like t;
+insert into t2 (a, row_start, row_end) select a, row_start, row_end from t for system_time all;
+select *, check_row(row_start, row_end) from t for system_time all order by a;
 
 --echo ## Honor secure_timestamp option
 --let $restart_parameters= --secure-timestamp=YES --system-versioning-modify-history=on

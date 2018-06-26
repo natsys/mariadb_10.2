@@ -234,6 +234,16 @@ a	check_row(row_start, row_end)
 3	HISTORICAL ROW
 4	HISTORICAL ROW
 5	CURRENT ROW
+## INSERT..SELECT
+create or replace table t2 like t;
+insert into t2 (a, row_start, row_end) select a, row_start, row_end from t for system_time all;
+select *, check_row(row_start, row_end) from t for system_time all order by a;
+a	check_row(row_start, row_end)
+1	ERROR: row_end < row_start
+2	ERROR: row_end == row_start
+3	HISTORICAL ROW
+4	HISTORICAL ROW
+5	CURRENT ROW
 ## Honor secure_timestamp option
 insert into t (a, row_start, row_end) values (6, @s3, @e3);
 ERROR HY000: The value specified for generated column 'row_start' in table 't' ignored
