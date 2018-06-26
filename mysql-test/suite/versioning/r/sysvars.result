@@ -101,8 +101,6 @@ set system_versioning_asof= default;
 select @@global.system_versioning_asof = @@system_versioning_asof as equal;
 equal
 1
-set global time_zone= DEFAULT;
-set time_zone= DEFAULT;
 set global system_versioning_asof= DEFAULT;
 set system_versioning_asof= DEFAULT;
 select @@global.system_versioning_asof, @@system_versioning_asof;
