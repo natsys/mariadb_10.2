@@ -6232,7 +6232,7 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
     else if (!from_field)
       goto error;
 
-    if (from_field->vers_sys_field() && thd->variables.vers_modify_history)
+    if (from_field->vers_sys_field() && thd->vers_modify_history())
     {
       DBUG_ASSERT(from_field->table);
       DBUG_ASSERT(from_field->table->versioned());
