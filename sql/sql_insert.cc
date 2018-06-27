@@ -1932,7 +1932,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
             !table->file->referenced_by_foreign_key() &&
             (!table->triggers || !table->triggers->has_delete_triggers()))
         {
-          if (table->versioned(VERS_TRX_ID))
+          if (table->versioned(VERS_TRX_ID) && table->vers_write)
           {
             bitmap_set_bit(table->write_set, table->vers_start_field()->field_index);
             table->vers_start_field()->store(0, false);
@@ -1944,7 +1944,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
           if (likely(!error))
           {
             info->deleted++;
-            if (table->versioned(VERS_TIMESTAMP))
+            if (table->versioned(VERS_TIMESTAMP) && table->vers_write)
             {
               store_record(table, record[2]);
               error= vers_insert_history_row(table);

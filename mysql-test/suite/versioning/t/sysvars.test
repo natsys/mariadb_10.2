@@ -151,7 +151,9 @@ set system_versioning_asof= "DEFAULT";
 
 show status like "Feature_system_versioning";
 
+--echo #
 --echo # MDEV-16546 System versioning setting to allow history modification
+--echo #
 --source suite/versioning/engines.inc
 --source suite/versioning/common.inc
 --source suite/versioning/t/sysvars.inc
@@ -175,12 +177,16 @@ update t set row_start= @s2, row_end= @e2 where a= 2;
 --echo ## INSERT historical row
 insert into t (a, row_start, row_end) values (3, @s3, @e3);
 --echo ## normal INSERT
-# TODO: implement DEFAULT values for row_start, row_end
+# TODO: implement DEFAULT values for row_start, row_end. Hard to do now because of TRX_ID.
 insert into t (a) values (4);
 select * from t;
 --echo ## normal UPDATE
 update t set a= 5;
 select *, check_row(row_start, row_end) from t for system_time all order by a;
+--echo ## Multi-row INSERT
+create or replace table t2 like t;
+insert into t2 (a, row_start, row_end) values (1, @s1, @e1), (2, @s2, @e2);
+select *, check_row(row_start, row_end) from t2 for system_time all order by a;
 --echo ## INSERT..SELECT
 create or replace table t2 like t;
 insert into t2 (a, row_start, row_end) select a, row_start, row_end from t for system_time all;
@@ -190,10 +196,8 @@ update t, t2 set t.row_start= @s1, t2.row_start= @s1, t.row_end= @s1, t2.row_end
 select *, check_row(row_start, row_end) from t for system_time all order by a;
 select *, check_row(row_start, row_end) from t2 for system_time all order by a;
 --echo ## REPLACE
-select *, row_start, row_end from t for system_time all;
 replace t (a, row_start, row_end) values (1, @s3, @e1), (2, @e2, @e2);
 select *, check_row(row_start, row_end) from t for system_time all order by a;
-select *, row_start, row_end from t for system_time all;
 
 --echo ## Honor secure_timestamp option
 --let $restart_parameters= --secure-timestamp=YES --system-versioning-modify-history=on

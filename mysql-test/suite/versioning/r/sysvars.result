@@ -204,7 +204,9 @@ set system_versioning_asof= "DEFAULT";
 show status like "Feature_system_versioning";
 Variable_name	Value
 Feature_system_versioning	2
+#
 # MDEV-16546 System versioning setting to allow history modification
+#
 set system_versioning_modify_history= on;
 create or replace table t (
 a int primary key,
@@ -234,6 +236,13 @@ a	check_row(row_start, row_end)
 3	HISTORICAL ROW
 4	HISTORICAL ROW
 5	CURRENT ROW
+## Multi-row INSERT
+create or replace table t2 like t;
+insert into t2 (a, row_start, row_end) values (1, @s1, @e1), (2, @s2, @e2);
+select *, check_row(row_start, row_end) from t2 for system_time all order by a;
+a	check_row(row_start, row_end)
+1	ERROR: row_end == row_start
+2	ERROR: row_end < row_start
 ## INSERT..SELECT
 create or replace table t2 like t;
 insert into t2 (a, row_start, row_end) select a, row_start, row_end from t for system_time all;
