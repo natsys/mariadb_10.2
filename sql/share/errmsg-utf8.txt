@@ -7925,3 +7925,6 @@ ER_ALTER_OPERATION_TABLE_OPTIONS_NEED_REBUILD
 
 ER_TRUNCATE_ILLEGAL_VERS
         eng "Cannot truncate a versioned table"
+
+WARN_VERS_MODIFY_HISTORY
+        eng "Modifying history is prohibited, set `secure_timestamp` to NO or SUPER"
