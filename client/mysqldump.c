@@ -2791,6 +2791,8 @@ static uint get_table_structure(char *table, char *db, char *table_type,
   MYSQL_RES  *result;
   MYSQL_ROW  row;
   my_bool    vers_hidden= 0;
+  if (versioned)
+    *versioned= 0;
   DBUG_ENTER("get_table_structure");
   DBUG_PRINT("enter", ("db: %s  table: %s", db, table));
 
@@ -2843,7 +2845,6 @@ static uint get_table_structure(char *table, char *db, char *table_type,
 
   if (!opt_xml && !mysql_query_with_error_report(mysql, 0, query_buff))
   {
-    /* using SHOW CREATE statement */
     char buff[20+FN_REFLEN];
     my_snprintf(buff, sizeof(buff), "show create table %s", result_table);
 
@@ -3087,7 +3088,6 @@ static uint get_table_structure(char *table, char *db, char *table_type,
       {
         dynstr_append_checked(&select_field_names, ", ");
       }
-      init=1;
       dynstr_append_checked(&select_field_names,
               quote_name("row_start", name_buff, 0));
       dynstr_append_checked(&select_field_names, ", ");
@@ -3131,6 +3131,25 @@ static uint get_table_structure(char *table, char *db, char *table_type,
   }
   else
   {
+    if (versioned)
+    {
+      char buff[20+FN_REFLEN];
+      my_snprintf(buff, sizeof(buff), "show create table %s", result_table);
+
+      if (mysql_query_with_error_report(mysql, &result, buff))
+        DBUG_RETURN(0);
+
+      row= mysql_fetch_row(result);
+
+      if (strstr(row[1], "WITH SYSTEM VERSIONING"))
+      {
+        *versioned= 1;
+        if (0 == strstr(row[1], "GENERATED ALWAYS AS ROW START"))
+          vers_hidden= 1;
+      }
+      mysql_free_result(result);
+    }
+
     verbose_msg("%s: Warning: Can't set SQL_QUOTE_SHOW_CREATE option (%s)\n",
                 my_progname_short, mysql_error(mysql));
 
@@ -3195,6 +3214,19 @@ static uint get_table_structure(char *table, char *db, char *table_type,
               quote_name(row[SHOW_FIELDNAME], name_buff, 0));
       init=1;
     }
+    if (vers_hidden)
+    {
+      complete_insert= 1;
+      if (init)
+      {
+        dynstr_append_checked(&select_field_names, ", ");
+      }
+      dynstr_append_checked(&select_field_names,
+              quote_name("row_start", name_buff, 0));
+      dynstr_append_checked(&select_field_names, ", ");
+      dynstr_append_checked(&select_field_names,
+              quote_name("row_end", name_buff, 0));
+    }
     init=0;
     mysql_data_seek(result, 0);
 
@@ -3244,6 +3276,8 @@ static uint get_table_structure(char *table, char *db, char *table_type,
       }
     }
     num_fields= mysql_num_rows(result);
+    if (vers_hidden)
+      num_fields+= 2;
     mysql_free_result(result);
     if (!opt_no_create_info)
     {
@@ -3866,7 +3900,8 @@ static void dump_table(char *table, char *db)
     dynstr_append_checked(&query_string, result_table);
     if (versioned)
     {
-      fprintf(md_result_file, "/*!100308 SET system_versioning_modify_history= ON */;\n");
+      if (!opt_xml)
+        fprintf(md_result_file, "/*!100308 SET system_versioning_modify_history= ON */;\n");
       dynstr_append_checked(&query_string, " FOR SYSTEM_TIME ALL");
     }
 
