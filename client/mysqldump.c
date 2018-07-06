@@ -1789,6 +1789,8 @@ static int connect_to_db(char *host, char *user,char *passwd)
     if (mysql_query_with_error_report(mysql, &result, buff))
       DBUG_RETURN(1);
     row= mysql_fetch_row(result);
+    if (!row)
+      DBUG_RETURN(1);
     if (0 != strcmp(row[0], "SYSTEM"))
     {
       strncpy(time_zone_str, row[0], sizeof(time_zone_str));
@@ -1799,6 +1801,9 @@ static int connect_to_db(char *host, char *user,char *passwd)
       mysql_free_result(result);
       my_snprintf(buff, sizeof(buff), "/*!50000 SELECT TIMESTAMPDIFF(HOUR, UTC_TIMESTAMP(), NOW()) */");
       if (mysql_query_with_error_report(mysql, &result, buff))
+        DBUG_RETURN(1);
+      row= mysql_fetch_row(result);
+      if (!row)
         DBUG_RETURN(1);
       int tz_offset= atoi(row[0]);
       snprintf(time_zone_str, sizeof(time_zone_str), "%+03d:00", tz_offset);

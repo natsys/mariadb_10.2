@@ -5941,3 +5941,22 @@ a  b c & $!@#$%^&*( )	int(11)	YES		4	INVISIBLE
 ds=~!@ \# $% ^ & * ( ) _ - = +	int(11)	YES		5	INVISIBLE
 drop database d;
 use test;
+#
+# MDEV-16684 Wrong timestamps on restore from mysqldump --compact
+#
+## Check UTC
+create or replace table td (t timestamp);
+set @ts= timestamp'2000-01-01 00:00';
+insert into td values (@ts);
+drop table td;
+select 'Correct!' as result from td where t = @ts;
+result
+Correct!
+## Check local timezone
+set global time_zone='Europe/Moscow';
+/*!40103 SET time_zone             = 'Europe/Moscow' */ ;
+drop table td;
+select 'Correct!' as result from td where t = @ts;
+result
+Correct!
+drop table td;
