@@ -5953,8 +5953,15 @@ select 'Correct!' as result from td where t = @ts;
 result
 Correct!
 ## Check local timezone
-set global time_zone='Europe/Moscow';
+set global time_zone= 'Europe/Moscow';
 /*!40103 SET time_zone             = 'Europe/Moscow' */ ;
+drop table td;
+select 'Correct!' as result from td where t = @ts;
+result
+Correct!
+## Check SYSTEM timezone
+set global time_zone= SYSTEM;
+/*!40103 SET time_zone             = NUMERIC_OFFSET */ ;
 drop table td;
 select 'Correct!' as result from td where t = @ts;
 result

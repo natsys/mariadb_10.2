@@ -2723,12 +2723,11 @@ select 'Correct!' as result from td where t = @ts;
 --echo ## Check SYSTEM timezone
 set global time_zone= SYSTEM;
 --exec $MYSQL_DUMP --compact --skip-tz-utc test > $MYSQLTEST_VARDIR/tmp/td.sql
-# --exec echo $MYSQL_DUMP --compact --skip-tz-utc test > /tmp/dump
-# --real_sleep 10000
---exec grep time_zone $MYSQLTEST_VARDIR/tmp/td.sql
---exec cat $MYSQLTEST_VARDIR/tmp/td.sql
+--replace_regex /'[+-]\d\d:\d\d'/NUMERIC_OFFSET/
+--exec grep -E 'SET time_zone\s*=\s*[^@ ]' $MYSQLTEST_VARDIR/tmp/td.sql
 drop table td;
 --exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/td.sql
 select 'Correct!' as result from td where t = @ts;
 
 drop table td;
+--remove_file $MYSQLTEST_VARDIR/tmp/td.sql

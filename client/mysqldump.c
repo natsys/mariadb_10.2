@@ -1794,21 +1794,27 @@ static int connect_to_db(char *host, char *user,char *passwd)
     if (0 != strcmp(row[0], "SYSTEM"))
     {
       strncpy(time_zone_str, row[0], sizeof(time_zone_str));
+      mysql_free_result(result);
     }
     else
     {
       // Convert SYSTEM timezone to corresponding UTC offset
       mysql_free_result(result);
-      my_snprintf(buff, sizeof(buff), "/*!50000 SELECT TIMESTAMPDIFF(HOUR, UTC_TIMESTAMP(), NOW()) */");
+      my_snprintf(buff, sizeof(buff),
+                  "/*!50000 SELECT TIMESTAMPDIFF(HOUR, UTC_TIMESTAMP(), NOW()) */");
       if (mysql_query_with_error_report(mysql, &result, buff))
         DBUG_RETURN(1);
       row= mysql_fetch_row(result);
       if (!row)
         DBUG_RETURN(1);
       int tz_offset= atoi(row[0]);
+      mysql_free_result(result);
       snprintf(time_zone_str, sizeof(time_zone_str), "%+03d:00", tz_offset);
+      // SYSTEM timezone may be affected by DST, so we can't use it for data retrieval
+      my_snprintf(buff, sizeof(buff), "/*!40103 SET TIME_ZONE='%s' */", time_zone_str);
+      if (mysql_query_with_error_report(mysql, NULL, buff))
+        DBUG_RETURN(1);
     }
-    mysql_free_result(result);
   }
   DBUG_RETURN(0);
 } /* connect_to_db */
