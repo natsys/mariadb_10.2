@@ -1934,7 +1934,6 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
         {
           if (table->versioned(VERS_TRX_ID) && table->vers_write)
           {
-            bitmap_set_bit(table->write_set, table->vers_start_field()->field_index);
             table->vers_start_field()->store(0, false);
           }
           if (unlikely(error= table->file->ha_update_row(table->record[1],
