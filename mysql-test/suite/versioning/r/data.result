@@ -1,10 +1,33 @@
 create or replace table t1 (x int) with system versioning;
 insert into t1 values (1), (2);
 delete from t1 where x = 1;
+select row_start, row_end from t1 for system_time all where x = 1 into @s1, @e1;
+select row_start, row_end from t1 for system_time all where x = 2 into @s2, @e2;
+# SQL dump with history
 drop table t1;
+select x from t1 for system_time all where row_start = @s1 and row_end = @e1;
+x
+1
+select x from t1 for system_time all where row_start = @s2 and row_end = @e2;
+x
+2
+## Compact mode
+drop table t1;
+select x from t1 for system_time all where row_start = @s1 and row_end = @e1;
+x
+1
+select x from t1 for system_time all where row_start = @s2 and row_end = @e2;
+x
+2
+# XML dump with history
+drop table t1;
+create or replace table t1 (x int) with system versioning;
+set system_versioning_modify_history= ON;
+load xml infile '/home/midenok/src/mariadb/trunk/build/mysql-test/var/4/mysqldump.xml' into table t1;
+## History is loaded as current data
 select *, check_row(row_start, row_end) from t1 for system_time all;
 x	check_row(row_start, row_end)
-1	HISTORICAL ROW
+1	CURRENT ROW
 2	CURRENT ROW
 CREATE OR REPLACE TABLE t1 (a INT, b INT, c INT, vc INT AS (c), UNIQUE(a), UNIQUE(b)) WITH SYSTEM VERSIONING;
 INSERT IGNORE INTO t1 (a,b,c) VALUES (1,2,3);

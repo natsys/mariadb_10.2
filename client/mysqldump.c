@@ -3937,7 +3937,11 @@ static void dump_table(char *table, char *db)
     dynstr_append_checked(&query_string, " FROM ");
     dynstr_append_checked(&query_string, result_table);
     if (versioned)
+    {
+      if (!opt_xml)
+        fprintf(md_result_file, "/*!100308 SET system_versioning_modify_history= ON */;\n");
       dynstr_append_checked(&query_string, " FOR SYSTEM_TIME ALL");
+    }
 
     if (where)
     {

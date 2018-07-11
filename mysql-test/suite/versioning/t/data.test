@@ -12,17 +12,12 @@ drop table t1;
 select x from t1 for system_time all where row_start = @s1 and row_end = @e1;
 select x from t1 for system_time all where row_start = @s2 and row_end = @e2;
 
---exec cat $MYSQLTEST_VARDIR/tmp/mysqldump.sql
-
 --echo ## Compact mode
 --exec $MYSQL_DUMP --compact --skip-comments --databases test > $MYSQLTEST_VARDIR/tmp/mysqldump.sql
 drop table t1;
 --exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/mysqldump.sql
 select x from t1 for system_time all where row_start = @s1 and row_end = @e1;
 select x from t1 for system_time all where row_start = @s2 and row_end = @e2;
-select *, row_start, row_end from t1 for system_time all;
-
---exec cat $MYSQLTEST_VARDIR/tmp/mysqldump.sql
 
 --remove_file $MYSQLTEST_VARDIR/tmp/mysqldump.sql
 
@@ -32,7 +27,9 @@ drop table t1;
 create or replace table t1 (x int) with system versioning;
 set system_versioning_modify_history= ON;
 eval load xml infile '$MYSQLTEST_VARDIR/mysqldump.xml' into table t1;
+--echo ## History is loaded as current data
 select *, check_row(row_start, row_end) from t1 for system_time all;
+# TODO: check mysqlimport
 # --exec $MYSQL_IMPORT test $SECURE_LOAD_PATH/mysqldump.xml
 --remove_file $MYSQLTEST_VARDIR/mysqldump.xml
 
