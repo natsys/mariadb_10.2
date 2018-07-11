@@ -8840,15 +8840,15 @@ ha_innobase::update_row(
 	                   && table->vers_start_id() == 0;
 
 	if (force_insert) {
-	  table->vers_start_field()->store(trx->id);
+		table->vers_start_field()->store(trx->id);
 
-	  ptrdiff_t offset= table->vers_start_field()->ptr - table->record[0];
-    longlong a= sint8korr(table->record[0] + offset);
-    longlong b= sint8korr(table->record[1] + offset);
+		Field *start= table->vers_start_field();
+		longlong old_val= uint8korr(start->ptr_in_record(old_row));
+		longlong new_val= uint8korr(start->ptr_in_record(new_row));
 
-    /* do not do versioned insert twice on the same transaction and same row */
-    force_insert= (a != b);
-  }
+		/* do not do versioned insert twice on the same transaction and same row */
+		force_insert= (old_val != new_val);
+	}
 
 	/* Build an update vector from the modified fields in the rows
 	(uses m_upd_buf of the handle) */
