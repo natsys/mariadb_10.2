@@ -5,33 +5,61 @@ delete from t1 where x = 1;
 select row_start, row_end from t1 for system_time all where x = 1 into @s1, @e1;
 select row_start, row_end from t1 for system_time all where x = 2 into @s2, @e2;
 
---echo # SQL dump with history
---exec $MYSQL_DUMP --skip-comments --databases test > $MYSQLTEST_VARDIR/tmp/mysqldump.sql
+--let TMP= $MYSQLTEST_VARDIR/tmp
+
+--exec $MYSQL_DUMP --dump-history --databases test > $TMP/dump_history.sql
+--exec $MYSQL_DUMP --databases test > $TMP/dump_no_history.sql
+--exec $MYSQL_DUMP --dump-history --compact --databases test > $TMP/dump_compact.sql
+--exec $MYSQL_DUMP --dump-history --no-create-info --skip-comments --databases test > $TMP/dump_only_data.sql
+--exec $MYSQL_DUMP --dump-history --compact --no-create-info --skip-comments --databases test > $TMP/dump_compact_only_data.sql
+--exec $MYSQL_DUMP --dump-history --xml --databases test > $TMP/dump_history.xml
+--exec $MYSQL_DUMP --dump-history --tab=$TMP test
+
+--echo # SQL dump with/without history
+--echo ## With history
 drop table t1;
---exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/mysqldump.sql
+--exec $MYSQL test < $TMP/dump_history.sql
 select x from t1 for system_time all where row_start = @s1 and row_end = @e1;
 select x from t1 for system_time all where row_start = @s2 and row_end = @e2;
 
---echo ## Compact mode
---exec $MYSQL_DUMP --compact --skip-comments --databases test > $MYSQLTEST_VARDIR/tmp/mysqldump.sql
+--echo ## Without history
 drop table t1;
---exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/mysqldump.sql
+--exec $MYSQL test < $TMP/dump_no_history.sql
+select x, check_row(row_start, row_end) from t1 for system_time all;
+
+--echo ## Compact mode with history
+drop table t1;
+--exec $MYSQL test < $TMP/dump_compact.sql
 select x from t1 for system_time all where row_start = @s1 and row_end = @e1;
 select x from t1 for system_time all where row_start = @s2 and row_end = @e2;
 
---remove_file $MYSQLTEST_VARDIR/tmp/mysqldump.sql
+--echo ## History and --no-create-info --skip-comments with/without --compact
+create or replace table t1 (x int) with system versioning;
+--exec $MYSQL test < $TMP/dump_only_data.sql
+select x from t1 for system_time all where row_start = @s1 and row_end = @e1;
+select x from t1 for system_time all where row_start = @s2 and row_end = @e2;
+create or replace table t1 (x int) with system versioning;
+--exec $MYSQL test < $TMP/dump_compact_only_data.sql
+select x from t1 for system_time all where row_start = @s1 and row_end = @e1;
+select x from t1 for system_time all where row_start = @s2 and row_end = @e2;
 
---echo # XML dump with history
---exec $MYSQL_DUMP --skip-comments --xml --databases test > $MYSQLTEST_VARDIR/mysqldump.xml
+--echo # XML with history
 drop table t1;
 create or replace table t1 (x int) with system versioning;
 set system_versioning_modify_history= ON;
-eval load xml infile '$MYSQLTEST_VARDIR/mysqldump.xml' into table t1;
---echo ## History is loaded as current data
+--replace_result $TMP TMP
+eval load xml infile '$TMP/dump_history.xml' into table t1;
+--echo ## History is now loaded as current data (TODO)
 select *, check_row(row_start, row_end) from t1 for system_time all;
 # TODO: check mysqlimport
-# --exec $MYSQL_IMPORT test $SECURE_LOAD_PATH/mysqldump.xml
---remove_file $MYSQLTEST_VARDIR/mysqldump.xml
+# --exec $MYSQL_IMPORT test $TMP/dump_history.xml
+
+--echo # --tab with history
+drop table t1;
+--exec $MYSQL test < $TMP/t1.sql
+# TODO: fix LOAD DATA
+# eval load data infile '$TMP/t1.txt' into table t1 (x, row_start, row_end);
+# select *, check_row(row_start, row_end) from t1 for system_time all;
 
 #
 # MDEV-15330 Server crash or assertion `table->insert_values' failure in write_record upon LOAD DATA

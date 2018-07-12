@@ -115,7 +115,7 @@ static my_bool  verbose= 0, opt_no_create_info= 0, opt_no_data= 0, opt_no_data_m
                 opt_include_master_host_port= 0,
                 opt_events= 0, opt_comments_used= 0,
                 opt_alltspcs=0, opt_notspcs= 0, opt_logging,
-                opt_drop_trigger= 0 ;
+                opt_drop_trigger= 0, opt_dump_history= 0;
 static my_bool insert_pat_inited= 0, debug_info_flag= 0, debug_check_flag= 0,
                select_field_names_inited= 0;
 static ulong opt_max_allowed_packet, opt_net_buffer_length;
@@ -313,6 +313,8 @@ static struct my_option my_long_options[] =
    "'/*!40000 ALTER TABLE tb_name DISABLE KEYS */; and '/*!40000 ALTER "
    "TABLE tb_name ENABLE KEYS */; will be put in the output.", &opt_disable_keys,
    &opt_disable_keys, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
+  {"dump-history", 'H', "Dump tables with history", &opt_dump_history,
+    &opt_dump_history, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"dump-slave", OPT_MYSQLDUMP_SLAVE_DATA,
    "This causes the binary log position and filename of the master to be "
    "appended to the dumped data output. Setting the value to 1, will print"
@@ -2792,7 +2794,12 @@ static uint get_table_structure(char *table, char *db, char *table_type,
   MYSQL_ROW  row;
   my_bool    vers_hidden= 0;
   if (versioned)
-    *versioned= 0;
+  {
+    if (opt_dump_history)
+      *versioned= 0;
+    else
+      versioned= NULL;
+  }
   DBUG_ENTER("get_table_structure");
   DBUG_PRINT("enter", ("db: %s  table: %s", db, table));
 
@@ -3900,8 +3907,6 @@ static void dump_table(char *table, char *db)
     dynstr_append_checked(&query_string, result_table);
     if (versioned)
     {
-      if (!opt_xml)
-        fprintf(md_result_file, "/*!100308 SET system_versioning_modify_history= ON */;\n");
       dynstr_append_checked(&query_string, " FOR SYSTEM_TIME ALL");
     }
 
@@ -3938,8 +3943,7 @@ static void dump_table(char *table, char *db)
     dynstr_append_checked(&query_string, result_table);
     if (versioned)
     {
-      if (!opt_xml)
-        fprintf(md_result_file, "/*!100308 SET system_versioning_modify_history= ON */;\n");
+      // FIXME: warn about opt_xml
       dynstr_append_checked(&query_string, " FOR SYSTEM_TIME ALL");
     }
 
@@ -4001,6 +4005,11 @@ static void dump_table(char *table, char *db)
     {
       fprintf(md_result_file, "/*!40000 ALTER TABLE %s DISABLE KEYS */;\n",
 	      opt_quoted_table);
+      check_io(md_result_file);
+    }
+    if (versioned && !opt_xml)
+    {
+      fprintf(md_result_file, "/*!100308 SET system_versioning_modify_history= ON */;\n");
       check_io(md_result_file);
     }
 
@@ -4262,6 +4271,11 @@ static void dump_table(char *table, char *db)
       goto err;
     }
 
+    if (versioned && !opt_xml)
+    {
+      fprintf(md_result_file, "/*!100308 SET system_versioning_modify_history= OFF */;\n");
+      check_io(md_result_file);
+    }
     /* Moved enable keys to before unlock per bug 15977 */
     if (opt_disable_keys)
     {
