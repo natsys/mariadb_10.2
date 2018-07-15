@@ -1085,6 +1085,13 @@ static int get_options(int *argc, char ***argv)
 	    my_progname_short);
     return(EX_USAGE);
   }
+  if (opt_xml && opt_dump_history)
+  {
+    fprintf(stderr,
+            "%s: --xml can't be used with --dump-history (not yet supported).\n",
+            my_progname_short);
+    return(EX_USAGE);
+  }
   if (strcmp(default_charset, charset_info->csname) &&
       !(charset_info= get_charset_by_csname(default_charset,
                                             MY_CS_PRIMARY, MYF(MY_WME))))
@@ -3943,7 +3950,6 @@ static void dump_table(char *table, char *db)
     dynstr_append_checked(&query_string, result_table);
     if (versioned)
     {
-      // FIXME: warn about opt_xml
       dynstr_append_checked(&query_string, " FOR SYSTEM_TIME ALL");
     }
 

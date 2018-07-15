@@ -3,55 +3,95 @@ insert into t1 values (1), (2);
 delete from t1 where x = 1;
 select row_start, row_end from t1 for system_time all where x = 1 into @s1, @e1;
 select row_start, row_end from t1 for system_time all where x = 2 into @s2, @e2;
+create or replace function check_fields(x int, row_start timestamp(6), row_end timestamp(6))
+returns char(50) deterministic
+return if (x = 1,
+if (row_start = @s1 and row_end = @e1, '[CORRECT]', '[WRONG]'),
+if (x = 2 and row_start = @s2 and row_end = @e2, '[CORRECT]', '[WRONG]'));
+create or replace table t2 (
+x int,
+row_start SYS_TYPE as row start invisible,
+row_end SYS_TYPE as row end invisible,
+period for system_time (row_start, row_end))
+with system versioning;
+set system_versioning_modify_history= ON;
+insert into t2 (x, row_start, row_end) select x, row_start, row_end from t1 for system_time all;
+set system_versioning_modify_history= OFF;
+# t2 has the same data as t1
+select x, check_fields(x, row_start, row_end) from t2 for system_time all order by x;
+x	check_fields(x, row_start, row_end)
+1	[CORRECT]
+2	[CORRECT]
 # SQL dump with/without history
 ## With history
-drop table t1;
-select x from t1 for system_time all where row_start = @s1 and row_end = @e1;
-x
-1
-select x from t1 for system_time all where row_start = @s2 and row_end = @e2;
-x
-2
+drop tables t1, t2;
+select x, check_fields(x, row_start, row_end) from t1 for system_time all order by x;
+x	check_fields(x, row_start, row_end)
+1	[CORRECT]
+2	[CORRECT]
+select x, check_fields(x, row_start, row_end) from t2 for system_time all order by x;
+x	check_fields(x, row_start, row_end)
+1	[CORRECT]
+2	[CORRECT]
 ## Without history
-drop table t1;
-select x, check_row(row_start, row_end) from t1 for system_time all;
+drop tables t1, t2;
+select x, check_row(row_start, row_end) from t1 for system_time all order by x;
+x	check_row(row_start, row_end)
+2	CURRENT ROW
+select x, check_row(row_start, row_end) from t2 for system_time all order by x;
 x	check_row(row_start, row_end)
 2	CURRENT ROW
 ## Compact mode with history
-drop table t1;
-select x from t1 for system_time all where row_start = @s1 and row_end = @e1;
-x
-1
-select x from t1 for system_time all where row_start = @s2 and row_end = @e2;
-x
-2
+drop tables t1, t2;
+select x, check_fields(x, row_start, row_end) from t1 for system_time all order by x;
+x	check_fields(x, row_start, row_end)
+1	[CORRECT]
+2	[CORRECT]
+select x, check_fields(x, row_start, row_end) from t2 for system_time all order by x;
+x	check_fields(x, row_start, row_end)
+1	[CORRECT]
+2	[CORRECT]
 ## History and --no-create-info --skip-comments with/without --compact
 create or replace table t1 (x int) with system versioning;
-select x from t1 for system_time all where row_start = @s1 and row_end = @e1;
-x
-1
-select x from t1 for system_time all where row_start = @s2 and row_end = @e2;
-x
-2
+delete from t2;
+delete history from t2;
+select x, check_fields(x, row_start, row_end) from t1 for system_time all order by x;
+x	check_fields(x, row_start, row_end)
+1	[CORRECT]
+2	[CORRECT]
+select x, check_fields(x, row_start, row_end) from t2 for system_time all order by x;
+x	check_fields(x, row_start, row_end)
+1	[CORRECT]
+2	[CORRECT]
 create or replace table t1 (x int) with system versioning;
-select x from t1 for system_time all where row_start = @s1 and row_end = @e1;
-x
-1
-select x from t1 for system_time all where row_start = @s2 and row_end = @e2;
-x
-2
-# XML with history
-drop table t1;
-create or replace table t1 (x int) with system versioning;
-set system_versioning_modify_history= ON;
-load xml infile 'TMP/dump_history.xml' into table t1;
-## History is now loaded as current data (TODO)
-select *, check_row(row_start, row_end) from t1 for system_time all;
-x	check_row(row_start, row_end)
-1	CURRENT ROW
-2	CURRENT ROW
+delete from t2;
+delete history from t2;
+select x, check_fields(x, row_start, row_end) from t1 for system_time all order by x;
+x	check_fields(x, row_start, row_end)
+1	[CORRECT]
+2	[CORRECT]
+select x, check_fields(x, row_start, row_end) from t2 for system_time all order by x;
+x	check_fields(x, row_start, row_end)
+1	[CORRECT]
+2	[CORRECT]
 # --tab with history
-drop table t1;
+drop tables t1, t2;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `x` int(11) DEFAULT NULL,
+  `row_start` SYS_DATATYPE GENERATED ALWAYS AS ROW START INVISIBLE,
+  `row_end` SYS_DATATYPE GENERATED ALWAYS AS ROW END INVISIBLE,
+  PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+#
+# MDEV-15330 Server crash or assertion `table->insert_values' failure in write_record upon LOAD DATA
+#
 CREATE OR REPLACE TABLE t1 (a INT, b INT, c INT, vc INT AS (c), UNIQUE(a), UNIQUE(b)) WITH SYSTEM VERSIONING;
 INSERT IGNORE INTO t1 (a,b,c) VALUES (1,2,3);
 SELECT a, b, c FROM t1 INTO OUTFILE '15330.data';
@@ -60,3 +100,4 @@ Warnings:
 Warning	1062	Duplicate entry '1' for key 'a'
 LOAD DATA INFILE '15330.data' REPLACE INTO TABLE t1 (a,b,c);
 DROP TABLE t1;
+drop function check_fields;
