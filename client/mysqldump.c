@@ -1085,6 +1085,13 @@ static int get_options(int *argc, char ***argv)
 	    my_progname_short);
     return(EX_USAGE);
   }
+  if (opt_xml && path)
+  {
+    fprintf(stderr,
+            "%s: --xml can't be used with --tab.\n",
+            my_progname_short);
+    return(EX_USAGE);
+  }
   if (opt_xml && opt_dump_history)
   {
     fprintf(stderr,

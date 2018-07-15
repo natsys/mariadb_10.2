@@ -111,7 +111,6 @@ LOAD DATA INFILE '15330.data' IGNORE INTO TABLE t1 (a,b,c);
 LOAD DATA INFILE '15330.data' REPLACE INTO TABLE t1 (a,b,c);
 
 # Cleanup
-DROP TABLE t1;
-
+drop tables t1, t2;
 drop function check_fields;
 --source suite/versioning/common_finish.inc
