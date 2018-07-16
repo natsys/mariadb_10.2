@@ -3157,7 +3157,9 @@ static uint get_table_structure(char *table, char *db, char *table_type,
       char buff[20+FN_REFLEN];
       my_snprintf(buff, sizeof(buff), "show create table %s", result_table);
 
-      if (mysql_query_with_error_report(mysql, &result, buff))
+      if (switch_character_set_results(mysql, "binary") ||
+            mysql_query_with_error_report(mysql, &result, query_buff) ||
+            switch_character_set_results(mysql, default_charset))
         DBUG_RETURN(0);
 
       row= mysql_fetch_row(result);
