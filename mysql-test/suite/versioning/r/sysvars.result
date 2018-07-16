@@ -278,7 +278,7 @@ a	check_row(row_start, row_end)
 3	HISTORICAL ROW
 4	ERROR: row_end == row_start
 5	ERROR: row_end == row_start
-## LOAD
+## LOAD DATA
 select *, row_start, row_end from t for system_time all into outfile 'DATAFILE';
 create or replace table t3 like t;
 load data infile 'DATAFILE' into table t3 (a, row_start, row_end);
