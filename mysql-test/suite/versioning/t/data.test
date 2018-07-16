@@ -98,9 +98,12 @@ drop tables t1, t2;
 show create table t1;
 --replace_result $default_engine DEFAULT_ENGINE $sys_datatype_expl SYS_DATATYPE
 show create table t2;
-# TODO: fix LOAD DATA (MDEV-16734)
-# eval load data infile '$TMP/t1.txt' into table t1 (x, row_start, row_end);
-# select *, check_row(row_start, row_end) from t1 for system_time all;
+set system_versioning_modify_history= ON;
+eval load data infile '$TMP/t1.txt' into table t1 (x, row_start, row_end);
+eval load data infile '$TMP/t2.txt' into table t2 (x, row_start, row_end);
+set system_versioning_modify_history= OFF;
+select *, check_row(row_start, row_end) from t1 for system_time all;
+select *, check_row(row_start, row_end) from t2 for system_time all;
 
 --remove_files_wildcard $TMP *.sql
 --remove_files_wildcard $TMP *.txt
