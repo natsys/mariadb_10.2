@@ -34,6 +34,7 @@ select x, check_fields(x, row_start, row_end) from t2 for system_time all order 
 --exec $MYSQL_DUMP --dump-history --compact --databases test > $TMP/dump_compact.sql
 --exec $MYSQL_DUMP --dump-history --no-create-info --skip-comments --databases test > $TMP/dump_only_data.sql
 --exec $MYSQL_DUMP --dump-history --compact --no-create-info --skip-comments --databases test > $TMP/dump_compact_only_data.sql
+# TODO: MDEV-16766 mysqldump: dump history in XML
 if (0)
 {
 --exec $MYSQL_DUMP --dump-history --xml --databases test > $TMP/dump_history.xml
@@ -70,6 +71,7 @@ delete from t2; delete history from t2;
 select x, check_fields(x, row_start, row_end) from t1 for system_time all order by x;
 select x, check_fields(x, row_start, row_end) from t2 for system_time all order by x;
 
+# TODO: MDEV-16766 mysqldump: dump history in XML
 if (0)
 {
 --echo # XML with history
