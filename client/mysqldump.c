@@ -2809,9 +2809,8 @@ static uint get_table_structure(char *table, char *db, char *table_type,
   my_bool    vers_hidden= 0;
   if (versioned)
   {
-    if (opt_dump_history)
-      *versioned= 0;
-    else
+    *versioned= 0;
+    if (!opt_dump_history)
       versioned= NULL;
   }
   DBUG_ENTER("get_table_structure");
@@ -3811,7 +3810,7 @@ static void dump_table(char *table, char *db)
   ulong         rownr, row_break;
   uint num_fields;
   size_t total_length, init_length;
-  my_bool versioned;
+  my_bool versioned= 0;
 
   MYSQL_RES     *res;
   MYSQL_FIELD   *field;
