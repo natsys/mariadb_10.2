@@ -8843,11 +8843,10 @@ ha_innobase::update_row(
 		table->vers_start_field()->store(trx->id);
 
 		Field *start= table->vers_start_field();
-		longlong old_val= uint8korr(start->ptr_in_record(old_row));
-		longlong new_val= uint8korr(start->ptr_in_record(new_row));
+		trx_id_t old_trx_id= uint8korr(start->ptr_in_record(old_row));
 
-		/* do not do versioned insert twice on the same transaction and same row */
-		force_insert= (old_val != new_val);
+		/* avoid double versioned insert on the same transaction and same row */
+		force_insert= (old_trx_id != trx->id);
 	}
 
 	/* Build an update vector from the modified fields in the rows
