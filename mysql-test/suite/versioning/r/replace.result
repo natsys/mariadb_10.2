@@ -27,28 +27,6 @@ id	x	current	start_nonzero
 1	3	0	1
 1	3	0	1
 1	40	1	1
-select count(row_start) as empty from t for system_time all
-group by row_start having count(row_start) > 1;
-empty
-drop table t;
-# replace on unversioned field shoud create history record
-create or replace table t(
-id int,
-KEY_TYPE(id),
-x int without system versioning,
-row_start SYS_DATATYPE as row start invisible,
-row_end SYS_DATATYPE as row end invisible,
-period for system_time(row_start, row_end)
-) with system versioning;
-insert t values (1, 2);
-replace t values (1, 3);
-select *, current_row(row_end) as current, count(row_start) = 1 as unique_start,
-row_start != 0 as start_nonzero
-from t for system_time all
-group by row_start order by x, row_end;
-id	x	current	unique_start	start_nonzero
-1	2	0	1	1
-1	3	1	1	1
 drop table t;
 create table t (
 id int unique,
