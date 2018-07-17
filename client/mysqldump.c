@@ -127,7 +127,7 @@ static char  *opt_password=0,*current_user=0,
              *where=0, *order_by=0,
              *opt_compatible_mode_str= 0,
              *err_ptr= 0,
-             *log_error_file= NULL;
+             *log_error_file= NULL, *opt_asof_time= NULL;
 static char **defaults_argv= 0;
 static char compatible_mode_normal_str[255];
 /* Server supports character_set_results session variable? */
@@ -251,6 +251,9 @@ static struct my_option my_long_options[] =
    "Adds 'STOP SLAVE' prior to 'CHANGE MASTER' and 'START SLAVE' to bottom of dump.",
    &opt_slave_apply, &opt_slave_apply, 0, GET_BOOL, NO_ARG,
    0, 0, 0, 0, 0, 0},
+  {"asof-time", OPT_ASOF_TIME,
+   "Dump system versioned table as of specified timestamp.",
+   &opt_asof_time, &opt_asof_time, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"character-sets-dir", OPT_CHARSETS_DIR,
    "Directory for character set files.", (char **)&charsets_dir,
    (char **)&charsets_dir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
