@@ -251,7 +251,7 @@ static struct my_option my_long_options[] =
    "Adds 'STOP SLAVE' prior to 'CHANGE MASTER' and 'START SLAVE' to bottom of dump.",
    &opt_slave_apply, &opt_slave_apply, 0, GET_BOOL, NO_ARG,
    0, 0, 0, 0, 0, 0},
-  {"asof-time", OPT_ASOF_TIME,
+  {"asof-timestamp", OPT_ASOF_TIME,
    "Dump system versioned table as of specified timestamp.",
    &opt_asof_time, &opt_asof_time, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"character-sets-dir", OPT_CHARSETS_DIR,
@@ -2813,7 +2813,7 @@ static uint get_table_structure(char *table, char *db, char *table_type,
   if (versioned)
   {
     *versioned= 0;
-    if (!opt_dump_history)
+    if (!opt_dump_history && !opt_asof_time)
       versioned= NULL;
   }
   DBUG_ENTER("get_table_structure");
@@ -3786,6 +3786,31 @@ static char *alloc_query_str(size_t size)
 }
 
 
+static void vers_append_system_time(DYNAMIC_STRING* query_string)
+{
+  if (opt_asof_time)
+  {
+    if (opt_dump_history)
+    {
+      dynstr_append_checked(query_string, " FOR SYSTEM_TIME BETWEEN TIMESTAMP "
+                            "TIMESTAMP'0-0-0 0:0' AND TIMESTAMP '");
+      dynstr_append_checked(query_string, opt_asof_time);
+      dynstr_append_checked(query_string, "'");
+    }
+    else
+    {
+      dynstr_append_checked(query_string, " FOR SYSTEM_TIME AS OF TIMESTAMP '");
+      dynstr_append_checked(query_string, opt_asof_time);
+      dynstr_append_checked(query_string, "'");
+    }
+  }
+  else
+  {
+    dynstr_append_checked(query_string, " FOR SYSTEM_TIME ALL");
+  }
+}
+
+
 /*
 
  SYNOPSIS
@@ -3924,9 +3949,7 @@ static void dump_table(char *table, char *db)
     dynstr_append_checked(&query_string, " FROM ");
     dynstr_append_checked(&query_string, result_table);
     if (versioned)
-    {
-      dynstr_append_checked(&query_string, " FOR SYSTEM_TIME ALL");
-    }
+      vers_append_system_time(&query_string);
 
     if (where)
     {
@@ -3960,9 +3983,7 @@ static void dump_table(char *table, char *db)
     dynstr_append_checked(&query_string, " FROM ");
     dynstr_append_checked(&query_string, result_table);
     if (versioned)
-    {
-      dynstr_append_checked(&query_string, " FOR SYSTEM_TIME ALL");
-    }
+      vers_append_system_time(&query_string);
 
     if (where)
     {
