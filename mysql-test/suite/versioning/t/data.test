@@ -123,6 +123,10 @@ set system_versioning_modify_history= OFF;
 --exec $MYSQL_DUMP --asof-timestamp='1990-08-02 00:00' --databases test > $TMP/asof_02.sql
 --exec $MYSQL_DUMP --asof-timestamp='1990-08-04 00:00' --databases test > $TMP/asof_03.sql
 --exec $MYSQL_DUMP --dump-history --asof-timestamp='1990-08-04 00:00' --databases test > $TMP/asof_04.sql
+## Forged query protection
+--error 1
+--exec $MYSQL_DUMP --asof-timestamp="1990-08-04 00:00' where 'abc" --databases test
+
 
 drop table t1;
 --echo ## Current data
@@ -144,7 +148,6 @@ drop table t1;
 --echo ## --dump-history --asof-timestamp='1990-08-04 00:00'
 --exec $MYSQL test < $TMP/asof_04.sql
 select *, row_start, row_end from t1 for system_time all;
-
 
 --remove_files_wildcard $TMP *.sql
 --remove_files_wildcard $TMP *.txt
