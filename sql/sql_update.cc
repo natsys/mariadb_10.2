@@ -351,6 +351,7 @@ int mysql_update_inner(THD *thd, TABLE_LIST *table_list, List<Item> &fields,
   bool do_direct_update= false;
   SORT_INFO *file_sort= NULL;
   READ_RECORD info;
+  trg_event_type event;
   ha_rows updated= 0;
   ha_rows found= 0;
   bool transactional_table= table->file->has_transactions();
@@ -520,11 +521,12 @@ int mysql_update_inner(THD *thd, TABLE_LIST *table_list, List<Item> &fields,
   DBUG_EXECUTE_IF("show_explain_probe_update_exec_start", 
                   dbug_serve_apcs(thd, 1););
 
+  event= thd->lex->sql_command == SQLCOM_DELETE ? TRG_EVENT_DELETE
+                                                : TRG_EVENT_UPDATE;
+
   has_triggers= (table->triggers &&
-                 (table->triggers->has_triggers(TRG_EVENT_UPDATE,
-                                                TRG_ACTION_BEFORE) ||
-                 table->triggers->has_triggers(TRG_EVENT_UPDATE,
-                                               TRG_ACTION_AFTER)));
+                 (table->triggers->has_triggers(event, TRG_ACTION_BEFORE) ||
+                 table->triggers->has_triggers(event, TRG_ACTION_AFTER)));
   DBUG_PRINT("info", ("has_triggers: %s", has_triggers ? "TRUE" : "FALSE"));
   binlog_is_row= thd->is_current_stmt_binlog_format_row();
   DBUG_PRINT("info", ("binlog_is_row: %s", binlog_is_row ? "TRUE" : "FALSE"));
@@ -810,7 +812,7 @@ update_begin:
       store_record(table,record[1]);
 
       if (fill_record_n_invoke_before_triggers(thd, table, fields, values, 0,
-                                               TRG_EVENT_UPDATE))
+                                               event))
         break; /* purecov: inspected */
 
       found++;
@@ -922,7 +924,7 @@ update_begin:
       }
 
       if (table->triggers &&
-          unlikely(table->triggers->process_triggers(thd, TRG_EVENT_UPDATE,
+          unlikely(table->triggers->process_triggers(thd, event,
                                                      TRG_ACTION_AFTER, TRUE)))
       {
         error= 1;
