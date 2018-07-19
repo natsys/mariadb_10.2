@@ -112,9 +112,10 @@ insert into t1 (x, row_start, row_end) values
 set system_versioning_modify_history= OFF;
 drop table t1;
 ## Current data
-select *, row_start, row_end from t1 for system_time all;
-x	row_start	row_end
-3	2018-07-18 14:20:10.767171	2038-01-19 03:14:07.999999
+set @t1= now(6);
+select *, check_row(row_start, row_end), row_start >= @t1 from t1 for system_time all;
+x	check_row(row_start, row_end)	row_start >= @t1
+3	CURRENT ROW	1
 drop table t1;
 ## --asof-timestamp='1990-01-02 00:00'
 select *, row_start, row_end from t1 for system_time all;

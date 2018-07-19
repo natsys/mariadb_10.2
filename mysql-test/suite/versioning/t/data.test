@@ -127,11 +127,11 @@ set system_versioning_modify_history= OFF;
 --error 1
 --exec $MYSQL_DUMP --asof-timestamp="1990-08-04 00:00' where 'abc" --databases test
 
-
 drop table t1;
 --echo ## Current data
+set @t1= now(6);
 --exec $MYSQL test < $TMP/current.sql
-select *, row_start, row_end from t1 for system_time all;
+select *, check_row(row_start, row_end), row_start >= @t1 from t1 for system_time all;
 drop table t1;
 --echo ## --asof-timestamp='1990-01-02 00:00'
 --exec $MYSQL test < $TMP/asof_01.sql
