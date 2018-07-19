@@ -45,8 +45,13 @@ eval create or replace table t(
 
 insert t values (1, 2);
 replace t values (1, 3);
-select *, current_row(row_end) as current, row_start != 0 as start_nonzero
-from t for system_time all order by x;
+select *, check_row(row_start, row_end), row_start != 0 as start_nonzero
+  from t for system_time all order by x;
+
+--echo # ensure that row_start is not duplicated
+select count(row_start) as empty from t for system_time all
+  group by row_start having count(row_start) > 1;
+
 drop table t;
 
 #
