@@ -527,7 +527,6 @@ int mysql_update_inner(THD *thd, TABLE_LIST *table_list, List<Item> &fields,
   has_triggers= (table->triggers &&
                  (table->triggers->has_triggers(event, TRG_ACTION_BEFORE) ||
                  table->triggers->has_triggers(event, TRG_ACTION_AFTER)));
-  sql_print_information(has_triggers?"has triggers": "no triggers");
   DBUG_PRINT("info", ("has_triggers: %s", has_triggers ? "TRUE" : "FALSE"));
   binlog_is_row= thd->is_current_stmt_binlog_format_row();
   DBUG_PRINT("info", ("binlog_is_row: %s", binlog_is_row ? "TRUE" : "FALSE"));
