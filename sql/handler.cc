@@ -4898,6 +4898,7 @@ int ha_create_table(THD *thd, const char *path,
                         !create_info->tmp_table();
 
     share.frm_image= frm;
+    share.orig_table_name= table_name;
 
     // open an frm image
     if (share.init_from_binary_frm_image(thd, write_frm_now,
@@ -6896,29 +6897,6 @@ bool Vers_parse_info::fix_implicit(THD *thd, Alter_info *alter_info)
   return false;
 }
 
-bool Table_scope_and_contents_source_st::vers_native(THD *thd) const
-{
-  if (ha_check_storage_engine_flag(db_type, HTON_NATIVE_SYS_VERSIONING))
-    return true;
-
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-  partition_info *info= thd->work_part_info;
-  if (info && !(used_fields & HA_CREATE_USED_ENGINE))
-  {
-    if (handlerton *hton= info->default_engine_type)
-      return ha_check_storage_engine_flag(hton, HTON_NATIVE_SYS_VERSIONING);
-
-    List_iterator_fast<partition_element> it(info->partitions);
-    while (partition_element *partition_element= it++)
-    {
-      if (partition_element->find_engine_flag(HTON_NATIVE_SYS_VERSIONING))
-        return true;
-    }
-  }
-#endif
-  return false;
-}
-
 bool Table_scope_and_contents_source_st::vers_fix_system_fields(
   THD *thd, Alter_info *alter_info, const TABLE_LIST &create_table,
   bool create_select)
@@ -7225,8 +7203,6 @@ bool Table_scope_and_contents_source_st::vers_check_system_fields(
   if (!(options & HA_VERSIONED_TABLE))
     return false;
 
-  bool native= vers_native(thd);
-
   if (vers_info.check_conditions(table_name, db))
     return true;
 
@@ -7279,12 +7255,6 @@ bool Table_scope_and_contents_source_st::vers_check_system_fields(
         row_end->length != (MY_INT64_NUM_DECIMAL_DIGITS - 1))
     {
       require_trx_id(row_end_name, table_name);
-      return true;
-    }
-
-    if (!native)
-    {
-      require_timestamp(row_start_name, table_name);
       return true;
     }
 

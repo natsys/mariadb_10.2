@@ -54,6 +54,7 @@ bool THD::has_thd_temporary_tables()
   @param path [IN]                    File path (without extension)
   @param db   [IN]                    Schema name
   @param table_name [IN]              Table name
+  @param orig_table_name [IN]         Altered table original name
   @param open_in_engine [IN]          Whether open table in SE
 
 
@@ -65,6 +66,7 @@ TABLE *THD::create_and_open_tmp_table(handlerton *hton,
                                       const char *path,
                                       const char *db,
                                       const char *table_name,
+                                      const char *orig_table_name,
                                       bool open_in_engine,
                                       bool open_internal_tables)
 {
@@ -73,7 +75,8 @@ TABLE *THD::create_and_open_tmp_table(handlerton *hton,
   TMP_TABLE_SHARE *share;
   TABLE *table= NULL;
 
-  if ((share= create_temporary_table(hton, frm, path, db, table_name)))
+  if ((share= create_temporary_table(hton, frm, path, db, table_name,
+                                     orig_table_name)))
   {
     open_options|= HA_OPEN_FOR_CREATE;
     table= open_temporary_table(share, table_name, open_in_engine);
@@ -908,6 +911,7 @@ uint THD::create_tmp_table_def_key(char *key, const char *db,
   @param path [IN]                    File path (without extension)
   @param db   [IN]                    Schema name
   @param table_name [IN]              Table name
+  @param orig_table_name [IN]         Altered table original name
 
   @return Success                     A pointer to table share object
           Failure                     NULL
@@ -916,7 +920,8 @@ TMP_TABLE_SHARE *THD::create_temporary_table(handlerton *hton,
                                              LEX_CUSTRING *frm,
                                              const char *path,
                                              const char *db,
-                                             const char *table_name)
+                                             const char *table_name,
+                                             const char *orig_table_name)
 {
   DBUG_ENTER("THD::create_temporary_table");
 
@@ -950,6 +955,7 @@ TMP_TABLE_SHARE *THD::create_temporary_table(handlerton *hton,
 
   init_tmp_table_share(this, share, saved_key_cache, key_length,
                        strend(saved_key_cache) + 1, tmp_path);
+  share->orig_table_name= orig_table_name;
 
   share->db_plugin= ha_lock_engine(this, hton);
 

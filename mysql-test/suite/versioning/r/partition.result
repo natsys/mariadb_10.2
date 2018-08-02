@@ -1,6 +1,6 @@
 set system_versioning_alter_history=keep;
 # Check conventional partitioning on temporal tables
-create table t1 (x int)
+create or replace table t1 (x int, ROW_START, ROW_END, period for system_time(row_start, row_end))
 with system versioning
 partition by range columns (x) (
 partition p0 values less than (100),
@@ -34,7 +34,9 @@ select * from t1 partition (p1) for system_time all;
 x
 300
 # Engine change native <-> non-native versioning prohibited
-create or replace table t1 (i int) engine=DEFAULT_ENGINE with system versioning partition by hash(i);
+create or replace table t1 (i int, ROW_START, ROW_END, period for system_time(row_start, row_end))
+engine=DEFAULT_ENGINE
+with system versioning partition by hash(i);
 alter table t1 engine=NON_DEFAULT_ENGINE;
 ERROR HY000: Not allowed for system-versioned `test`.`t1`. Change to/from native system versioning engine is not supported.
 ## CREATE TABLE
@@ -320,14 +322,14 @@ select * from t1 partition (p1sp0);
 x
 select * from t1 partition (p1sp1);
 x
-create or replace table t1 (a bigint)
+create or replace table t1 (a bigint, ROW_START, ROW_END, period for system_time(row_start, row_end))
 with system versioning
 partition by range (a)
 (partition p0 values less than (20) engine innodb,
 partition p1 values less than maxvalue engine innodb);
 insert into t1 values (1);
 create or replace table t1 (
-f_int1 integer default 0
+f_int1 integer default 0, ROW_START, ROW_END, period for system_time(row_start, row_end)
 ) with system versioning
 partition by range(f_int1)
 subpartition by hash(f_int1)
@@ -336,7 +338,8 @@ subpartition by hash(f_int1)
 subpartition subpart12 storage engine = 'innodb'));
 insert into t1 values (1);
 create or replace table t1 (i int) engine=innodb partition by key(i);
-alter table t1 add system versioning;
+alter table t1 add column ROW_START, add column ROW_END, add period for system_time(row_start, row_end),
+add system versioning;
 insert into t1 values();
 # MDEV-14722 Assertion in ha_commit_trans for sub-statement
 create or replace table t1 (i int) with system versioning
@@ -507,6 +510,72 @@ Warning	1906	The value specified for generated column 'v' in table 't1' ignored
 create or replace table t1 (i int) with system versioning partition by system_time limit 10 (partition p0 history, partition pn current);
 select * from t1 partition (p0) for system_time all;
 ERROR HY000: SYSTEM_TIME partitions in table `t1` does not support historical query
+# MDEV-15951 system versioning by trx id doesn't work with partitioning
+# currently trx_id does not support partitioning by system_time
+create or replace table t1(
+i int,
+row_start bigint unsigned generated always as row start,
+row_end bigint unsigned generated always as row end,
+period for system_time(row_start, row_end)
+) engine=InnoDB with system versioning partition by system_time (
+partition p0 history,
+partition pn current
+);
+ERROR HY000: `row_start` must be of type TIMESTAMP(6) for system-versioned table `t1`
+create or replace table t1(
+i int,
+row_start bigint unsigned generated always as row start,
+row_end bigint unsigned generated always as row end,
+period for system_time(row_start, row_end)
+) engine=InnoDB with system versioning;
+alter table t1  partition by system_time (
+partition p0 history,
+partition pn current
+);
+ERROR HY000: `row_start` must be of type TIMESTAMP(6) for system-versioned table `t1`
+create or replace table t (
+a int primary key,
+row_start bigint unsigned as row start invisible,
+row_end bigint unsigned as row end invisible,
+period for system_time(row_start, row_end)
+) engine=innodb with system versioning
+partition by key() (
+partition p1,
+partition p2
+);
+ERROR HY000: Using ROW START/END for patitioning is not supported for transactional system-versioned tables
+create or replace table t (
+a int primary key,
+row_start bigint unsigned as row start invisible,
+row_end bigint unsigned as row end invisible,
+period for system_time(row_start, row_end)
+) engine=innodb with system versioning
+partition by key(a, row_start) (
+partition p1,
+partition p2
+);
+ERROR HY000: Using ROW START/END for patitioning is not supported for transactional system-versioned tables
+create or replace table t (
+a int primary key,
+row_start bigint unsigned as row start invisible,
+row_end bigint unsigned as row end invisible,
+period for system_time(row_start, row_end)
+) engine=innodb with system versioning
+partition by hash(a + row_end * 2) (
+partition p1,
+partition p2
+);
+ERROR HY000: Using ROW START/END for patitioning is not supported for transactional system-versioned tables
+create or replace table t (
+a int primary key,
+row_start bigint unsigned as row start invisible,
+row_end bigint unsigned as row end invisible,
+period for system_time(row_start, row_end)
+) engine=innodb with system versioning
+partition by range columns (a, row_start) (
+partition p1 values less than (100, 100)
+);
+ERROR HY000: Using ROW START/END for patitioning is not supported for transactional system-versioned tables
 # Test cleanup
 drop database test;
 create database test;

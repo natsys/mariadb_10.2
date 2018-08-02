@@ -4974,7 +4974,7 @@ int create_table_impl(THD *thd,
   {
     TABLE *table= thd->create_and_open_tmp_table(create_info->db_type, frm,
                                                  path, db->str,
-                                                 table_name->str, true,
+                                                 table_name->str, NULL, true,
                                                  false);
 
     if (!table)
@@ -5006,6 +5006,7 @@ int create_table_impl(THD *thd,
     TABLE_SHARE share;
 
     init_tmp_table_share(thd, &share, db->str, 0, table_name->str, path);
+    share.orig_table_name= orig_table_name->str;
 
     bool result= (open_table_def(thd, &share, GTS_TABLE) ||
                   open_table_from_share(thd, &share, &empty_clex_str, 0,
@@ -9647,6 +9648,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
                                          alter_ctx.get_tmp_path(),
                                          alter_ctx.new_db.str,
                                          alter_ctx.tmp_name.str,
+                                         alter_ctx.table_name.str,
                                          false, true)))
       goto err_new_table_cleanup;
 
@@ -9769,6 +9771,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
                                      alter_ctx.get_tmp_path(),
                                      alter_ctx.new_db.str,
                                      alter_ctx.tmp_name.str,
+                                     alter_ctx.table_name.str,
                                      true, true);
     if (!tmp_table)
     {
@@ -9802,6 +9805,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
                                      alter_ctx.get_tmp_path(),
                                      alter_ctx.new_db.str,
                                      alter_ctx.tmp_name.str,
+                                     alter_ctx.table_name.str,
                                      true, true);
   }
   if (!new_table)
