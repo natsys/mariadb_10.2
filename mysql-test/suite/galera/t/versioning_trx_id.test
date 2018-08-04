@@ -1,0 +1,18 @@
+--source include/galera_cluster.inc
+
+--connection node_1
+create table t1 (a int, s bigint unsigned as row start, e bigint unsigned as row end, period for system_time(s,e)) engine=InnoDB with system versioning;
+insert into t1 (a) values (1),(2);
+
+--connection node_2
+insert into t1 (a) values (3),(4);
+select count(*) from mysql.transaction_registry where begin_timestamp='0-0-0';
+select count(*) from mysql.transaction_registry where begin_timestamp>=commit_timestamp;
+
+--connection node_1
+select count(*) from mysql.transaction_registry where begin_timestamp='0-0-0';
+select count(*) from mysql.transaction_registry where begin_timestamp>=commit_timestamp;
+
+drop table t1;
+
+--source include/galera_end.inc
