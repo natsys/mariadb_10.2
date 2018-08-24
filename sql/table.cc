@@ -8877,7 +8877,8 @@ bool Vers_history_point::resolve_unit(THD *thd)
     return false;
   if (item->fix_fields_if_needed(thd, &item))
     return true;
-  return false;
+  return item->this_item()->type_handler_for_system_time()->
+           Vers_history_point_resolve_unit(thd, this);
 }
 
 

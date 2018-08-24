@@ -5784,3 +5784,64 @@ void Type_handler_geometry::Item_param_set_param_func(Item_param *param,
   param->set_null(); // Not possible type code in the client-server protocol
 }
 #endif
+
+/***************************************************************************/
+
+bool Type_handler::Vers_history_point_resolve_unit(THD *thd,
+                                                   Vers_history_point *point)
+                                                   const
+{
+  /*
+    Disallow using non-relevant data types in history points.
+    Even expressions with explicit TRANSACTION or TIMESTAMP units.
+  */
+  point->bad_expression_data_type_error(name().ptr());
+  return true;
+}
+
+
+bool Type_handler_typelib::
+       Vers_history_point_resolve_unit(THD *thd,
+                                       Vers_history_point *point) const
+{
+  /*
+    ENUM/SET have dual type properties (string and numeric).
+    Require explicit CAST to avoid ambiguity.
+  */
+  point->bad_expression_data_type_error(name().ptr());
+  return true;
+}
+
+
+bool Type_handler_general_purpose_int::
+       Vers_history_point_resolve_unit(THD *thd,
+                                       Vers_history_point *point) const
+{
+  return false;
+}
+
+
+bool Type_handler_bit::
+       Vers_history_point_resolve_unit(THD *thd,
+                                       Vers_history_point *point) const
+{
+  return false;
+}
+
+
+bool Type_handler_temporal_result::
+       Vers_history_point_resolve_unit(THD *thd,
+                                       Vers_history_point *point) const
+{
+  return false;
+}
+
+
+bool Type_handler_general_purpose_string::
+       Vers_history_point_resolve_unit(THD *thd,
+                                       Vers_history_point *point) const
+{
+  return false;
+}
+
+/***************************************************************************/
