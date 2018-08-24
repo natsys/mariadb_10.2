@@ -9234,7 +9234,7 @@ select_options:
 opt_history_unit:
           /* empty*/         %prec PREC_BELOW_IDENTIFIER_OPT_SPECIAL_CASE
           {
-            $$= VERS_UNDEFINED;
+            $$= VERS_TIMESTAMP;
           }
         | TRANSACTION_SYM
           {

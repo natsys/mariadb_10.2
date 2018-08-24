@@ -1908,7 +1908,7 @@ enum vers_sys_type_t
 struct Vers_parse_info
 {
   Vers_parse_info() :
-    check_unit(VERS_UNDEFINED),
+    check_unit(VERS_TIMESTAMP),
     versioned_fields(false),
     unversioned_fields(false)
   {}
