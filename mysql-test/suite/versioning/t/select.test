@@ -344,7 +344,7 @@ select row_end from t1 for system_time all into @t2;
 --disable_query_log
 if($MTR_COMBINATION_TRX_ID) {
   set @t1= trt_begin_ts(@t1);
-  set @t2= trt_begin_ts(@t2);
+  set @t2= trt_commit_ts(@t2);
 }
 --enable_query_log
 select * from t1 for system_time between @t1 and @t2;
