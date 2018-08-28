@@ -5787,7 +5787,7 @@ void Type_handler_geometry::Item_param_set_param_func(Item_param *param,
 
 /***************************************************************************/
 
-bool Type_handler::Vers_history_point_resolve_unit(THD *thd,
+bool Type_handler::Vers_history_point_check_unit(THD *thd,
                                                    Vers_history_point *point)
                                                    const
 {
@@ -5801,7 +5801,7 @@ bool Type_handler::Vers_history_point_resolve_unit(THD *thd,
 
 
 bool Type_handler_typelib::
-       Vers_history_point_resolve_unit(THD *thd,
+       Vers_history_point_check_unit(THD *thd,
                                        Vers_history_point *point) const
 {
   /*
@@ -5814,34 +5814,34 @@ bool Type_handler_typelib::
 
 
 bool Type_handler_general_purpose_int::
-       Vers_history_point_resolve_unit(THD *thd,
+       Vers_history_point_check_unit(THD *thd,
                                        Vers_history_point *point) const
 {
-  return point->resolve_unit_trx_id(thd);
+  return false;
 }
 
 
 bool Type_handler_bit::
-       Vers_history_point_resolve_unit(THD *thd,
+       Vers_history_point_check_unit(THD *thd,
                                        Vers_history_point *point) const
 {
-  return point->resolve_unit_trx_id(thd);
+  return false;
 }
 
 
 bool Type_handler_temporal_result::
-       Vers_history_point_resolve_unit(THD *thd,
+       Vers_history_point_check_unit(THD *thd,
                                        Vers_history_point *point) const
 {
-  return point->resolve_unit_timestamp(thd);
+  return false;
 }
 
 
 bool Type_handler_general_purpose_string::
-       Vers_history_point_resolve_unit(THD *thd,
+       Vers_history_point_check_unit(THD *thd,
                                        Vers_history_point *point) const
 {
-  return point->resolve_unit_timestamp(thd);
+  return false;
 }
 
 /***************************************************************************/

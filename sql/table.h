@@ -1832,21 +1832,9 @@ public:
     item= p.item;
     fix_item();
   }
-  void empty() { unit= VERS_UNDEFINED; item= NULL; }
+  void empty() { unit= VERS_TIMESTAMP; item= NULL; }
   void print(String *str, enum_query_type, const char *prefix, size_t plen) const;
-  bool resolve_unit(THD *thd);
-  bool resolve_unit_trx_id(THD *thd)
-  {
-    if (unit == VERS_UNDEFINED)
-      unit= VERS_TRX_ID;
-    return false;
-  }
-  bool resolve_unit_timestamp(THD *thd)
-  {
-    if (unit == VERS_UNDEFINED)
-      unit= VERS_TIMESTAMP;
-    return false;
-  }
+  bool check_unit(THD *thd);
   void bad_expression_data_type_error(const char *type) const;
   bool eq(const vers_history_point_t &point) const;
 };
@@ -1893,7 +1881,7 @@ struct vers_select_conds_t
   {
     return type != SYSTEM_TIME_UNSPECIFIED;
   }
-  bool resolve_units(THD *thd);
+  bool check_units(THD *thd);
   bool eq(const vers_select_conds_t &conds) const;
 };
 

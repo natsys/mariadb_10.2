@@ -6909,18 +6909,8 @@ Vers_parse_info::create_sys_field(THD *thd, const char *field_name,
   f->field_name.length= strlen(field_name);
   f->charset= system_charset_info;
   f->flags= flags | NOT_NULL_FLAG;
-  if (check_unit == VERS_TRX_ID)
-  {
-    DBUG_ASSERT(0); // Not implemented yet
-    f->set_handler(&type_handler_longlong);
-    f->length= MY_INT64_NUM_DECIMAL_DIGITS - 1;
-    f->flags|= UNSIGNED_FLAG;
-  }
-  else
-  {
-    f->set_handler(&type_handler_timestamp2);
-    f->length= MAX_DATETIME_PRECISION;
-  }
+  f->set_handler(&type_handler_timestamp2);
+  f->length= MAX_DATETIME_PRECISION;
   f->invisible= INVISIBLE_SYSTEM;
 
   if (f->check(thd))
@@ -7282,7 +7272,6 @@ bool Table_scope_and_contents_source_st::vers_check_system_fields(
     return false;
 
   bool native= vers_native(thd);
-  vers_sys_type_t &check_unit= vers_info.check_unit;
 
   if (vers_info.check_conditions(table_name, db))
     return true;
@@ -7303,6 +7292,7 @@ bool Table_scope_and_contents_source_st::vers_check_system_fields(
 
   const char *row_start_name= row_start->field_name.str;
   const char *row_end_name= row_end->field_name.str;
+  vers_sys_type_t check_unit= VERS_UNDEFINED;
 
   if (has_timestamp_type_handler(row_start))
   {
@@ -7351,6 +7341,8 @@ bool Table_scope_and_contents_source_st::vers_check_system_fields(
     require_timestamp(row_start_name, table_name);
     return true;
   }
+
+  DBUG_ASSERT(check_unit);
 
   if (check_unit == VERS_TRX_ID && !TR_table::use_transaction_registry)
   {
