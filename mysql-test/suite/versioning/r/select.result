@@ -345,12 +345,9 @@ x
 select x from t1 for system_time as of transaction @trx_start;
 x
 1
-## no specifier (auto-detection)
+## no specifier (defaults to timestamp)
 select x from t1 for system_time as of @ts;
 x
-select x from t1 for system_time as of @trx_start;
-x
-1
 ### Issue #365, bug 4 (related to #226, optimized fields)
 create or replace table t1 (i int, b int) with system versioning;
 insert into t1 values (0, 0), (0, 0);
@@ -547,27 +544,6 @@ i
 flush tables;
 call p;
 i
-drop procedure p;
-drop table t1;
-#
-# MDEV-15991 Server crashes in setup_on_expr upon calling SP or function executing DML on versioned tables
-#
-create or replace table t1 (i int);
-insert into t1 values (1);
-create or replace procedure p(n int)
-begin
-select * from t1;
-end $
-call p(1);
-i
-1
-alter table t1 add system versioning;
-call p(2);
-i
-1
-call p(3);
-i
-1
 drop procedure p;
 drop table t1;
 #
