@@ -1078,7 +1078,7 @@ static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
       null_count+= field->length & 7;
 
     if (field->default_value && !field->default_value->flags &&
-        (!(field->flags & BLOB_FLAG) ||
+        (!(field->flags & (BLOB_FLAG | VERS_SYSTEM_FIELD)) ||
          field->real_field_type() == MYSQL_TYPE_GEOMETRY))
     {
       Item *expr= field->default_value->expr;
