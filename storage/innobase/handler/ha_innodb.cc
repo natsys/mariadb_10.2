@@ -8245,6 +8245,7 @@ between old_row and new_row.
 @param[in]	buff_len	length of upd_buff
 @param[in,out]	prebuilt	InnoDB execution context
 @param[out]	auto_inc	updated AUTO_INCREMENT value, or 0 if none
+@param[out]	vers_n_changed	count of changed system fields
 @return DB_SUCCESS or error code */
 static
 dberr_t
@@ -8256,7 +8257,8 @@ calc_row_difference(
 	uchar*		upd_buff,
 	ulint		buff_len,
 	row_prebuilt_t*	prebuilt,
-	ib_uint64_t&	auto_inc)
+	ib_uint64_t&	auto_inc,
+	ulint&		vers_n_changed)
 {
 	uchar*		original_upd_buff = upd_buff;
 	Field*		field;
@@ -8286,6 +8288,7 @@ calc_row_difference(
 
 	clust_index = dict_table_get_first_index(prebuilt->table);
 	auto_inc = 0;
+	vers_n_changed = 0;
 
 	/* We use upd_buff to convert changed fields */
 	buf = (byte*) upd_buff;
@@ -8522,6 +8525,10 @@ calc_row_difference(
 				}
 			}
 			n_changed++;
+			if (field->flags & VERS_SYSTEM_FIELD)
+			{
+				vers_n_changed++;
+			}
 
 			/* If an FTS indexed column was changed by this
 			UPDATE then we need to inform the FTS sub-system.
@@ -8782,6 +8789,7 @@ ha_innobase::update_row(
 
 	upd_t*		uvect = row_get_prebuilt_update_vector(m_prebuilt);
 	ib_uint64_t	autoinc;
+	ib_uint64_t	vers_n_changed;
 
 	bool force_insert= table->versioned_write(VERS_TRX_ID)
 	                   && table->vers_start_id() == 0;
@@ -8801,7 +8809,7 @@ ha_innobase::update_row(
 
 	error = calc_row_difference(
 		uvect, old_row, new_row, table, m_upd_buf, m_upd_buf_size,
-		m_prebuilt, autoinc);
+		m_prebuilt, autoinc, vers_n_changed);
 
 	if (error != DB_SUCCESS) {
 		goto func_exit;
@@ -8814,17 +8822,24 @@ ha_innobase::update_row(
 		This is fix for http://bugs.mysql.com/29157 */
 		DBUG_RETURN(HA_ERR_RECORD_IS_THE_SAME);
 	} else {
+		const int sqlcom = thd_sql_command(m_user_thd);
 		const bool vers_set_fields = m_prebuilt->versioned_write
 			&& (m_prebuilt->upd_node->update->affects_versioned() || force_insert);
 		const bool vers_ins_row = vers_set_fields
-			&& thd_sql_command(m_user_thd) != SQLCOM_ALTER_TABLE;
+			&& sqlcom != SQLCOM_ALTER_TABLE;
 
 		if (vers_set_fields && !vers_ins_row) {
 			m_prebuilt->upd_node->is_delete = TRX_ID_DELETE;
-		} else if (thd_sql_command(m_user_thd) == SQLCOM_DELETE) {
+		} else if (sqlcom == SQLCOM_DELETE || sqlcom == SQLCOM_DELETE_MULTI) {
 			m_prebuilt->upd_node->is_delete = TIMESTAMP_DELETE;
 		} else {
 			m_prebuilt->upd_node->is_delete = NO_DELETE;
+		}
+
+		if ((sqlcom == SQLCOM_UPDATE || sqlcom == SQLCOM_UPDATE_MULTI) &&
+			uvect->n_fields == vers_n_changed &&
+			table->versioned_write(VERS_TIMESTAMP)) {
+			DBUG_RETURN(HA_ERR_RECORD_IS_THE_SAME);
 		}
 
 		innobase_srv_conc_enter_innodb(m_prebuilt);
