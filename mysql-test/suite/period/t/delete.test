@@ -34,6 +34,10 @@ drop trigger tr2del_t2;
 delete from t2 for portion of APPTIME from '2000-01-01' to '2018-01-01';
 select * from log_tbl;
 
+--echo # multi-table DELETE is prohibited
+--error ER_PORTION_OF_TIME_NOT_ALLOWED
+delete t, t1 from t for portion of apptime from '2000-01-01' to '2018-01-01', t1;
+
 --error ER_PARSE_ERROR
 delete history from t2 for portion of apptime from '2000-01-01' to '2018-01-01';
 
