@@ -752,6 +752,10 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     delete_record= true;
   }
 
+  /* SQL standard defines DELETE FOR PORTTION OF time as 0-2 INSERTS + DELETE
+   * We can substitute INSERT+DELETE with one UPDATE, but only if there are
+   * no triggers set. It is also meaningless for system-versioned table
+   */
   portion_of_time_through_update= !has_period_triggers
                                   && !table->versioned(VERS_TIMESTAMP);
 
@@ -799,9 +803,11 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
                                               TRG_ACTION_AFTER, FALSE))
           error= 1;
 
+        ha_rows rows_inserted;
         if (likely(!error) && table_list->has_period()
                            && !portion_of_time_through_update)
-          error= table->insert_portion_of_time(thd, table_list->period_conditions);
+          error= table->insert_portion_of_time(thd, table_list->period_conditions,
+                                               rows_inserted);
 
         if (!--limit && using_limit)
           error= -1;

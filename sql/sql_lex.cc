@@ -1343,13 +1343,16 @@ int Lex_input_stream::lex_token(YYSTYPE *yylval, THD *thd)
     /*
      * Additional look-ahead to resolve doubtful cases like:
      * SELECT ... FOR UPDATE
-     * SELECT ... FOR SYSTEM_TIME ... .
+     * SELECT ... FOR SYSTEM_TIME ...
+     * SELECT ... FOR PORTION OF  ... .
      */
     token= lex_one_token(yylval, thd);
     add_digest_token(token, yylval);
     switch(token) {
     case SYSTEM_TIME_SYM:
       return FOR_SYSTEM_TIME_SYM;
+    case PORTION:
+      return FOR_PORTION_SYM;
     default:
       /*
         Save the token following 'FOR_SYM'

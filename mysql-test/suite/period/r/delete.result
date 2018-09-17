@@ -83,6 +83,9 @@ log
 <INS: 3, 1997-01-01, 2000-01-01
 >INS: 4, 2018-01-01, 2020-01-01
 <INS: 4, 2018-01-01, 2020-01-01
+# multi-table DELETE is prohibited
+delete t, t1 from t for portion of apptime from '2000-01-01' to '2018-01-01', t1;
+ERROR HY000: PORTION OF time is not allowed here
 delete history from t2 for portion of apptime from '2000-01-01' to '2018-01-01';
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1
 delete from t for portion of othertime from '2000-01-01' to '2018-01-01';

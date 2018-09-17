@@ -3418,6 +3418,18 @@ public:
     }
   }
 
+  inline bool portion_of_time_applicable()
+  {
+    switch (sql_command) {
+    case SQLCOM_UPDATE:
+    case SQLCOM_DELETE:
+      return current_select == first_select_lex()
+             && current_select->table_list.elements == 1;
+    default:
+      return false;
+    }
+  }
+
   void cleanup_after_one_table_open();
 
   bool push_context(Name_resolution_context *context);

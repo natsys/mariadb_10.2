@@ -7951,3 +7951,12 @@ ER_PERIOD_NOT_FOUND
 
 ER_PERIOD_SYSTEM_TIME_NOT_ALLOWED
         eng "period SYSTEM_TIME is not allowed here"
+
+ER_PORTION_OF_TIME_NOT_ALLOWED
+        eng "PORTION OF time is not allowed here"
+
+ER_PERIOD_PORTION_OF_TIME_CONSTANT
+        eng "Values in range FOR PORTION OF %`s should be constant expressions"
+
+ER_PERIOD_COLUMNS_UPDATED
+        eng "Column %`s used in period %`s specified in update SET list"
