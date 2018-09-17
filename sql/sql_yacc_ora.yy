@@ -512,6 +512,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  PERCENT_RANK_SYM
 %token  PERCENTILE_CONT_SYM
 %token  PERCENTILE_DISC_SYM
+%token  PORTION
 %token  POSITION_SYM                  /* SQL-2003-N */
 %token  PRECISION                     /* SQL-2003-R */
 %token  PRIMARY_SYM                   /* SQL-2003-R */
@@ -1290,7 +1291,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         opt_default_time_precision
         case_stmt_body opt_bin_mod opt_for_system_time_clause
         opt_if_exists_table_element opt_if_not_exists_table_element
-        opt_recursive opt_format_xid
+        opt_recursive opt_format_xid opt_for_portion_of_time_clause
 
 %type <object_ddl_options>
         create_or_replace
@@ -9423,6 +9424,18 @@ history_point:
           }
         ;
 
+opt_for_portion_of_time_clause:
+          /* empty */
+          {
+            $$= false;
+          }
+        | FOR_SYM PORTION OF_SYM ident FROM history_point TO_SYM history_point
+          {
+            $$= true;
+            Lex->period_conditions.init(SYSTEM_TIME_FROM_TO, $6, $8, $4);
+          }
+        ;
+
 opt_for_system_time_clause:
           /* empty */
           {
@@ -13660,23 +13673,25 @@ delete_part2:
           opt_delete_options single_multi {}
         | HISTORY_SYM delete_single_table opt_delete_system_time
           {
+            MYSQL_YYABORT_UNLESS(!Lex->last_table()->has_period());
             Lex->last_table()->vers_conditions= Lex->vers_conditions;
           }
         ;
 
 
 delete_single_table:
-          FROM table_ident opt_use_partition
+          FROM table_ident opt_for_portion_of_time_clause opt_use_partition
           {
             if (unlikely(!Select->
                          add_table_to_list(thd, $2, NULL, TL_OPTION_UPDATING,
                                            YYPS->m_lock_type,
                                            YYPS->m_mdl_type,
                                            NULL,
-                                           $3)))
+                                           $4)))
               MYSQL_YYABORT;
             YYPS->m_lock_type= TL_READ_DEFAULT;
             YYPS->m_mdl_type= MDL_SHARED_READ;
+            Lex->last_table()->period_conditions= Lex->period_conditions;
           }
         ;
 

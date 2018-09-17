@@ -1,0 +1,135 @@
+source suite/versioning/engines.inc;
+source suite/versioning/common.inc;
+
+create or replace table t (id int, s date, e date, period for apptime(s,e));
+
+insert into t values(1, '1999-01-01', '2018-12-12');
+insert into t values(1, '1999-01-01', '2017-01-01');
+insert into t values(1, '2017-01-01', '2019-01-01');
+insert into t values(2, '1998-01-01', '2018-12-12');
+insert into t values(3, '1997-01-01', '2015-01-01');
+insert into t values(4, '2016-01-01', '2020-01-01');
+
+create or replace table t1 (id int, s date, e date, period for apptime(s,e));
+insert t1 select * from t;
+create or replace table t2 (id int, s date, e date, period for apptime(s,e));
+insert t2 select * from t;
+
+--let $trig_cols=id, s, e
+--let $trig_table=t1
+--source suite/period/create_triggers.inc
+
+delete from t for portion of apptime from '2000-01-01' to '2018-01-01';
+delete from t1 for portion of APPTIME from '2000-01-01' to '2018-01-01';
+select * from t;
+select * from t1 order by id, s, e;
+select * from log_tbl;
+
+--echo # INSERT trigger only also works
+--let $trig_cols=id, s, e
+--let $trig_table=t2
+--source suite/period/create_triggers.inc
+drop trigger tr1del_t2;
+drop trigger tr2del_t2;
+delete from t2 for portion of APPTIME from '2000-01-01' to '2018-01-01';
+select * from log_tbl;
+
+--error ER_PARSE_ERROR
+delete history from t2 for portion of apptime from '2000-01-01' to '2018-01-01';
+
+--error ER_PERIOD_NOT_FOUND
+delete from t for portion of othertime from '2000-01-01' to '2018-01-01';
+--error ER_PERIOD_SYSTEM_TIME_NOT_ALLOWED
+delete from t for portion of system_time from '2000-01-01' to '2018-01-01';
+
+create or replace table t (id int, str text, s date, e date,
+    period for apptime(s,e));
+
+insert into t values(1, 'data', '1999-01-01', '2018-12-12');
+insert into t values(1, 'other data', '1999-01-01', '2018-12-12');
+insert into t values(1, 'deleted', '2000-01-01', '2018-01-01');
+delete from t for portion of apptime from '2000-01-01' to '2018-01-01';
+show warnings;
+select * from t;
+
+drop table t1;
+
+--echo # SQL17 Case 15.7-8.b.i
+--echo # If the column descriptor that corresponds to the i-th field of BR
+--echo # describes an identity column, a generated column, a system-time period
+--echo # start column, or a system-time period end column, then let V i be
+--echo # DEFAULT.
+
+--echo # auto_inrement field is updated
+create or replace table t (id int primary key auto_increment, s date, e date,
+                           period for apptime(s, e));
+insert into t values (default, '1999-01-01', '2018-12-12');
+delete from t for portion of apptime from '2000-01-01' to '2018-01-01';
+select * from t;
+truncate t;
+--echo # same for trigger case
+insert into t values (default, '1999-01-01', '2018-12-12');
+--let $trig_table=t
+--source suite/period/create_triggers.inc
+
+delete from t for portion of apptime from '2000-01-01' to '2018-01-01';
+select * from t;
+select * from log_tbl;
+
+--echo # generated columns are updated
+create or replace table t (s date, e date,
+                           xs date as (s) stored, xe date as (e) stored,
+                           period for apptime(s, e));
+insert into t values('1999-01-01', '2018-12-12', default, default);
+select * from t;
+delete from t for portion of apptime from '2000-01-01' to '2018-01-01';
+select * from t;
+truncate t;
+--echo # same for trigger case
+insert into t values('1999-01-01', '2018-12-12', default, default);
+--let $trig_table=t
+--source suite/period/create_triggers.inc
+
+delete from t for portion of apptime from '2000-01-01' to '2018-01-01';
+select * from t;
+select * from log_tbl;
+
+
+--echo # system_time columns are updated
+--replace_result $sys_datatype_expl SYS_TYPE
+eval create or replace table t (
+    s date, e date,
+    row_start $sys_datatype_expl as row start invisible,
+    row_end $sys_datatype_expl as row end invisible,
+    period for apptime(s, e),
+    period for system_time (row_start, row_end)) with system versioning;
+insert into t values('1999-01-01', '2018-12-12'),
+                    ('1999-01-01', '1999-12-12');
+
+select row_start into @ins_time from t limit 1;
+select * from t order by s, e;
+
+delete from t for portion of apptime from '2000-01-01' to '2018-01-01';
+select *, if(row_start = @ins_time, "OLD", "NEW"), check_row(row_start, row_end)
+       from t for system_time all
+       order by s, e, row_start;
+
+--echo # same for trigger case
+delete from t;
+delete history from t;
+insert into t values('1999-01-01', '2018-12-12'),
+                    ('1999-01-01', '1999-12-12');
+--let $trig_table=t
+--source suite/period/create_triggers.inc
+
+select row_start into @ins_time from t limit 1;
+select * from t order by s, e;
+
+delete from t for portion of apptime from '2000-01-01' to '2018-01-01';
+select *, if(row_start = @ins_time, "OLD", "NEW"), check_row(row_start, row_end)
+       from t for system_time all
+       order by s, e, row_start;
+select * from log_tbl;
+
+
+create or replace database test;

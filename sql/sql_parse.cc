@@ -8302,6 +8302,7 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
   ptr->ignore_leaves= MY_TEST(table_options & TL_OPTION_IGNORE_LEAVES);
   ptr->sequence=      MY_TEST(table_options & TL_OPTION_SEQUENCE);
   ptr->derived=	    table->sel;
+  ptr->vers_conditions.name= "SYSTEM_TIME";
   if (!ptr->derived && is_infoschema_db(&ptr->db))
   {
     ST_SCHEMA_TABLE *schema_table;
