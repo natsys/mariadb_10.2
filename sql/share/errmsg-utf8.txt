@@ -7945,3 +7945,9 @@ ER_PERIOD_FIELD_WRONG_ATTRIBUTES
 
 ER_PERIOD_FIELD_HOLDS_MORE_THAN_ONE_PERIOD
         eng "Field %`s is specified for more than one period"
+
+ER_PERIOD_NOT_FOUND
+        eng "period %`s is not found in table"
+
+ER_PERIOD_SYSTEM_TIME_NOT_ALLOWED
+        eng "period SYSTEM_TIME is not allowed here"

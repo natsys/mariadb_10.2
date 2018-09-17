@@ -6388,7 +6388,7 @@ void TABLE::mark_auto_increment_column()
     retrieve the row again.
 */
 
-void TABLE::mark_columns_needed_for_delete()
+void TABLE::mark_columns_needed_for_delete(bool with_period)
 {
   bool need_signal= false;
   mark_columns_per_binlog_row_image();
@@ -6426,9 +6426,14 @@ void TABLE::mark_columns_needed_for_delete()
 
   if (s->versioned)
   {
-    bitmap_set_bit(read_set, s->vers.start_field(s)->field_index);
-    bitmap_set_bit(read_set, s->vers.end_field(s)->field_index);
-    bitmap_set_bit(write_set, s->vers.end_field(s)->field_index);
+    bitmap_set_bit(read_set, s->vers.start_fieldno);
+    bitmap_set_bit(read_set, s->vers.end_fieldno);
+    bitmap_set_bit(write_set, s->vers.end_fieldno);
+  }
+
+  if (with_period)
+  {
+    use_all_columns();
   }
 }
 
@@ -7834,6 +7839,101 @@ int TABLE::update_default_fields(bool update_command, bool ignore_errors)
   DBUG_RETURN(res);
 }
 
+static int table_update_generated_fields(TABLE *table)
+{
+  int res= 0;
+  if (table->found_next_number_field)
+  {
+    table->next_number_field= table->found_next_number_field;
+    res= table->found_next_number_field->set_default();
+    table->file->update_auto_increment();
+  }
+
+  if (table->default_field)
+    res= table->update_default_fields(0, false);
+
+  if (likely(!res) && table->vfield)
+    res= table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_WRITE);
+  if (likely(!res) && table->versioned())
+    table->vers_update_fields();
+  return res;
+}
+
+static int period_make_insert(TABLE *table, Item *src, Field *dst)
+{
+  THD *thd= table->in_use;
+
+  store_record(table, record[1]);
+  int res= src->save_in_field(dst, true);
+
+  if (likely(!res))
+    table_update_generated_fields(table);
+
+  if (likely(!res) && table->triggers)
+    res= table->triggers->process_triggers(thd, TRG_EVENT_INSERT, TRG_ACTION_BEFORE, true);
+
+  if (likely(!res))
+    res = table->file->ha_write_row(table->record[0]);
+
+  if (likely(!res) && table->triggers)
+    res= table->triggers->process_triggers(thd, TRG_EVENT_INSERT, TRG_ACTION_AFTER, true);
+
+  restore_record(table, record[1]);
+  return res;
+}
+
+int TABLE::update_portion_of_time(THD *thd, vers_select_conds_t &period_conds,
+                                  bool *inside_period)
+{
+  bool lcond= period_conds.field_start->val_datetime_packed(thd)
+              < period_conds.start.item->val_datetime_packed(thd);
+  bool rcond= period_conds.field_end->val_datetime_packed(thd)
+              > period_conds.end.item->val_datetime_packed(thd);
+
+  *inside_period= !lcond && !rcond;
+  if (*inside_period)
+    return 0;
+
+  int res= 0;
+  Item *src= lcond ? period_conds.start.item : period_conds.end.item;
+  uint dst_fieldno= lcond ? s->period.end_fieldno : s->period.start_fieldno;
+
+  store_record(this, record[1]);
+  if (likely(!res))
+    res= src->save_in_field(field[dst_fieldno], true);
+
+  if (likely(!res))
+    res= table_update_generated_fields(this);
+
+  if(likely(!res))
+    res= file->ha_update_row(record[1], record[0]);
+
+  restore_record(this, record[1]);
+
+  if (likely(!res) && lcond && rcond)
+    res= period_make_insert(this, period_conds.end.item,
+                            field[s->period.start_fieldno]);
+
+  return res;
+}
+
+int TABLE::insert_portion_of_time(THD *thd, vers_select_conds_t &period_conds)
+{
+  bool lcond= period_conds.field_start->val_datetime_packed(thd)
+              < period_conds.start.item->val_datetime_packed(thd);
+  bool rcond= period_conds.field_end->val_datetime_packed(thd)
+              > period_conds.end.item->val_datetime_packed(thd);
+
+  int res= 0;
+  if (lcond)
+    res= period_make_insert(this, period_conds.start.item,
+                            field[s->period.end_fieldno]);
+  if (likely(!res) && rcond)
+    res= period_make_insert(this, period_conds.end.item,
+                            field[s->period.start_fieldno]);
+
+  return res;
+}
 
 void TABLE::vers_update_fields()
 {
