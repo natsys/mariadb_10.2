@@ -717,12 +717,152 @@ void vers_select_conds_t::print(String *str, enum_query_type query_type) const
   }
 }
 
+void period_update_condition(THD *thd, TABLE_LIST *table, SELECT_LEX *select,
+                             vers_select_conds_t &conds, bool timestamp)
+{
+  DBUG_ASSERT(table);
+  DBUG_ASSERT(table->table);
+#define newx new (thd->mem_root)
+  TABLE_SHARE *share= table->table->s;
+  const TABLE_SHARE::period_info_t *period= conds.period;
+
+  const LEX_CSTRING &fstart= period->start_field(share)->field_name;
+  const LEX_CSTRING &fend= period->end_field(share)->field_name;
+
+  conds.field_start= newx Item_field(thd, &select->context,
+                                     table->db.str, table->alias.str,
+                                     thd->make_clex_string(fstart));
+  conds.field_end=   newx Item_field(thd, &select->context,
+                                     table->db.str, table->alias.str,
+                                     thd->make_clex_string(fend));
+
+  Item *cond1= NULL, *cond2= NULL, *cond3= NULL, *curr= NULL;
+  if (timestamp)
+  {
+    MYSQL_TIME max_time;
+    switch (conds.type)
+    {
+    case SYSTEM_TIME_UNSPECIFIED:
+      thd->variables.time_zone->gmt_sec_to_TIME(&max_time, TIMESTAMP_MAX_VALUE);
+      max_time.second_part= TIME_MAX_SECOND_PART;
+      curr= newx Item_datetime_literal(thd, &max_time, TIME_SECOND_PART_DIGITS);
+      cond1= newx Item_func_eq(thd, conds.field_end, curr);
+      break;
+    case SYSTEM_TIME_AS_OF:
+      cond1= newx Item_func_le(thd, conds.field_start, conds.start.item);
+      cond2= newx Item_func_gt(thd, conds.field_end, conds.start.item);
+      break;
+    case SYSTEM_TIME_FROM_TO:
+      cond1= newx Item_func_lt(thd, conds.field_start, conds.end.item);
+      cond2= newx Item_func_gt(thd, conds.field_end, conds.start.item);
+      cond3= newx Item_func_lt(thd, conds.start.item, conds.end.item);
+      break;
+    case SYSTEM_TIME_BETWEEN:
+      cond1= newx Item_func_le(thd, conds.field_start, conds.end.item);
+      cond2= newx Item_func_gt(thd, conds.field_end, conds.start.item);
+      cond3= newx Item_func_le(thd, conds.start.item, conds.end.item);
+      break;
+    case SYSTEM_TIME_BEFORE:
+      cond1= newx Item_func_lt(thd, conds.field_end, conds.start.item);
+      break;
+    default:
+      DBUG_ASSERT(0);
+    }
+  }
+  else
+  {
+    DBUG_ASSERT(table->table->s && table->table->s->db_plugin);
+
+    Item *trx_id0= conds.start.item;
+    Item *trx_id1= conds.end.item;
+    if (conds.start.item && conds.start.unit == VERS_TIMESTAMP)
+    {
+      bool backwards= conds.type != SYSTEM_TIME_AS_OF;
+      trx_id0= newx Item_func_trt_id(thd, conds.start.item,
+                                     TR_table::FLD_TRX_ID, backwards);
+    }
+    if (conds.end.item && conds.end.unit == VERS_TIMESTAMP)
+    {
+      trx_id1= newx Item_func_trt_id(thd, conds.end.item,
+                                     TR_table::FLD_TRX_ID, false);
+    }
+
+    switch (conds.type)
+    {
+    case SYSTEM_TIME_UNSPECIFIED:
+      curr= newx Item_int(thd, ULONGLONG_MAX);
+      cond1= newx Item_func_eq(thd, conds.field_end, curr);
+      break;
+    case SYSTEM_TIME_AS_OF:
+      cond1= newx Item_func_trt_trx_sees_eq(thd, trx_id0, conds.field_start);
+      cond2= newx Item_func_trt_trx_sees(thd, conds.field_end, trx_id0);
+      break;
+    case SYSTEM_TIME_FROM_TO:
+      cond1= newx Item_func_trt_trx_sees(thd, trx_id1, conds.field_start);
+      cond3= newx Item_func_lt(thd, conds.start.item, conds.end.item);
+      break;
+    case SYSTEM_TIME_BETWEEN:
+      cond1= newx Item_func_trt_trx_sees_eq(thd, trx_id1, conds.field_start);
+      cond2= newx Item_func_trt_trx_sees_eq(thd, conds.field_end, trx_id0);
+      cond3= newx Item_func_le(thd, conds.start.item, conds.end.item);
+      break;
+    case SYSTEM_TIME_BEFORE:
+      cond1= newx Item_func_trt_trx_sees(thd, trx_id0, conds.field_end);
+      break;
+    default:
+      DBUG_ASSERT(0);
+    }
+  }
+
+  if (cond1)
+  {
+    cond1= and_items(thd, cond2, cond1);
+    cond1= and_items(thd, cond3, cond1);
+    table->on_expr= and_items(thd, table->on_expr, cond1);
+  }
+#undef newx
+}
+
+int SELECT_LEX::period_setup_conds(THD *thd, TABLE_LIST *tables, Item *where)
+{
+  DBUG_ENTER("SELECT_LEX::period_setup_conds");
+
+  if (!thd->stmt_arena->is_conventional() &&
+      !thd->stmt_arena->is_stmt_prepare_or_first_sp_execute())
+  {
+    // statement is already prepared
+    DBUG_RETURN(0);
+  }
+
+  if (thd->lex->is_view_context_analysis())
+    DBUG_RETURN(0);
+
+  for (TABLE_LIST *table= tables; table; table= table->next_local)
+  {
+    if (!table->table)
+      continue;
+    vers_select_conds_t &conds= table->period_conditions;
+    if (0 == strcasecmp(conds.name.str, "SYSTEM_TIME"))
+    {
+      my_error(ER_PERIOD_SYSTEM_TIME_NOT_ALLOWED, MYF(0));
+      DBUG_RETURN(-1);
+    }
+    if (!table->table->s->period.name.streq(conds.name))
+    {
+      my_error(ER_PERIOD_NOT_FOUND, MYF(0), conds.name.str);
+      DBUG_RETURN(-1);
+    }
+
+    conds.period= &table->table->s->period;
+    period_update_condition(thd, table, this, conds, true);
+    table->on_expr= and_items(thd, where, table->on_expr);
+  }
+  DBUG_RETURN(0);
+}
+
 int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
 {
-  DBUG_ENTER("SELECT_LEX::vers_setup_cond");
-#define newx new (thd->mem_root)
-
-  TABLE_LIST *table;
+  DBUG_ENTER("SELECT_LEX::vers_setup_conds");
 
   if (!thd->stmt_arena->is_conventional() &&
       !thd->stmt_arena->is_stmt_prepare_or_first_sp_execute())
@@ -736,7 +876,7 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
 
   if (!versioned_tables)
   {
-    for (table= tables; table; table= table->next_local)
+    for (TABLE_LIST *table= tables; table; table= table->next_local)
     {
       if (table->table && table->table->versioned())
         versioned_tables++;
@@ -776,7 +916,7 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
     }
   }
 
-  for (table= tables; table; table= table->next_local)
+  for (TABLE_LIST *table= tables; table; table= table->next_local)
   {
     if (!table->table || !table->table->versioned())
       continue;
@@ -822,16 +962,6 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
       lock_type= TL_READ; // ignore TL_WRITE, history is immutable anyway
     }
 
-    const LEX_CSTRING *fstart=
-        thd->make_clex_string(table->table->vers_start_field()->field_name);
-    const LEX_CSTRING *fend=
-        thd->make_clex_string(table->table->vers_end_field()->field_name);
-
-    Item *row_start=
-        newx Item_field(thd, &this->context, table->db.str, table->alias.str, fstart);
-    Item *row_end=
-        newx Item_field(thd, &this->context, table->db.str, table->alias.str, fend);
-
     bool timestamps_only= table->table->versioned(VERS_TIMESTAMP);
 
     if (vers_conditions.is_set())
@@ -851,101 +981,14 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
       }
     }
 
-    Item *cond1= NULL, *cond2= NULL, *cond3= NULL, *curr= NULL;
-    Item *point_in_time1= vers_conditions.start.item;
-    Item *point_in_time2= vers_conditions.end.item;
-    TABLE *t= table->table;
-    if (t->versioned(VERS_TIMESTAMP))
-    {
-      MYSQL_TIME max_time;
-      switch (vers_conditions.type)
-      {
-      case SYSTEM_TIME_UNSPECIFIED:
-        thd->variables.time_zone->gmt_sec_to_TIME(&max_time, TIMESTAMP_MAX_VALUE);
-        max_time.second_part= TIME_MAX_SECOND_PART;
-        curr= newx Item_datetime_literal(thd, &max_time, TIME_SECOND_PART_DIGITS);
-        cond1= newx Item_func_eq(thd, row_end, curr);
-        break;
-      case SYSTEM_TIME_AS_OF:
-        cond1= newx Item_func_le(thd, row_start, point_in_time1);
-        cond2= newx Item_func_gt(thd, row_end, point_in_time1);
-        break;
-      case SYSTEM_TIME_FROM_TO:
-        cond1= newx Item_func_lt(thd, row_start, point_in_time2);
-        cond2= newx Item_func_gt(thd, row_end, point_in_time1);
-        cond3= newx Item_func_lt(thd, point_in_time1, point_in_time2);
-        break;
-      case SYSTEM_TIME_BETWEEN:
-        cond1= newx Item_func_le(thd, row_start, point_in_time2);
-        cond2= newx Item_func_gt(thd, row_end, point_in_time1);
-        cond3= newx Item_func_le(thd, point_in_time1, point_in_time2);
-        break;
-      case SYSTEM_TIME_BEFORE:
-        cond1= newx Item_func_lt(thd, row_end, point_in_time1);
-        break;
-      default:
-        DBUG_ASSERT(0);
-      }
-    }
-    else
-    {
-      DBUG_ASSERT(table->table->s && table->table->s->db_plugin);
-
-      Item *trx_id0, *trx_id1;
-
-      switch (vers_conditions.type)
-      {
-      case SYSTEM_TIME_UNSPECIFIED:
-        curr= newx Item_int(thd, ULONGLONG_MAX);
-        cond1= newx Item_func_eq(thd, row_end, curr);
-        break;
-      case SYSTEM_TIME_AS_OF:
-        trx_id0= vers_conditions.start.unit == VERS_TIMESTAMP
-          ? newx Item_func_trt_id(thd, point_in_time1, TR_table::FLD_TRX_ID)
-          : point_in_time1;
-        cond1= newx Item_func_trt_trx_sees_eq(thd, trx_id0, row_start);
-        cond2= newx Item_func_trt_trx_sees(thd, row_end, trx_id0);
-        break;
-      case SYSTEM_TIME_FROM_TO:
-	cond3= newx Item_func_lt(thd, point_in_time1, point_in_time2);
-        /* fall through */
-      case SYSTEM_TIME_BETWEEN:
-        trx_id0= vers_conditions.start.unit == VERS_TIMESTAMP
-          ? newx Item_func_trt_id(thd, point_in_time1, TR_table::FLD_TRX_ID, true)
-          : point_in_time1;
-        trx_id1= vers_conditions.end.unit == VERS_TIMESTAMP
-          ? newx Item_func_trt_id(thd, point_in_time2, TR_table::FLD_TRX_ID, false)
-          : point_in_time2;
-        cond1= vers_conditions.type == SYSTEM_TIME_FROM_TO
-          ? newx Item_func_trt_trx_sees(thd, trx_id1, row_start)
-          : newx Item_func_trt_trx_sees_eq(thd, trx_id1, row_start);
-        cond2= newx Item_func_trt_trx_sees_eq(thd, row_end, trx_id0);
-	if (!cond3)
-	  cond3= newx Item_func_le(thd, point_in_time1, point_in_time2);
-        break;
-      case SYSTEM_TIME_BEFORE:
-        trx_id0= vers_conditions.start.unit == VERS_TIMESTAMP
-          ? newx Item_func_trt_id(thd, point_in_time1, TR_table::FLD_TRX_ID, true)
-          : point_in_time1;
-        cond1= newx Item_func_trt_trx_sees(thd, trx_id0, row_end);
-        break;
-      default:
-        DBUG_ASSERT(0);
-      }
-    }
-
-    if (cond1)
-    {
-      cond1= and_items(thd, cond2, cond1);
-      cond1= and_items(thd, cond3, cond1);
-      table->on_expr= and_items(thd, table->on_expr, cond1);
-    }
-
+    vers_conditions.period = &table->table->s->vers;
+    period_update_condition(thd, table, this, vers_conditions,
+                            timestamps_only);
     table->vers_conditions.type= SYSTEM_TIME_ALL;
+
   } // for (table= tables; ...)
 
   DBUG_RETURN(0);
-#undef newx
 }
 
 /*****************************************************************************
