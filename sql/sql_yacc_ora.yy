@@ -410,6 +410,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  FOREIGN                       /* SQL-2003-R */
 %token  FOR_SYM                       /* SQL-2003-R */
 %token  FOR_SYSTEM_TIME_SYM           /* INTERNAL */
+%token  FOR_PORTION_SYM               /* INTERNAL */
 %token  FROM
 %token  FULLTEXT_SYM
 %token  GE
@@ -9429,10 +9430,10 @@ opt_for_portion_of_time_clause:
           {
             $$= false;
           }
-        | FOR_SYM PORTION OF_SYM ident FROM history_point TO_SYM history_point
+        | FOR_PORTION_SYM OF_SYM ident FROM history_point TO_SYM history_point
           {
             $$= true;
-            Lex->period_conditions.init(SYSTEM_TIME_FROM_TO, $6, $8, $4);
+            Lex->period_conditions.init(SYSTEM_TIME_FROM_TO, $5, $7, $3);
           }
         ;
 
@@ -12120,20 +12121,25 @@ join_table_parens:
 
 
 table_primary_ident:
-          table_ident opt_use_partition opt_for_system_time_clause
+          table_ident opt_use_partition
+          opt_for_portion_of_time_clause opt_for_system_time_clause
           opt_table_alias_clause opt_key_definition
           {
             SELECT_LEX *sel= Select;
             sel->table_join_options= 0;
-            if (!($$= Select->add_table_to_list(thd, $1, $4,
+            if (!($$= Select->add_table_to_list(thd, $1, $5,
                                                 Select->get_table_join_options(),
                                                 YYPS->m_lock_type,
                                                 YYPS->m_mdl_type,
                                                 Select->pop_index_hints(),
                                                 $2)))
               MYSQL_YYABORT;
+            TABLE_LIST *tl= $$;
+            MYSQL_YYABORT_UNLESS(!($3 && $4));
             if ($3)
-              $$->vers_conditions= Lex->vers_conditions;
+              tl->period_conditions= Lex->period_conditions;
+            if ($4)
+              tl->vers_conditions= Lex->vers_conditions;
           }
         ;
 

@@ -6456,7 +6456,7 @@ void TABLE::mark_columns_needed_for_delete(bool with_period)
     retrieve the row again.
 */
 
-void TABLE::mark_columns_needed_for_update()
+void TABLE::mark_columns_needed_for_update(bool with_period)
 {
   DBUG_ENTER("TABLE::mark_columns_needed_for_update");
   bool need_signal= false;
@@ -6508,8 +6508,9 @@ void TABLE::mark_columns_needed_for_update()
   /*
      For System Versioning we have to read all columns since we will store
      a copy of previous row with modified Sys_end column back to a table.
+     The same applies to Application-time period tables.
   */
-  if (s->versioned)
+  if (s->versioned || with_period)
   {
     // We will copy old columns to a new row.
     use_all_columns();
@@ -7870,19 +7871,41 @@ static int period_make_insert(TABLE *table, Item *src, Field *dst)
     table_update_generated_fields(table);
 
   if (likely(!res) && table->triggers)
-    res= table->triggers->process_triggers(thd, TRG_EVENT_INSERT, TRG_ACTION_BEFORE, true);
+    res= table->triggers->process_triggers(thd, TRG_EVENT_INSERT,
+                                           TRG_ACTION_BEFORE, true);
 
   if (likely(!res))
     res = table->file->ha_write_row(table->record[0]);
 
   if (likely(!res) && table->triggers)
-    res= table->triggers->process_triggers(thd, TRG_EVENT_INSERT, TRG_ACTION_AFTER, true);
+    res= table->triggers->process_triggers(thd, TRG_EVENT_INSERT,
+                                           TRG_ACTION_AFTER, true);
 
   restore_record(table, record[1]);
   return res;
 }
 
-int TABLE::update_portion_of_time(THD *thd, vers_select_conds_t &period_conds,
+int TABLE::cut_fields_for_portion_of_time(THD *thd, const vers_select_conds_t &period_conds)
+{
+  bool lcond= period_conds.field_start->val_datetime_packed(thd)
+              < period_conds.start.item->val_datetime_packed(thd);
+  bool rcond= period_conds.field_end->val_datetime_packed(thd)
+              > period_conds.end.item->val_datetime_packed(thd);
+
+  Field *start_field= field[s->period.start_fieldno];
+  Field *end_field= field[s->period.end_fieldno];
+
+  int res= 0;
+  if (lcond && !start_field->has_explicit_value())
+    res= period_conds.start.item->save_in_field(start_field, true);
+
+  if (likely(!res) && rcond && !end_field->has_explicit_value())
+    res= period_conds.end.item->save_in_field(end_field, true);
+
+  return res;
+}
+
+int TABLE::update_portion_of_time(THD *thd, const vers_select_conds_t &period_conds,
                                   bool *inside_period)
 {
   bool lcond= period_conds.field_start->val_datetime_packed(thd)
@@ -7917,7 +7940,8 @@ int TABLE::update_portion_of_time(THD *thd, vers_select_conds_t &period_conds,
   return res;
 }
 
-int TABLE::insert_portion_of_time(THD *thd, vers_select_conds_t &period_conds)
+int TABLE::insert_portion_of_time(THD *thd, const vers_select_conds_t &period_conds,
+                                  ha_rows &rows_inserted)
 {
   bool lcond= period_conds.field_start->val_datetime_packed(thd)
               < period_conds.start.item->val_datetime_packed(thd);
@@ -7926,11 +7950,19 @@ int TABLE::insert_portion_of_time(THD *thd, vers_select_conds_t &period_conds)
 
   int res= 0;
   if (lcond)
+  {
     res= period_make_insert(this, period_conds.start.item,
                             field[s->period.end_fieldno]);
+    if (likely(!res))
+      rows_inserted++;
+  }
   if (likely(!res) && rcond)
+  {
     res= period_make_insert(this, period_conds.end.item,
                             field[s->period.start_fieldno]);
+    if (likely(!res))
+      rows_inserted++;
+  }
 
   return res;
 }

@@ -132,7 +132,8 @@ bool compare_record(const TABLE *table)
     FALSE Items are OK
 */
 
-static bool check_fields(THD *thd, List<Item> &items, bool update_view)
+static bool check_fields(THD *thd, TABLE_LIST *table, List<Item> &items,
+                         bool update_view)
 {
   Item *item;
   if (update_view)
@@ -175,6 +176,21 @@ static bool check_fields(THD *thd, List<Item> &items, bool update_view)
         return TRUE;
       }
       f->set_has_explicit_value();
+    }
+  }
+
+  if (thd->lex->sql_command == SQLCOM_UPDATE && table->has_period())
+  {
+    for (List_iterator_fast<Item> it(items); (item=it++);)
+    {
+      Lex_ident name(item->name);
+      vers_select_conds_t &period= table->period_conditions;
+      if (name.streq(period.field_start->name)
+          || name.streq(period.field_end->name))
+      {
+        my_error(ER_PERIOD_COLUMNS_UPDATED, MYF(0), name.str, period.name.str);
+        return true;
+      }
     }
   }
   return FALSE;
@@ -324,6 +340,7 @@ int mysql_update(THD *thd,
   killed_state killed_status= NOT_KILLED;
   trg_event_type event;
   bool has_triggers, binlog_is_row, do_direct_update= FALSE;
+  bool has_period_triggers= false;
   Update_plan query_plan(thd->mem_root);
   Explain_update *explain;
   TABLE_LIST *update_source_table;
@@ -331,7 +348,7 @@ int mysql_update(THD *thd,
   query_plan.using_filesort= FALSE;
 
   // For System Versioning (may need to insert new fields to a table).
-  ha_rows updated_sys_ver= 0;
+  ha_rows rows_inserted= 0;
 
   DBUG_ENTER("mysql_update");
 
@@ -399,7 +416,7 @@ int mysql_update(THD *thd,
   if (setup_fields_with_no_wrap(thd, Ref_ptr_array(),
                                 fields, MARK_COLUMNS_WRITE, 0, 0))
     DBUG_RETURN(1);                     /* purecov: inspected */
-  if (check_fields(thd, fields, table_list->view))
+  if (check_fields(thd, table_list, fields, table_list->view))
   {
     DBUG_RETURN(1);
   }
@@ -510,7 +527,7 @@ int mysql_update(THD *thd,
   if (unlikely(init_ftfuncs(thd, select_lex, 1)))
     goto err;
 
-  table->mark_columns_needed_for_update();
+  table->mark_columns_needed_for_update(table_list->has_period());
 
   table->update_const_key_parts(conds);
   order= simple_remove_const(order, conds);
@@ -591,8 +608,16 @@ int mysql_update(THD *thd,
 
   has_triggers= (table->triggers &&
                  (table->triggers->has_triggers(event, TRG_ACTION_BEFORE) ||
-                 table->triggers->has_triggers(event, TRG_ACTION_AFTER)));
+                  table->triggers->has_triggers(event, TRG_ACTION_AFTER)));
   DBUG_PRINT("info", ("has_triggers: %s", has_triggers ? "TRUE" : "FALSE"));
+
+  has_period_triggers= table->triggers &&
+                       (table->triggers->has_triggers(TRG_EVENT_INSERT,
+                                                      TRG_ACTION_BEFORE)
+                        || table->triggers->has_triggers(TRG_EVENT_INSERT,
+                                                         TRG_ACTION_AFTER)
+                        || has_triggers);
+
   binlog_is_row= thd->is_current_stmt_binlog_format_row();
   DBUG_PRINT("info", ("binlog_is_row: %s", binlog_is_row ? "TRUE" : "FALSE"));
 
@@ -626,7 +651,7 @@ int mysql_update(THD *thd,
     Later we also ensure that we are only using one table (no sub queries)
   */
   if ((table->file->ha_table_flags() & HA_CAN_DIRECT_UPDATE_AND_DELETE) &&
-      !has_triggers && !binlog_is_row &&
+      !has_period_triggers && !binlog_is_row &&
       !query_plan.using_io_buffer && !ignore &&
       !table->check_virtual_columns_marked_for_read() &&
       !table->check_virtual_columns_marked_for_write())
@@ -882,14 +907,25 @@ update_begin:
       explain->tracker.on_record_after_where();
       store_record(table,record[1]);
 
+      if (table_list->has_period())
+        table->cut_fields_for_portion_of_time(thd, table_list->period_conditions);
+
       if (fill_record_n_invoke_before_triggers(thd, table, fields, values, 0,
                                                event))
         break; /* purecov: inspected */
 
       found++;
 
-      if (!can_compare_record || compare_record(table))
+      bool record_was_same= false;
+      bool need_update= !can_compare_record || compare_record(table) ||
+                        thd->lex->sql_command == SQLCOM_DELETE;
+
+      if (need_update)
       {
+        if (table->versioned(VERS_TIMESTAMP) &&
+            thd->lex->sql_command == SQLCOM_DELETE)
+          table->vers_update_end();
+
         if (table->default_field && table->update_default_fields(1, ignore))
         {
           error= 1;
@@ -948,7 +984,9 @@ update_begin:
           error= table->file->ha_update_row(table->record[1],
                                             table->record[0]);
         }
-        if (unlikely(error == HA_ERR_RECORD_IS_THE_SAME))
+
+        record_was_same= error == HA_ERR_RECORD_IS_THE_SAME;
+        if (unlikely(record_was_same))
         {
           error= 0;
         }
@@ -963,7 +1001,7 @@ update_begin:
               restore_record(table, record[2]);
             }
             if (likely(!error))
-              updated_sys_ver++;
+              rows_inserted++;
           }
           if (likely(!error))
             updated++;
@@ -994,6 +1032,13 @@ update_begin:
       {
         error= 1;
         break;
+      }
+
+      if (need_update && !record_was_same && table_list->has_period())
+      {
+        restore_record(table, record[1]);
+        table->insert_portion_of_time(thd, table_list->period_conditions,
+                                      rows_inserted);
       }
 
       if (!--limit && using_limit)
@@ -1109,6 +1154,8 @@ update_end:
   delete select;
   select= NULL;
   THD_STAGE_INFO(thd, stage_end);
+  if (table_list->has_period())
+    table->file->ha_release_auto_increment();
   (void) table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
 
   /*
@@ -1171,14 +1218,14 @@ update_end:
   if (likely(error < 0) && likely(!thd->lex->analyze_stmt))
   {
     char buff[MYSQL_ERRMSG_SIZE];
-    if (!table->versioned(VERS_TIMESTAMP))
+    if (!table->versioned(VERS_TIMESTAMP) && !table_list->has_period())
       my_snprintf(buff, sizeof(buff), ER_THD(thd, ER_UPDATE_INFO), (ulong) found,
                   (ulong) updated,
                   (ulong) thd->get_stmt_da()->current_statement_warn_count());
     else
       my_snprintf(buff, sizeof(buff),
                   ER_THD(thd, ER_UPDATE_INFO_WITH_SYSTEM_VERSIONING),
-                  (ulong) found, (ulong) updated, (ulong) updated_sys_ver,
+                  (ulong) found, (ulong) updated, (ulong) rows_inserted,
                   (ulong) thd->get_stmt_da()->current_statement_warn_count());
     my_ok(thd, (thd->client_capabilities & CLIENT_FOUND_ROWS) ? found : updated,
           id, buff);
@@ -1259,6 +1306,22 @@ bool mysql_prepare_update(THD *thd, TABLE_LIST *table_list,
 
   thd->lex->allow_sum_func= 0;
 
+  if (table_list->has_period())
+  {
+    if (table_list->is_view_or_derived())
+    {
+      my_error(ER_IT_IS_A_VIEW, MYF(0), table_list->table_name.str);
+      DBUG_RETURN(true);
+    }
+
+    int err= select_lex->period_setup_conds(thd, table_list, *conds);
+    if (err)
+      DBUG_RETURN(true);
+
+    *conds= table_list->on_expr;
+    table_list->on_expr= NULL;
+  }
+
   /*
     We do not call DT_MERGE_FOR_INSERT because it has no sense for simple
     (not multi-) update
@@ -1277,6 +1340,17 @@ bool mysql_prepare_update(THD *thd, TABLE_LIST *table_list,
 		  table_list, all_fields, all_fields, order) ||
       setup_ftfuncs(select_lex))
     DBUG_RETURN(TRUE);
+
+  if (table_list->has_period())
+  {
+    if (!table_list->period_conditions.start.item->const_item()
+        || !table_list->period_conditions.end.item->const_item())
+    {
+      my_error(ER_PERIOD_PORTION_OF_TIME_CONSTANT, MYF(0),
+               table_list->period_conditions.name.str);
+      DBUG_RETURN(true);
+    }
+  }
 
   select_lex->fix_prepare_information(thd, conds, &fake_conds);
   DBUG_RETURN(FALSE);
@@ -1591,7 +1665,7 @@ int mysql_multi_update_prepare(THD *thd)
     }
   }
 
-  if (check_fields(thd, *fields, update_view))
+  if (check_fields(thd, table_list, *fields, update_view))
   {
     DBUG_RETURN(TRUE);
   }
@@ -1975,7 +2049,7 @@ void multi_update::prepare_to_read_rows()
   */
 
   for (TABLE_LIST *tl= update_tables; tl; tl= tl->next_local)
-    tl->table->mark_columns_needed_for_update();
+    tl->table->mark_columns_needed_for_update(false);
 }
 
 

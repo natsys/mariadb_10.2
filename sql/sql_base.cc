@@ -8121,6 +8121,12 @@ int setup_conds(THD *thd, TABLE_LIST *tables, List<TABLE_LIST> &leaves,
 
   for (table= tables; table; table= table->next_local)
   {
+    if (table->has_period() && !thd->lex->portion_of_time_applicable())
+    {
+      my_error(ER_PORTION_OF_TIME_NOT_ALLOWED, MYF(0));
+      goto err_no_arena;
+    }
+
     if (select_lex == thd->lex->first_select_lex() &&
         select_lex->first_cond_optimization &&
         table->merged_for_insert &&
