@@ -1,0 +1,88 @@
+create or replace table t (id int primary key, s date, e date,
+period for mytime(s,e));
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `id` int(11) NOT NULL,
+  `s` date NOT NULL,
+  `e` date NOT NULL,
+  PRIMARY KEY (`id`),
+  PERIOD FOR `mytime` (`s`, `e`),
+  CONSTRAINT `CONSTRAINT_1` CHECK (`s` < `e`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+create or replace table t (id int primary key, s timestamp(6), e timestamp(6),
+period for mytime(s,e));
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `id` int(11) NOT NULL,
+  `s` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
+  `e` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
+  PRIMARY KEY (`id`),
+  PERIOD FOR `mytime` (`s`, `e`),
+  CONSTRAINT `CONSTRAINT_1` CHECK (`s` < `e`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+# SQL17 p. 832
+# 2) If a <table period definition> TPD is specified, then:
+# a) <table scope> shall not be specified.
+create or replace temporary table t (s date, e date, period for mytime(s,e));
+ERROR HY000: Temporary tables with application period not allowed
+# SQL17 p. 831
+# The <data type or domain name> contained in CD1 is either DATE or a
+# timestamp type and it is equivalent to the <data type or domain name>
+# contained in CD2.
+create or replace table t (id int primary key, s datetime, e date,
+period for mytime(s,e));
+ERROR HY000: PERIOD FOR `mytime` fields types mismatch
+create or replace table t (s timestamp(2), e timestamp(6),
+period for mytime(s,e));
+ERROR HY000: PERIOD FOR `mytime` fields types mismatch
+create or replace table t (id int primary key, s int, e date,
+period for mytime(s,e));
+ERROR 42000: Incorrect column specifier for column 's'
+create or replace table t (id int primary key, s date, e date,
+period for mytime(s,x));
+ERROR HY000: Field `x` in PERIOD FOR `mytime` is not found in table
+create or replace table t (id int primary key, s date, e date,
+period for mytime(s,e),
+period for mytime2(s,e));
+ERROR HY000: cannot specify more than one application-time period
+# SQL17 p. 831
+# No <column name> in any <column definition> shall be equivalent to PN.
+create or replace table t (mytime int, s date, e date,
+period for mytime(s,e));
+ERROR HY000: Could not specify name `mytime` for field. It is already used by period.
+# CD1 and CD2 both contain either an explicit or an implicit
+# <column constraint definition> that specifies
+# NOT NULL NOT DEFERRABLE ENFORCED.
+create or replace table t (id int primary key, s date NULL, e date,
+period for mytime(s,e));
+ERROR HY000: Period field `s` cannot be NULL
+# SQL17 p.832
+# Neither CD1 nor CD2 shall contain an <identity column specification>, a
+# <generation clause>, a <system time period start column specification>,
+#  or a <system time period end column specification>.
+create or replace table t (id int primary key,
+s date,
+e date generated always as (s+1),
+period for mytime(s,e));
+ERROR HY000: Period field `e` cannot be VIRTUAL or GENERATED
+create or replace table t (id int primary key,
+s date,
+e date as (s+1) VIRTUAL,
+period for mytime(s,e));
+ERROR HY000: Period field `e` cannot be VIRTUAL or GENERATED
+create or replace table t (id int primary key, s timestamp(6), e timestamp(6),
+st timestamp(6) as row start,
+en timestamp(6) as row end,
+period for system_time (st, en),
+period for mytime(st,e)) with system versioning;
+ERROR HY000: Period field `st` cannot be ROW START
+# SQL17 p.832
+# Let IDCN be an implementation-dependent <constraint name> that is not
+# equivalent to the <constraint name> of any table constraint descriptor
+# included in S.
+create or replace table t (x int, s date, e date,
+period for mytime(s, e),
+constraint mytime check (x > 1));
+create or replace database test;

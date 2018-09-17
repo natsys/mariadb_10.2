@@ -6547,7 +6547,12 @@ period_for_system_time:
           PERIOD_SYM FOR_SYSTEM_TIME_SYM '(' ident ',' ident ')'
           {
             Vers_parse_info &info= Lex->vers_get_info();
-            info.set_system_time($4, $6);
+            info.set_period($4, $6);
+          }
+        | PERIOD_SYM FOR_SYM ident '(' ident ',' ident ')'
+          {
+            if (Lex->add_period($3, $5, $7))
+              MYSQL_YYABORT;
           }
         ;
 
@@ -7089,7 +7094,11 @@ opt_attribute_list:
         ;
 
 attribute:
-          NULL_SYM { Lex->last_field->flags&= ~ NOT_NULL_FLAG; }
+          NULL_SYM
+          {
+            Lex->last_field->flags&= ~ NOT_NULL_FLAG;
+            Lex->last_field->flags|= EXPLICIT_NULL_FLAG;
+          }
         | DEFAULT column_default_expr { Lex->last_field->default_value= $2; }
         | ON UPDATE_SYM NOW_SYM opt_default_time_precision
           {

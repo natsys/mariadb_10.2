@@ -7924,3 +7924,24 @@ ER_ALTER_OPERATION_TABLE_OPTIONS_NEED_REBUILD
 
 ER_TRUNCATE_ILLEGAL_VERS
         eng "Cannot truncate a versioned table"
+
+ER_PERIOD_TEMPORARY_NOT_ALLOWED
+        eng "Temporary tables with application period not allowed"
+
+ER_PERIOD_FIELD_NOT_FOUND
+        eng "Field %`s in PERIOD FOR %`s is not found in table"
+
+ER_PERIOD_TYPES_MISMATCH
+        eng "PERIOD FOR %`s fields types mismatch"
+
+ER_PERIOD_MAX_COUNT_EXCEEDED
+        eng "cannot specify more than one %s-time period"
+
+ER_PERIOD_NAME_IS_NOT_ALLOWED_FOR_FIELD
+        eng "Could not specify name %`s for field. It is already used by period."
+
+ER_PERIOD_FIELD_WRONG_ATTRIBUTES
+        eng "Period field %`s cannot be %s"
+
+ER_PERIOD_FIELD_HOLDS_MORE_THAN_ONE_PERIOD
+        eng "Field %`s is specified for more than one period"
