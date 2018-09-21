@@ -89,6 +89,7 @@ static const alter_table_operations INNOBASE_ALTER_REBUILD
 	*/
 	| ALTER_ADD_SYSTEM_VERSIONING
 	| ALTER_DROP_SYSTEM_VERSIONING
+	| ALTER_COLUMN_UNVERSIONED
 	;
 
 /** Operations that require changes to data */
@@ -127,7 +128,6 @@ static const alter_table_operations INNOBASE_ALTER_INSTANT
 	| ALTER_ADD_VIRTUAL_COLUMN
 	| INNOBASE_FOREIGN_OPERATIONS
 	| ALTER_COLUMN_EQUAL_PACK_LENGTH
-	| ALTER_COLUMN_UNVERSIONED
 	| ALTER_DROP_VIRTUAL_COLUMN;
 
 struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
@@ -849,13 +849,13 @@ ha_innobase::check_if_supported_inplace_alter(
 {
 	DBUG_ENTER("check_if_supported_inplace_alter");
 
-	if ((table->versioned(VERS_TIMESTAMP)
-	     || altered_table->versioned(VERS_TIMESTAMP))
-	    && innobase_need_rebuild(ha_alter_info, table)) {
-		ha_alter_info->unsupported_reason =
-			"Not implemented for system-versioned tables";
-		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
-	}
+// 	if ((table->versioned(VERS_TIMESTAMP)
+// 	     || altered_table->versioned(VERS_TIMESTAMP))
+// 	    && innobase_need_rebuild(ha_alter_info, table)) {
+// 		ha_alter_info->unsupported_reason =
+// 			"Not implemented for system-versioned tables";
+// 		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
+// 	}
 
 	/* Before 10.2.2 information about virtual columns was not stored in
 	system tables. We need to do a full alter to rebuild proper 10.2.2+
