@@ -1905,7 +1905,7 @@ enum vers_sys_type_t
   VERS_TRX_ID
 };
 
-struct Table_period_info
+struct Table_period_info: Sql_alloc
 {
   Table_period_info() {}
   Table_period_info(const char *name_arg, size_t size) :
@@ -2069,11 +2069,14 @@ struct Table_scope_and_contents_source_st
 
   Vers_parse_info vers_info;
   Table_period_info period_info;
+  Virtual_column_info *period_constr;
 
   bool fix_create_fields(THD *thd, Alter_info *alter_info,
                          const TABLE_LIST &create_table,
                          bool create_select= false);
+  bool fix_period_fields(THD *thd, Alter_info *alter_info);
   bool check_fields(THD *thd, Alter_info *alter_info, TABLE_LIST &create_table);
+  bool check_period_fields(THD *thd, Alter_info *alter_info);
 
   bool vers_fix_system_fields(THD *thd, Alter_info *alter_info,
                          const TABLE_LIST &create_table,

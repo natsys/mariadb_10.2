@@ -7351,10 +7351,13 @@ static bool check_period_field(const Create_field* f, const char* name,
 bool Table_scope_and_contents_source_st::check_fields(
   THD *thd, Alter_info *alter_info, TABLE_LIST &create_table)
 {
-  bool res= vers_check_system_fields(thd, alter_info, create_table);
-  if (res)
-    return true;
+  return vers_check_system_fields(thd, alter_info, create_table)
+         || check_period_fields(thd, alter_info);
+}
 
+bool Table_scope_and_contents_source_st::check_period_fields(
+                THD *thd, Alter_info *alter_info)
+{
   if (!period_info.name)
     return false;
 
@@ -7381,7 +7384,7 @@ bool Table_scope_and_contents_source_st::check_fields(
     }
   }
 
-  res= check_period_field(row_start, period.start.str, period_info.name.str);
+  bool res= check_period_field(row_start, period.start.str, period_info.name.str);
   res= res || check_period_field(row_end, period.end.str, period_info.name.str);
   if (res)
     return true;
@@ -7393,6 +7396,27 @@ bool Table_scope_and_contents_source_st::check_fields(
     res= true;
   }
 
+  List_iterator<Virtual_column_info> vit(alter_info->check_constraint_list);
+  for (Virtual_column_info *check; !res && (check= vit++); )
+  {
+    if (check == period_constr)
+      continue;
+
+    List<Item_field> fields;
+    check->expr->walk(&Item::collect_item_field_processor, true, &fields);
+
+    List_iterator<Item_field> fit(fields);
+    for (Item_field *f; !res && (f= fit++); )
+    {
+      if (period.start.streq(f->name))
+      {
+        my_error(ER_PERIOD_FIELD_ACCESS_BY_CONSTRAINT, MYF(0),
+                 check->name.str, period_info.name.str);
+        res= true;
+      }
+    }
+  }
+
   return res;
 }
 
@@ -7402,9 +7426,14 @@ Table_scope_and_contents_source_st::fix_create_fields(THD *thd,
                                                       const TABLE_LIST &create_table,
                                                       bool create_select)
 {
-  if (vers_fix_system_fields(thd, alter_info, create_table, create_select))
-    return true;
+  return vers_fix_system_fields(thd, alter_info, create_table, create_select)
+         || fix_period_fields(thd, alter_info);
+}
 
+bool
+Table_scope_and_contents_source_st::fix_period_fields(THD *thd,
+                                                      Alter_info *alter_info)
+{
   if (!period_info.name)
     return false;
 

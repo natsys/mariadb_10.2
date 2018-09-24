@@ -1,0 +1,57 @@
+set @s= '1992-01-01';
+set @e= '1999-12-31';
+
+create or replace table t (s date, e date);
+
+--error ER_PERIOD_FIELD_WRONG_ATTRIBUTES
+alter table t add period for a(s, e);
+--error ER_PERIOD_FIELD_WRONG_ATTRIBUTES
+alter table t change s s date, add period for a(s, e);
+
+--echo # NOT NULL is added implicitly if field is altered
+alter table t change s s date, change e e date, add period for a(s, e);
+show create table t;
+
+--error ER_CONSTRAINT_FAILED
+insert t values(@e, @s);
+
+--error ER_PERIOD_MAX_COUNT_EXCEEDED
+alter table t add period for a(s, e);
+
+--error ER_PERIOD_CONSTRAINT_DROP
+alter table t drop constraint constraint_1;
+
+alter table t drop period for a;
+--echo # Constraint is dropped
+insert t values(@e, @s);
+
+--error ER_CANT_DROP_FIELD_OR_KEY
+alter table t drop period for a;
+--error ER_CANT_DROP_FIELD_OR_KEY
+alter table t add period for a(s, e), drop period for a;
+
+truncate t;
+alter table t add period for a(s, e);
+--error ER_CONSTRAINT_FAILED
+insert t values(@e, @s);
+alter table t add period for a(s, e), drop period for a;
+--error ER_CONSTRAINT_FAILED
+insert t values(@e, @s);
+alter table t add s1 date, add period for b(s1, e), drop period for a;
+show create table t;
+insert t(s, s1, e) values(@e, @s, @e);
+--error ER_CONSTRAINT_FAILED
+insert t(s, s1, e) values(@e, @e, @s);
+
+--error ER_PERIOD_FIELD_ACCESS_BY_CONSTRAINT
+alter table t add constraint check (s < s1 and s1 < e);
+
+create table t1 like t;
+show create table t1;
+
+--error ER_CONSTRAINT_FAILED
+create table t2 (period for b(s,e)) select * from t;
+
+create table t2 (period for b(s1,e)) select * from t;
+
+create or replace database test;

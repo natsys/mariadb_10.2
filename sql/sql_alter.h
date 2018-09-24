@@ -95,6 +95,8 @@ public:
     CHECK_CONSTRAINT_IF_NOT_EXISTS= 1
   };
   List<Virtual_column_info>     check_constraint_list;
+  List<Table_period_info>       period_list;
+
   // Type of ALTER TABLE operation.
   alter_table_operations        flags;
   ulong                         partition_flags;
