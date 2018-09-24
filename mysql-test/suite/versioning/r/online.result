@@ -20,5 +20,11 @@ select a, check_row(row_start, row_end) from t for system_time all order by a;
 a	check_row(row_start, row_end)
 1	CURRENT ROW
 2	HISTORICAL ROW
+# MDEV-17038 ALTER TABLE CHANGE COLUMN c1 c1 bigint NOT NULL -
+# generates error if table uses SYSTEM VERSIONING [tempesta-tech/mariadb#540]
+create or replace table t1 (a int, key(a)) with system versioning;
+create or replace table t2 like t;
+alter table t2 add foreign key(a) references t1(a);
+alter table t2 modify column a int not null, ALTER_TYPE;
 drop database test;
 create database test;
