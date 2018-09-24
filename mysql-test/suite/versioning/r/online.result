@@ -1,34 +1,24 @@
 set system_versioning_alter_history=keep;
-create or replace table t (a int, b int) engine=innodb;
-alter table t add system versioning, lock=none;
-ERROR 0A000: LOCK=NONE is not supported. Reason: Not implemented for system-versioned tables. Try LOCK=SHARED
+create or replace table t (a int);
+alter table t add system versioning, ALTER_TYPE;
+Got one of the listed errors
 alter table t add system versioning, lock=shared;
-alter table t drop column b, lock=none;
-ERROR 0A000: LOCK=NONE is not supported. Reason: Not implemented for system-versioned tables. Try LOCK=SHARED
-alter table t drop column b, algorithm=inplace;
-ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Not implemented for system-versioned tables. Try ALGORITHM=COPY
-alter table t add index idx(a), lock=none;
-alter table t drop system versioning, lock=none;
-ERROR 0A000: LOCK=NONE is not supported. Reason: Not implemented for system-versioned tables. Try LOCK=SHARED
-alter table t drop system versioning, algorithm=inplace;
-ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Not implemented for system-versioned tables. Try ALGORITHM=COPY
-create or replace table t (a int, b int) engine=innodb;
-alter table t
-add s bigint unsigned as row start,
-add e bigint unsigned as row end,
-add period for system_time(s, e),
-add system versioning,
-lock=none;
-ERROR 0A000: LOCK=NONE is not supported. Reason: Not implemented for system-versioned tables. Try LOCK=SHARED
-alter table t
-add s bigint unsigned as row start,
-add e bigint unsigned as row end,
-add period for system_time(s, e),
-add system versioning;
-alter table t drop column b, lock=none;
-ERROR 0A000: LOCK=NONE is not supported. Reason: Not implemented for system-versioned tables. Try LOCK=SHARED
-alter table t add index idx(a), lock=none;
-alter table t drop column s, drop column e;
-alter table t drop system versioning, lock=none;
-ERROR 0A000: LOCK=NONE is not supported. Reason: Not implemented for system-versioned tables. Try LOCK=SHARED
-drop table t;
+alter table t add column b int, change column a a int without system versioning, ALTER_TYPE;
+alter table t drop system versioning, ALTER_TYPE;
+create or replace table t (
+a int, b int,
+row_start SYS_DATATYPE as row start invisible,
+row_end SYS_DATATYPE as row end invisible,
+period for system_time (row_start, row_end)
+) with system versioning;
+insert into t values (1, 0);
+insert into t values (2, 0);
+delete from t where a = 2;
+alter table t drop column b, ALTER_TYPE;
+alter table t add index idx(a), ALTER_TYPE;
+select a, check_row(row_start, row_end) from t for system_time all order by a;
+a	check_row(row_start, row_end)
+1	CURRENT ROW
+2	HISTORICAL ROW
+drop database test;
+create database test;

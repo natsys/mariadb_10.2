@@ -73,6 +73,11 @@ static const alter_table_operations INNOBASE_DEFAULTS
 	= ALTER_COLUMN_NOT_NULLABLE
 	| ALTER_ADD_STORED_BASE_COLUMN;
 
+
+/** Operations that update value of system fields row_start, row_end */
+static const alter_table_operations INNOBASE_ALTER_VERSIONED_REBUILD
+	= ALTER_ADD_SYSTEM_VERSIONING;
+
 /** Operations for rebuilding a table in place */
 static const alter_table_operations INNOBASE_ALTER_REBUILD
 	= ALTER_ADD_PK_INDEX
@@ -87,9 +92,8 @@ static const alter_table_operations INNOBASE_ALTER_REBUILD
 	/*
 	| ALTER_STORED_COLUMN_TYPE
 	*/
-	| ALTER_ADD_SYSTEM_VERSIONING
+	| INNOBASE_ALTER_VERSIONED_REBUILD
 	| ALTER_DROP_SYSTEM_VERSIONING
-	| ALTER_COLUMN_UNVERSIONED
 	;
 
 /** Operations that require changes to data */
@@ -128,6 +132,7 @@ static const alter_table_operations INNOBASE_ALTER_INSTANT
 	| ALTER_ADD_VIRTUAL_COLUMN
 	| INNOBASE_FOREIGN_OPERATIONS
 	| ALTER_COLUMN_EQUAL_PACK_LENGTH
+	| ALTER_COLUMN_UNVERSIONED
 	| ALTER_DROP_VIRTUAL_COLUMN;
 
 struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
@@ -849,13 +854,12 @@ ha_innobase::check_if_supported_inplace_alter(
 {
 	DBUG_ENTER("check_if_supported_inplace_alter");
 
-// 	if ((table->versioned(VERS_TIMESTAMP)
-// 	     || altered_table->versioned(VERS_TIMESTAMP))
-// 	    && innobase_need_rebuild(ha_alter_info, table)) {
-// 		ha_alter_info->unsupported_reason =
-// 			"Not implemented for system-versioned tables";
-// 		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
-// 	}
+	if (altered_table->versioned(VERS_TIMESTAMP)
+	    && (ha_alter_info->handler_flags & INNOBASE_ALTER_VERSIONED_REBUILD)) {
+		ha_alter_info->unsupported_reason =
+			"Not implemented for system-versioned tables";
+		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
+	}
 
 	/* Before 10.2.2 information about virtual columns was not stored in
 	system tables. We need to do a full alter to rebuild proper 10.2.2+
@@ -1420,9 +1424,8 @@ cannot_create_many_fulltext_index:
 	}
 
 	// FIXME: implement Online DDL for system-versioned tables
-	if ((table->versioned(VERS_TRX_ID)
-	     || altered_table->versioned(VERS_TRX_ID))
-	    && innobase_need_rebuild(ha_alter_info, table)) {
+	if (altered_table->versioned(VERS_TRX_ID)
+	    && (ha_alter_info->handler_flags & INNOBASE_ALTER_VERSIONED_REBUILD)) {
 
 		if (ha_alter_info->online) {
 			ha_alter_info->unsupported_reason =
@@ -5374,7 +5377,8 @@ new_clustered_failed:
 				ut_d(const dict_index_t* index
 				     = user_table->indexes.start);
 				DBUG_ASSERT(col->mtype == old_col->mtype);
-				DBUG_ASSERT(col->prtype == old_col->prtype);
+				DBUG_ASSERT(col->prtype == old_col->prtype ||
+					col->prtype == (old_col->prtype & ~DATA_VERSIONED));
 				DBUG_ASSERT(col->mbminlen
 					    == old_col->mbminlen);
 				DBUG_ASSERT(col->mbmaxlen
