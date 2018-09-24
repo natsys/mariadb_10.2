@@ -1,6 +1,17 @@
 --source suite/versioning/innodb.inc
 --source suite/versioning/common.inc
---source suite/versioning/inplace.inc
+
+--disable_query_log
+if ($MTR_COMBINATION_INPLACE)
+{
+    let $ALTER_TYPE= algorithm=inplace;
+}
+if ($MTR_COMBINATION_INSTANT)
+{
+    let $ALTER_TYPE= lock=none;
+}
+--enable_query_log
+
 
 set system_versioning_alter_history=keep;
 
