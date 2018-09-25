@@ -240,7 +240,7 @@ btr_root_block_get(
 			"Table %s in file %s is encrypted but encryption service or"
 			" used key_id is not available. "
 			" Can't continue reading table.",
-			index->table->name,
+			index->table->name.basename(),
 			UT_LIST_GET_FIRST(index->table->space->chain)->name);
 
 		return NULL;
