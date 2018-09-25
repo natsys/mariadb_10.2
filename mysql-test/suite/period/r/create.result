@@ -51,7 +51,7 @@ ERROR HY000: cannot specify more than one application-time period
 # No <column name> in any <column definition> shall be equivalent to PN.
 create or replace table t (mytime int, s date, e date,
 period for mytime(s,e));
-ERROR HY000: Could not specify name `mytime` for field. It is already used by period.
+ERROR HY000: Period and field `mytime` cannot have same name.
 # CD1 and CD2 both contain either an explicit or an implicit
 # <column constraint definition> that specifies
 # NOT NULL NOT DEFERRABLE ENFORCED.

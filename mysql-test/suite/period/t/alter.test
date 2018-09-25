@@ -15,9 +15,6 @@ show create table t;
 --error ER_CONSTRAINT_FAILED
 insert t values(@e, @s);
 
---error ER_PERIOD_MAX_COUNT_EXCEEDED
-alter table t add period for a(s, e);
-
 --error ER_PERIOD_CONSTRAINT_DROP
 alter table t drop constraint constraint_1;
 
@@ -53,5 +50,47 @@ show create table t1;
 create table t2 (period for b(s,e)) select * from t;
 
 create table t2 (period for b(s1,e)) select * from t;
+
+--echo # SQL17 p.895
+--echo # The declared type of BC1 shall be either DATE or a timestamp type
+--echo # and shall be equivalent to the declared type of BC2.
+create or replace table t (s timestamp not null, e timestamp(6) not null);
+--error ER_PERIOD_TYPES_MISMATCH
+alter table t add period for a(s, e);
+
+--echo # SQL17 p.895
+--echo # No column of T shall have a column name that is equivalent to ATPN.
+create or replace table t (a int, s date, e date);
+--error ER_PERIOD_NAME_IS_NOT_ALLOWED_FOR_FIELD
+alter table t add period for a(s, e);
+
+--echo # SQL17 p.895
+--echo # Neither BC1 nor BC2 shall be an identity column, a generated column,
+--echo # a system-time period start column, or a system-time period end column.
+create or replace table t (id int primary key,
+                           s date,
+                           e date generated always as (s+1));
+--error ER_PERIOD_FIELD_WRONG_ATTRIBUTES
+alter table t add period for a(s, e);
+
+create or replace table t (id int primary key,
+                           s date,
+                           e date as (s+1) VIRTUAL);
+--error ER_PERIOD_FIELD_WRONG_ATTRIBUTES
+alter table t add period for a(s, e);
+
+create or replace table t (id int primary key, s timestamp(6), e timestamp(6),
+                           st timestamp(6) as row start,
+                           en timestamp(6) as row end,
+                           period for system_time (st, en)) with system versioning;
+--error ER_PERIOD_FIELD_WRONG_ATTRIBUTES
+alter table t add period for a(s, en);
+
+--echo # SQL17 p.895
+--echo # The table descriptor of T shall not include a period descriptor other
+--echo # than a system-time period descriptor.
+alter table t add period for a(s, e);
+--error ER_PERIOD_MAX_COUNT_EXCEEDED
+alter table t add period for b(s, e);
 
 create or replace database test;

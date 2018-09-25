@@ -1935,6 +1935,7 @@ struct Table_period_info: Sql_alloc
     period.start= start;
     period.end= end;
   }
+  bool check_field(const Create_field* f, const Lex_ident& f_name) const;
 };
 
 struct Vers_parse_info: public Table_period_info

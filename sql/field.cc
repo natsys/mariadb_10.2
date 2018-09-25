@@ -10508,7 +10508,7 @@ Column_definition::Column_definition(THD *thd, Field *old_field,
       compression_method_ptr= zlib_compression_method;
     }
     if (orig_field->maybe_null())
-      flags |= EXPLICIT_NULL_FLAG;
+      flags|= EXPLICIT_NULL_FLAG;
   }
   else
   {
