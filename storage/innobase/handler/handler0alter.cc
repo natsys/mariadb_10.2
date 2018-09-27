@@ -74,9 +74,10 @@ static const alter_table_operations INNOBASE_DEFAULTS
 	| ALTER_ADD_STORED_BASE_COLUMN;
 
 
-/** Operations that update value of system fields row_start, row_end */
+/** Operations that require knowledge about row_start, row_end values */
 static const alter_table_operations INNOBASE_ALTER_VERSIONED_REBUILD
-	= ALTER_ADD_SYSTEM_VERSIONING;
+	= ALTER_ADD_SYSTEM_VERSIONING
+	| ALTER_DROP_SYSTEM_VERSIONING;
 
 /** Operations for rebuilding a table in place */
 static const alter_table_operations INNOBASE_ALTER_REBUILD
@@ -93,7 +94,6 @@ static const alter_table_operations INNOBASE_ALTER_REBUILD
 	| ALTER_STORED_COLUMN_TYPE
 	*/
 	| INNOBASE_ALTER_VERSIONED_REBUILD
-	| ALTER_DROP_SYSTEM_VERSIONING
 	;
 
 /** Operations that require changes to data */
@@ -857,7 +857,7 @@ ha_innobase::check_if_supported_inplace_alter(
 	if (altered_table->versioned(VERS_TIMESTAMP)
 	    && (ha_alter_info->handler_flags & INNOBASE_ALTER_VERSIONED_REBUILD)) {
 		ha_alter_info->unsupported_reason =
-			"Not implemented for system-versioned tables";
+			"Not implemented for system-versioned timestamp tables";
 		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 	}
 
@@ -1424,9 +1424,7 @@ cannot_create_many_fulltext_index:
 	}
 
 	// FIXME: implement Online DDL for system-versioned operations
-	if ((table->versioned() || altered_table->versioned())
-	    && (ha_alter_info->handler_flags & (INNOBASE_ALTER_VERSIONED_REBUILD
-						| ALTER_DROP_SYSTEM_VERSIONING))) {
+	if (ha_alter_info->handler_flags & INNOBASE_ALTER_VERSIONED_REBUILD) {
 
 		if (ha_alter_info->online) {
 			ha_alter_info->unsupported_reason =
@@ -5378,8 +5376,9 @@ new_clustered_failed:
 				ut_d(const dict_index_t* index
 				     = user_table->indexes.start);
 				DBUG_ASSERT(col->mtype == old_col->mtype);
-				DBUG_ASSERT(col->prtype == old_col->prtype ||
-					col->prtype == (old_col->prtype & ~DATA_VERSIONED));
+				DBUG_ASSERT(col->prtype == old_col->prtype
+					    || col->prtype
+					    == (old_col->prtype & ~DATA_VERSIONED));
 				DBUG_ASSERT(col->mbminlen
 					    == old_col->mbminlen);
 				DBUG_ASSERT(col->mbmaxlen
