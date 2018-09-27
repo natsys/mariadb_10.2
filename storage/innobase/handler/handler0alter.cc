@@ -1423,13 +1423,14 @@ cannot_create_many_fulltext_index:
 		}
 	}
 
-	// FIXME: implement Online DDL for system-versioned tables
-	if (altered_table->versioned(VERS_TRX_ID)
-	    && (ha_alter_info->handler_flags & INNOBASE_ALTER_VERSIONED_REBUILD)) {
+	// FIXME: implement Online DDL for system-versioned operations
+	if ((table->versioned() || altered_table->versioned())
+	    && (ha_alter_info->handler_flags & (INNOBASE_ALTER_VERSIONED_REBUILD
+						| ALTER_DROP_SYSTEM_VERSIONING))) {
 
 		if (ha_alter_info->online) {
 			ha_alter_info->unsupported_reason =
-				"Not implemented for system-versioned tables";
+				"Not implemented for system-versioned operations";
 		}
 
 		online = false;

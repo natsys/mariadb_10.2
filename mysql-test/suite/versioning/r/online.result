@@ -4,7 +4,9 @@ alter table t add system versioning, ALTER_TYPE;
 Got one of the listed errors
 alter table t add system versioning, lock=shared;
 alter table t add column b int, change column a a int without system versioning, ALTER_TYPE;
-alter table t drop system versioning, ALTER_TYPE;
+alter table t drop system versioning, lock=none;
+ERROR 0A000: LOCK=NONE is not supported. Reason: Not implemented for system-versioned operations. Try LOCK=SHARED
+alter table t drop system versioning, algorithm=inplace;
 create or replace table t (
 a int, b int,
 row_start SYS_DATATYPE as row start invisible,
