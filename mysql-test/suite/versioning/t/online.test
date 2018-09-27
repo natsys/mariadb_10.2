@@ -1,29 +1,16 @@
 --source suite/versioning/innodb.inc
 --source suite/versioning/common.inc
 
---disable_query_log
-if ($MTR_COMBINATION_INPLACE)
-{
-    let $ALTER_TYPE= algorithm=inplace;
-}
-if ($MTR_COMBINATION_ONLINE)
-{
-    let $ALTER_TYPE= lock=none;
-}
---enable_query_log
-
-
 set system_versioning_alter_history=keep;
 
 create or replace table t (a int);
---replace_result $ALTER_TYPE ALTER_TYPE
---error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON, ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
-eval alter table t add system versioning, $ALTER_TYPE;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t add system versioning, lock=none;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t add system versioning, algorithm=inplace;
 alter table t add system versioning, lock=shared;
 
-
---replace_result $ALTER_TYPE ALTER_TYPE
-eval alter table t add column b int, change column a a int without system versioning, $ALTER_TYPE;
+alter table t add column b int, change column a a int without system versioning, lock=none;
 --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 alter table t drop system versioning, lock=none;
 alter table t drop system versioning, algorithm=inplace;
@@ -38,10 +25,8 @@ eval create or replace table t (
 insert into t values (1, 0);
 insert into t values (2, 0);
 delete from t where a = 2;
---replace_result $ALTER_TYPE ALTER_TYPE
-eval alter table t drop column b, $ALTER_TYPE;
---replace_result $ALTER_TYPE ALTER_TYPE
-eval alter table t add index idx(a), $ALTER_TYPE;
+alter table t drop column b, lock=none;
+alter table t add index idx(a), lock=none;
 
 select a, check_row(row_start, row_end) from t for system_time all order by a;
 
@@ -50,8 +35,7 @@ select a, check_row(row_start, row_end) from t for system_time all order by a;
 create or replace table t1 (a int, key(a)) with system versioning;
 create or replace table t2 like t;
 alter table t2 add foreign key(a) references t1(a);
---replace_result $ALTER_TYPE ALTER_TYPE
-eval alter table t2 modify column a int not null, $ALTER_TYPE;
+alter table t2 modify column a int not null, lock=none;
 
 drop database test;
 create database test;

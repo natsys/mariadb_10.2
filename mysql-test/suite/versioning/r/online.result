@@ -1,9 +1,11 @@
 set system_versioning_alter_history=keep;
 create or replace table t (a int);
-alter table t add system versioning, ALTER_TYPE;
-Got one of the listed errors
+alter table t add system versioning, lock=none;
+ERROR 0A000: LOCK=NONE is not supported. Reason: Not implemented for system-versioned timestamp tables. Try LOCK=SHARED
+alter table t add system versioning, algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Not implemented for system-versioned timestamp tables. Try ALGORITHM=COPY
 alter table t add system versioning, lock=shared;
-alter table t add column b int, change column a a int without system versioning, ALTER_TYPE;
+alter table t add column b int, change column a a int without system versioning, lock=none;
 alter table t drop system versioning, lock=none;
 ERROR 0A000: LOCK=NONE is not supported. Reason: Not implemented for system-versioned operations. Try LOCK=SHARED
 alter table t drop system versioning, algorithm=inplace;
@@ -16,8 +18,8 @@ period for system_time (row_start, row_end)
 insert into t values (1, 0);
 insert into t values (2, 0);
 delete from t where a = 2;
-alter table t drop column b, ALTER_TYPE;
-alter table t add index idx(a), ALTER_TYPE;
+alter table t drop column b, lock=none;
+alter table t add index idx(a), lock=none;
 select a, check_row(row_start, row_end) from t for system_time all order by a;
 a	check_row(row_start, row_end)
 1	CURRENT ROW
@@ -27,6 +29,6 @@ a	check_row(row_start, row_end)
 create or replace table t1 (a int, key(a)) with system versioning;
 create or replace table t2 like t;
 alter table t2 add foreign key(a) references t1(a);
-alter table t2 modify column a int not null, ALTER_TYPE;
+alter table t2 modify column a int not null, lock=none;
 drop database test;
 create database test;
