@@ -7312,7 +7312,8 @@ bool Vers_parse_info::check_sys_fields(const Lex_table_name &table_name,
   return true;
 }
 
-bool Table_period_info::check_field(const Create_field* f, const Lex_ident& f_name) const
+bool Table_period_info::check_field(const Create_field* f,
+                                    const Lex_ident& f_name) const
 {
   bool res= false;
   if (!f)
@@ -7331,7 +7332,7 @@ bool Table_period_info::check_field(const Create_field* f, const Lex_ident& f_na
              f->field_name.str, "VIRTUAL or GENERATED");
     res= true;
   }
-  else if (f->flags & EXPLICIT_NULL_FLAG)
+  else if (!(f->flags & NOT_NULL_FLAG))
   {
     my_error(ER_PERIOD_FIELD_WRONG_ATTRIBUTES, MYF(0),
              f->field_name.str, "NULL");

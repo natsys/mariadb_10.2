@@ -9322,9 +9322,6 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
     DBUG_RETURN(true);
   }
 
-  if (create_info->fix_period_fields(thd, alter_info))
-    DBUG_RETURN(true);
-
   if ((create_info->db_type != table->s->db_type() ||
        (alter_info->partition_flags & ALTER_PARTITION_INFO)) &&
       !table->file->can_switch_engines())

@@ -4,9 +4,11 @@ create or replace table t (s date, e date);
 alter table t add period for a(s, e);
 ERROR HY000: Period field `s` cannot be NULL
 alter table t change s s date, add period for a(s, e);
-ERROR HY000: Period field `e` cannot be NULL
-# NOT NULL is added implicitly if field is altered
+ERROR HY000: Period field `s` cannot be NULL
 alter table t change s s date, change e e date, add period for a(s, e);
+ERROR HY000: Period field `s` cannot be NULL
+alter table t change s s date not null, change e e date not null,
+add period for a(s, e);
 show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
@@ -32,7 +34,7 @@ ERROR 23000: CONSTRAINT `CONSTRAINT_1` failed for `test`.`t`
 alter table t add period for a(s, e), drop period for a;
 insert t values(@e, @s);
 ERROR 23000: CONSTRAINT `CONSTRAINT_1` failed for `test`.`t`
-alter table t add s1 date, add period for b(s1, e), drop period for a;
+alter table t add s1 date not null, add period for b(s1, e), drop period for a;
 show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (

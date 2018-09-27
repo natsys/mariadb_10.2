@@ -7,9 +7,11 @@ create or replace table t (s date, e date);
 alter table t add period for a(s, e);
 --error ER_PERIOD_FIELD_WRONG_ATTRIBUTES
 alter table t change s s date, add period for a(s, e);
-
---echo # NOT NULL is added implicitly if field is altered
+--error ER_PERIOD_FIELD_WRONG_ATTRIBUTES
 alter table t change s s date, change e e date, add period for a(s, e);
+
+alter table t change s s date not null, change e e date not null,
+              add period for a(s, e);
 show create table t;
 
 --error ER_CONSTRAINT_FAILED
@@ -34,7 +36,7 @@ insert t values(@e, @s);
 alter table t add period for a(s, e), drop period for a;
 --error ER_CONSTRAINT_FAILED
 insert t values(@e, @s);
-alter table t add s1 date, add period for b(s1, e), drop period for a;
+alter table t add s1 date not null, add period for b(s1, e), drop period for a;
 show create table t;
 insert t(s, s1, e) values(@e, @s, @e);
 --error ER_CONSTRAINT_FAILED
