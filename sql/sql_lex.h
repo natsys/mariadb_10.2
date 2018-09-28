@@ -4220,6 +4220,7 @@ public:
     constr->expr= lt_creator.create(thd, create_item_ident_nosp(thd, &start),
                                     create_item_ident_nosp(thd, &end));
     add_constraint(&null_clex_str, constr, false);
+    create_info.period_constr= constr;
     return 0;
   }
 

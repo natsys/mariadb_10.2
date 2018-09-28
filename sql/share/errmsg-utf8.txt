@@ -7938,7 +7938,7 @@ ER_PERIOD_MAX_COUNT_EXCEEDED
         eng "cannot specify more than one %s-time period"
 
 ER_PERIOD_NAME_IS_NOT_ALLOWED_FOR_FIELD
-        eng "Could not specify name %`s for field. It is already used by period."
+        eng "Period and field %`s cannot have same name."
 
 ER_PERIOD_FIELD_WRONG_ATTRIBUTES
         eng "Period field %`s cannot be %s"
@@ -7960,3 +7960,9 @@ ER_PERIOD_PORTION_OF_TIME_CONSTANT
 
 ER_PERIOD_COLUMNS_UPDATED
         eng "Column %`s used in period %`s specified in update SET list"
+
+ER_PERIOD_CONSTRAINT_DROP
+        eng "Can't DROP CONSTRAINT `%s`. Use DROP PERIOD `%s` for this"
+
+ER_PERIOD_FIELD_ACCESS_BY_CONSTRAINT
+        eng "CONSTRAINT `%s` uses fields from PERIOD `%s`"
