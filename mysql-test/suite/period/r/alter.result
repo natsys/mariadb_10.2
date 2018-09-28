@@ -1,0 +1,101 @@
+set @s= '1992-01-01';
+set @e= '1999-12-31';
+create or replace table t (s date, e date);
+alter table t add period for a(s, e);
+ERROR HY000: Period field `s` cannot be NULL
+alter table t change s s date, add period for a(s, e);
+ERROR HY000: Period field `s` cannot be NULL
+alter table t change s s date, change e e date, add period for a(s, e);
+ERROR HY000: Period field `s` cannot be NULL
+alter table t change s s date not null, change e e date not null,
+add period for a(s, e);
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `s` date NOT NULL,
+  `e` date NOT NULL,
+  PERIOD FOR `a` (`s`, `e`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+alter table t add id int;
+alter table t drop id;
+insert t values(@e, @s);
+ERROR 23000: CONSTRAINT `CONSTRAINT_1` failed for `test`.`t`
+alter table t drop constraint constraint_1;
+ERROR HY000: Can't DROP CONSTRAINT `CONSTRAINT_1`. Use DROP PERIOD `a` for this
+alter table t drop period for a;
+# Constraint is dropped
+insert t values(@e, @s);
+alter table t drop period for a;
+ERROR 42000: Can't DROP PERIOD `a`; check that it exists
+alter table t add period for a(s, e), drop period for a;
+ERROR 42000: Can't DROP PERIOD `a`; check that it exists
+truncate t;
+alter table t add period for a(s, e);
+insert t values(@e, @s);
+ERROR 23000: CONSTRAINT `CONSTRAINT_1` failed for `test`.`t`
+alter table t add period for a(s, e), drop period for a;
+insert t values(@e, @s);
+ERROR 23000: CONSTRAINT `CONSTRAINT_1` failed for `test`.`t`
+alter table t add s1 date not null, add period for b(s1, e), drop period for a;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `s` date NOT NULL,
+  `e` date NOT NULL,
+  `s1` date NOT NULL,
+  PERIOD FOR `b` (`s1`, `e`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+insert t(s, s1, e) values(@e, @s, @e);
+insert t(s, s1, e) values(@e, @e, @s);
+ERROR 23000: CONSTRAINT `CONSTRAINT_1` failed for `test`.`t`
+alter table t add constraint check (s < s1 and s1 < e);
+ERROR HY000: CONSTRAINT `(null)` uses fields from PERIOD `b`
+create table t1 like t;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `s` date NOT NULL,
+  `e` date NOT NULL,
+  `s1` date NOT NULL,
+  PERIOD FOR `b` (`s1`, `e`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+create table t2 (period for b(s,e)) select * from t;
+ERROR 23000: CONSTRAINT `CONSTRAINT_1` failed for `test`.`t2`
+create table t2 (period for b(s1,e)) select * from t;
+# SQL17 p.895
+# The declared type of BC1 shall be either DATE or a timestamp type
+# and shall be equivalent to the declared type of BC2.
+create or replace table t (s timestamp not null, e timestamp(6) not null);
+alter table t add period for a(s, e);
+ERROR HY000: PERIOD FOR `a` fields types mismatch
+# SQL17 p.895
+# No column of T shall have a column name that is equivalent to ATPN.
+create or replace table t (a int, s date, e date);
+alter table t add period for a(s, e);
+ERROR HY000: Period and field `a` cannot have same name.
+# SQL17 p.895
+# Neither BC1 nor BC2 shall be an identity column, a generated column,
+# a system-time period start column, or a system-time period end column.
+create or replace table t (id int primary key,
+s date,
+e date generated always as (s+1));
+alter table t add period for a(s, e);
+ERROR HY000: Period field `s` cannot be NULL
+create or replace table t (id int primary key,
+s date,
+e date as (s+1) VIRTUAL);
+alter table t add period for a(s, e);
+ERROR HY000: Period field `s` cannot be NULL
+create or replace table t (id int primary key, s timestamp(6), e timestamp(6),
+st timestamp(6) as row start,
+en timestamp(6) as row end,
+period for system_time (st, en)) with system versioning;
+alter table t add period for a(s, en);
+ERROR HY000: Period field `en` cannot be ROW END
+# SQL17 p.895
+# The table descriptor of T shall not include a period descriptor other
+# than a system-time period descriptor.
+alter table t add period for a(s, e);
+alter table t add period for b(s, e);
+ERROR HY000: cannot specify more than one application-time period
+create or replace database test;

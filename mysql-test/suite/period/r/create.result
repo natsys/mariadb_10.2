@@ -1,5 +1,7 @@
 create or replace table t (id int primary key, s date, e date,
 period for mytime(s,e));
+# CONSTRAINT CHECK (s < e) is added implicitly, and shouldn't be shown
+# this is important for correct command-based replication
 show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
@@ -7,8 +9,7 @@ t	CREATE TABLE `t` (
   `s` date NOT NULL,
   `e` date NOT NULL,
   PRIMARY KEY (`id`),
-  PERIOD FOR `mytime` (`s`, `e`),
-  CONSTRAINT `CONSTRAINT_1` CHECK (`s` < `e`)
+  PERIOD FOR `mytime` (`s`, `e`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 create or replace table t (id int primary key, s timestamp(6), e timestamp(6),
 period for mytime(s,e));
@@ -19,8 +20,7 @@ t	CREATE TABLE `t` (
   `s` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
   `e` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
   PRIMARY KEY (`id`),
-  PERIOD FOR `mytime` (`s`, `e`),
-  CONSTRAINT `CONSTRAINT_1` CHECK (`s` < `e`)
+  PERIOD FOR `mytime` (`s`, `e`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 # SQL17 p. 832
 # 2) If a <table period definition> TPD is specified, then:
@@ -51,7 +51,7 @@ ERROR HY000: cannot specify more than one application-time period
 # No <column name> in any <column definition> shall be equivalent to PN.
 create or replace table t (mytime int, s date, e date,
 period for mytime(s,e));
-ERROR HY000: Could not specify name `mytime` for field. It is already used by period.
+ERROR HY000: Period and field `mytime` cannot have same name.
 # CD1 and CD2 both contain either an explicit or an implicit
 # <column constraint definition> that specifies
 # NOT NULL NOT DEFERRABLE ENFORCED.
@@ -85,4 +85,8 @@ ERROR HY000: Period field `st` cannot be ROW START
 create or replace table t (x int, s date, e date,
 period for mytime(s, e),
 constraint mytime check (x > 1));
+create or replace table t(s date, e date, d date,
+period for mytime(s, e),
+constraint check (d < e or d > s));
+ERROR HY000: CONSTRAINT `(null)` uses fields from PERIOD `mytime`
 create or replace database test;

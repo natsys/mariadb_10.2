@@ -7353,18 +7353,18 @@ bool Vers_parse_info::check_sys_fields(const Lex_table_name &table_name,
   return true;
 }
 
-static bool check_period_field(const Create_field* f, const char* name,
-                               const char* period_name)
+bool Table_period_info::check_field(const Create_field* f,
+                                    const Lex_ident& f_name) const
 {
   bool res= false;
   if (!f)
   {
-    my_error(ER_PERIOD_FIELD_NOT_FOUND, MYF(0), name, period_name);
+    my_error(ER_PERIOD_FIELD_NOT_FOUND, MYF(0), f_name.str, name.str);
     res= true;
   }
   else if (f->type_handler()->mysql_timestamp_type() == MYSQL_TIMESTAMP_ERROR)
   {
-    my_error(ER_WRONG_FIELD_SPEC, MYF(0), name);
+    my_error(ER_WRONG_FIELD_SPEC, MYF(0), f->field_name.str);
     res= true;
   }
   else if (f->vcol_info)
@@ -7373,7 +7373,7 @@ static bool check_period_field(const Create_field* f, const char* name,
              f->field_name.str, "VIRTUAL or GENERATED");
     res= true;
   }
-  else if (f->flags & EXPLICIT_NULL_FLAG)
+  else if (!(f->flags & NOT_NULL_FLAG))
   {
     my_error(ER_PERIOD_FIELD_WRONG_ATTRIBUTES, MYF(0),
              f->field_name.str, "NULL");
@@ -7392,10 +7392,13 @@ static bool check_period_field(const Create_field* f, const char* name,
 bool Table_scope_and_contents_source_st::check_fields(
   THD *thd, Alter_info *alter_info, TABLE_LIST &create_table)
 {
-  bool res= vers_check_system_fields(thd, alter_info, create_table);
-  if (res)
-    return true;
+  return vers_check_system_fields(thd, alter_info, create_table)
+         || check_period_fields(thd, alter_info);
+}
 
+bool Table_scope_and_contents_source_st::check_period_fields(
+                THD *thd, Alter_info *alter_info)
+{
   if (!period_info.name)
     return false;
 
@@ -7422,8 +7425,8 @@ bool Table_scope_and_contents_source_st::check_fields(
     }
   }
 
-  res= check_period_field(row_start, period.start.str, period_info.name.str);
-  res= res || check_period_field(row_end, period.end.str, period_info.name.str);
+  bool res= period_info.check_field(row_start, period.start.str)
+            || period_info.check_field(row_end, period.end.str);
   if (res)
     return true;
 
@@ -7432,6 +7435,27 @@ bool Table_scope_and_contents_source_st::check_fields(
   {
     my_error(ER_PERIOD_TYPES_MISMATCH, MYF(0), period_info.name.str);
     res= true;
+  }
+
+  List_iterator<Virtual_column_info> vit(alter_info->check_constraint_list);
+  for (Virtual_column_info *check; !res && (check= vit++); )
+  {
+    if (check == period_constr)
+      continue;
+
+    List<Item_field> fields;
+    check->expr->walk(&Item::collect_item_field_processor, true, &fields);
+
+    List_iterator<Item_field> fit(fields);
+    for (Item_field *f; !res && (f= fit++); )
+    {
+      if (period.start.streq(f->name))
+      {
+        my_error(ER_PERIOD_FIELD_ACCESS_BY_CONSTRAINT, MYF(0),
+                 check->name.str, period_info.name.str);
+        res= true;
+      }
+    }
   }
 
   return res;
@@ -7443,9 +7467,14 @@ Table_scope_and_contents_source_st::fix_create_fields(THD *thd,
                                                       const TABLE_LIST &create_table,
                                                       bool create_select)
 {
-  if (vers_fix_system_fields(thd, alter_info, create_table, create_select))
-    return true;
+  return vers_fix_system_fields(thd, alter_info, create_table, create_select)
+         || fix_period_fields(thd, alter_info);
+}
 
+bool
+Table_scope_and_contents_source_st::fix_period_fields(THD *thd,
+                                                      Alter_info *alter_info)
+{
   if (!period_info.name)
     return false;
 
