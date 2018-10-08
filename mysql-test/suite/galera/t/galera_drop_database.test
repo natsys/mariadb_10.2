@@ -38,7 +38,9 @@ let $wsrep_cluster_address = `SELECT @@global.wsrep_node_incoming_address`;
 --source include/wait_until_ready.inc
 
 --connection node_1
---let $restart_parameters = --wsrep-cluster-address=gcomm://$wsrep_cluster_address
+--let $gp = `SELECT SUBSTR(@@wsrep_provider_options, LOCATE('base_port =', @@wsrep_provider_options) + LENGTH('base_port = '))`
+--let $galera_port = `SELECT SUBSTR('$gp', 1, LOCATE(';', '$gp') - 1)`
+--let $restart_parameters = --wsrep-cluster-address=gcomm://$wsrep_cluster_address --wsrep_provider_options=base_port=$galera_port
 --source include/restart_mysqld.inc
 
 --connection node_2a
