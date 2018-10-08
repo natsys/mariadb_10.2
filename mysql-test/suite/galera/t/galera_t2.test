@@ -1,0 +1,7 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--connection node_2
+--let $gp = `SELECT SUBSTR(@@wsrep_provider_options, LOCATE('pc.weight =', @@wsrep_provider_options) + LENGTH('pc.weight = '))`
+--let $weight = `SELECT SUBSTR('$gp', 1, LOCATE(';', '$gp') - 1)`
+--echo weight=$weight
