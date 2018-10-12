@@ -4146,6 +4146,10 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     // Check if a duplicate index is defined.
     check_duplicate_key(thd, key, key_info, &alter_info->key_list);
 
+    key_info->without_overlaps= key->without_overlaps;
+    if (key->without_overlaps)
+      create_info->period_info.unique_keys++;
+
     key_info++;
   }
 
@@ -4428,15 +4432,13 @@ bool Column_definition::sp_prepare_create_field(THD *thd, MEM_ROOT *mem_root)
 }
 
 
-static bool vers_prepare_keys(THD *thd, HA_CREATE_INFO *create_info,
-                         Alter_info *alter_info, KEY **key_info, uint key_count)
+static bool append_system_key_parts(THD *thd, HA_CREATE_INFO *create_info,
+                                    Alter_info *alter_info, KEY **key_info,
+                                    uint key_count)
 {
-  DBUG_ASSERT(create_info->versioned());
-
-  const char *row_start_field= create_info->vers_info.as_row.start;
-  DBUG_ASSERT(row_start_field);
-  const char *row_end_field= create_info->vers_info.as_row.end;
-  DBUG_ASSERT(row_end_field);
+  const auto &row_start_field= create_info->vers_info.as_row.start;
+  const auto &row_end_field= create_info->vers_info.as_row.end;
+  DBUG_ASSERT(!create_info->versioned() || (row_start_field && row_end_field));
 
   List_iterator<Key> key_it(alter_info->key_list);
   Key *key= NULL;
@@ -4445,25 +4447,43 @@ static bool vers_prepare_keys(THD *thd, HA_CREATE_INFO *create_info,
     if (key->type != Key::PRIMARY && key->type != Key::UNIQUE)
       continue;
 
-    Key_part_spec *key_part= NULL;
-    List_iterator<Key_part_spec> part_it(key->columns);
-    while ((key_part=part_it++))
+    if (create_info->versioned())
     {
-      if (!my_strcasecmp(system_charset_info,
-                         row_start_field,
-                         key_part->field_name.str) ||
-
-          !my_strcasecmp(system_charset_info,
-                         row_end_field,
-                         key_part->field_name.str))
-        break;
+      Key_part_spec *key_part=NULL;
+      List_iterator<Key_part_spec> part_it(key->columns);
+      while ((key_part=part_it++))
+      {
+        if (row_start_field.streq(key_part->field_name) ||
+            row_end_field.streq(key_part->field_name))
+          break;
+      }
+      if (key_part)
+        key->columns.push_back(new Key_part_spec(&row_end_field, 0));
     }
-    if (key_part)
-      continue; // Key already contains Sys_start or Sys_end
 
-    Key_part_spec *key_part_sys_end_col=
-        new (thd->mem_root) Key_part_spec(&create_info->vers_info.as_row.end, 0);
-    key->columns.push_back(key_part_sys_end_col);
+    if (key->without_overlaps)
+    {
+      DBUG_ASSERT(create_info->period_info.is_set());
+      if (!key->period.streq(create_info->period_info.name))
+      {
+        my_error(ER_PERIOD_NOT_FOUND, MYF(0), key->period.str);
+        return false;
+      }
+      const auto &period_start= create_info->period_info.period.start;
+      const auto &period_end= create_info->period_info.period.end;
+      List_iterator<Key_part_spec> part_it(key->columns);
+      while (Key_part_spec *key_part= part_it++)
+      {
+        if (period_start.streq(key_part->field_name)
+            || period_end.streq(key_part->field_name))
+        {
+          my_error(ER_KEY_CONTAINS_PERIOD_FIELDS, MYF(0), key->name.str);
+          return false;
+        }
+      }
+      key->columns.push_back(new Key_part_spec(&period_start, 0));
+      key->columns.push_back(new Key_part_spec(&period_end, 0));
+    }
   }
 
   return false;
@@ -4704,12 +4724,9 @@ handler *mysql_create_frm_image(THD *thd,
   }
 #endif
 
-  if (create_info->versioned())
-  {
-    if(vers_prepare_keys(thd, create_info, alter_info, key_info,
-                                *key_count))
-      goto err;
-  }
+  if (append_system_key_parts(thd, create_info, alter_info, key_info,
+                              *key_count))
+    goto err;
 
   if (mysql_prepare_create_table(thd, create_info, alter_info, &db_options,
                                  file, key_info, key_count,
