@@ -1,14 +1,12 @@
+--source include/have_innodb.inc
+--source include/have_partition.inc
+
 create or replace table t(id int, s date, e date,
                           period for p(s,e),
                           primary key(id, p without overlaps));
 
---echo # store some irrelevant data
-insert into t values (1, '2002-01-01', '2002-02-01'),
-                     (1, '2002-02-01', '2002-03-01'),
-                     (1, '2002-03-01', '2002-04-01'),
-                     (1, '2004-01-01', '2004-02-01'),
-                     (1, '2004-02-01', '2004-03-01'),
-                     (1, '2004-03-01', '2004-04-01');
+show create table t;
+
 
 insert into t values (1, '2003-01-01', '2003-03-01'),
                      (1, '2003-05-01', '2003-07-01');
@@ -66,6 +64,15 @@ create or replace table t(id int, s date, e date,
                           period for p(s,e),
                           primary key(id, q without overlaps));
 
+--error ER_PERIOD_NOT_FOUND
+create or replace table t(id int, s date, e date,
+                          primary key(id, p without overlaps));
+
+--error ER_KEY_CONTAINS_PERIOD_FIELDS
+create or replace table t(id int, s date, e date,
+                          period for p(s,e),
+                          primary key(id, s, p without overlaps));
+
 create or replace table t(id int, s date, e date,
                           period for p(s,e),
                           primary key(id));
@@ -77,6 +84,7 @@ create or replace table t(id int, u int, s date, e date,
                           period for p(s,e),
                           primary key(id, p without overlaps),
                           unique(u));
+show create table t;
 insert into t values (1, 1, '2003-03-01', '2003-05-01');
 insert into t values (1, 2, '2003-05-01', '2003-07-01');
 --error ER_DUP_KEY
@@ -86,8 +94,46 @@ create or replace table t(id int, u int, s date, e date,
                           period for p(s,e),
                           primary key(id, p without overlaps),
                           unique(u, p without overlaps));
+show create table t;
 insert into t values (1, 1, '2003-03-01', '2003-05-01');
 insert into t values (1, 2, '2003-05-01', '2003-07-01');
 insert into t values (2, 1, '2003-05-01', '2003-07-01');
+
+create or replace table t(id int, s date, e date,
+                          period for p(s,e)) engine=innodb;
+
+insert into t values (1, '2003-01-01', '2003-03-01'),
+                     (1, '2003-05-01', '2003-07-01'),
+                     (1, '2003-02-01', '2003-04-01');
+
+--replace_regex /#sql-\w+/#sql-temp/
+--error ER_DUP_KEY
+alter table t add primary key(id, p without overlaps);
+
+--echo # Historical rows are not checked against constraints
+set @@system_versioning_alter_history= keep;
+alter table t add system versioning;
+delete from t;
+alter table t add primary key(id, p without overlaps);
+
+insert into t values (1, '2003-01-01', '2003-03-01'),
+                     (1, '2003-03-01', '2003-05-01');
+
+--error ER_PERIOD_WITHOUT_OVERLAPS_PARTITIONED
+create or replace table t1 (x int, s date, e date,
+                            period for p(s,e),
+                            primary key(x, p without overlaps)
+) with system versioning
+  partition by key (x);
+
+--error ER_PERIOD_WITHOUT_OVERLAPS_PARTITIONED
+create or replace table t1 (x int, s date, e date,
+                            period for p(s,e),
+                            primary key(x, p without overlaps)
+) with system versioning
+  partition by system_time limit 2
+  (partition p0 history,
+   partition p1 history,
+   partition pn current);
 
 create or replace database test;

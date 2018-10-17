@@ -7969,3 +7969,6 @@ ER_PERIOD_FIELD_ACCESS_BY_CONSTRAINT
 
 ER_KEY_CONTAINS_PERIOD_FIELDS
         eng "Key %`s should not contain period fields in order to make it WITHOUT OVERLAPS"
+
+ER_PERIOD_WITHOUT_OVERLAPS_PARTITIONED
+        eng "Period WITHOUT OVERLAPS is not implemented for partitioned tables"

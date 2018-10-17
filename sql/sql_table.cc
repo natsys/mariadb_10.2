@@ -4457,17 +4457,22 @@ static bool append_system_key_parts(THD *thd, HA_CREATE_INFO *create_info,
             row_end_field.streq(key_part->field_name))
           break;
       }
-      if (key_part)
+      if (!key_part)
         key->columns.push_back(new Key_part_spec(&row_end_field, 0));
     }
 
     if (key->without_overlaps)
     {
-      DBUG_ASSERT(create_info->period_info.is_set());
-      if (!key->period.streq(create_info->period_info.name))
+      if (!create_info->period_info.is_set()
+          || !key->period.streq(create_info->period_info.name))
       {
         my_error(ER_PERIOD_NOT_FOUND, MYF(0), key->period.str);
-        return false;
+        return true;
+      }
+      if (thd->lex->part_info)
+      {
+        my_error(ER_PERIOD_WITHOUT_OVERLAPS_PARTITIONED, MYF(0));
+        return true;
       }
       const auto &period_start= create_info->period_info.period.start;
       const auto &period_end= create_info->period_info.period.end;
@@ -4478,7 +4483,7 @@ static bool append_system_key_parts(THD *thd, HA_CREATE_INFO *create_info,
             || period_end.streq(key_part->field_name))
         {
           my_error(ER_KEY_CONTAINS_PERIOD_FIELDS, MYF(0), key->name.str);
-          return false;
+          return true;
         }
       }
       key->columns.push_back(new Key_part_spec(&period_start, 0));
@@ -9753,6 +9758,14 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
     enum_alter_inplace_result inplace_supported=
       table->file->check_if_supported_inplace_alter(altered_table,
                                                     &ha_alter_info);
+
+    Key *k;
+    for (List_iterator<Key> it(alter_info->key_list);
+         (k= it++) && inplace_supported != HA_ALTER_INPLACE_NOT_SUPPORTED;)
+    {
+      if(k->without_overlaps)
+        inplace_supported= HA_ALTER_INPLACE_NOT_SUPPORTED;
+    }
 
     if (alter_info->supports_algorithm(thd, inplace_supported, &ha_alter_info) ||
         alter_info->supports_lock(thd, inplace_supported, &ha_alter_info))

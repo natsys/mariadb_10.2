@@ -6248,7 +6248,7 @@ int handler::ha_write_row(uchar *buf)
   DEBUG_SYNC_C("ha_write_row_start");
 
   if ((error= ha_check_overlaps(NULL, buf)))
-    DBUG_RETURN(error);
+    goto end;
 
   MYSQL_INSERT_ROW_START(table_share->db.str, table_share->table_name.str);
   mark_trx_read_write();
@@ -6263,6 +6263,8 @@ int handler::ha_write_row(uchar *buf)
     rows_changed++;
     error= binlog_log_row(table, 0, buf, log_func);
   }
+
+end:
   DEBUG_SYNC_C("ha_write_row_end");
   DBUG_RETURN(error);
 }
@@ -6516,6 +6518,8 @@ int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
   DBUG_ASSERT(new_data);
   if (!table_share->period.unique_keys)
     return 0;
+  if (table->versioned() && !table->vers_end_field()->is_max())
+    return 0;
 
   bool is_update= old_data != NULL;
   if (!check_overlaps_buffer)
@@ -6556,6 +6560,9 @@ int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
         continue;
       else if (error)
         return error;
+      /* In case of update it could appear that the nearest neighbour is
+       * a record we are updating. It means, that there are no overlaps
+       * from this side. */
       else if (is_update
                && memcmp(old_data + table->s->null_bytes,
                          record_buffer + table->s->null_bytes,
