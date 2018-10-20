@@ -3725,6 +3725,9 @@ void ha_partition::rebind_psi()
 handler *ha_partition::clone(const char *name, MEM_ROOT *mem_root)
 {
   ha_partition *new_handler;
+  MY_BITMAP read_partitions;
+  MY_BITMAP lock_partitions;
+  int error;
 
   DBUG_ENTER("ha_partition::clone");
   new_handler= new (mem_root) ha_partition(ht, table_share, m_part_info,
@@ -3748,9 +3751,21 @@ handler *ha_partition::clone(const char *name, MEM_ROOT *mem_root)
                                               ALIGN_SIZE(m_ref_length)*2)))
     goto err;
 
-  if (new_handler->ha_open(table, name,
+  DBUG_ASSERT(m_tot_parts == m_part_info->read_partitions.n_bits);
+  DBUG_ASSERT(m_tot_parts == m_part_info->lock_partitions.n_bits);
+  my_bitmap_init(&read_partitions, NULL, m_tot_parts, FALSE);
+  my_bitmap_init(&lock_partitions, NULL, m_tot_parts, FALSE);
+  bitmap_copy(&read_partitions, &m_part_info->read_partitions);
+  bitmap_copy(&lock_partitions, &m_part_info->lock_partitions);
+  error= new_handler->ha_open(table, name,
                            table->db_stat,
-                           HA_OPEN_IGNORE_IF_LOCKED | HA_OPEN_NO_PSI_CALL))
+                           HA_OPEN_IGNORE_IF_LOCKED | HA_OPEN_NO_PSI_CALL);
+  bitmap_copy(&m_part_info->read_partitions, &read_partitions);
+  bitmap_copy(&m_part_info->lock_partitions, &lock_partitions);
+  my_bitmap_free(&read_partitions);
+  my_bitmap_free(&lock_partitions);
+
+  if (error)
     goto err;
 
   DBUG_RETURN((handler*) new_handler);
