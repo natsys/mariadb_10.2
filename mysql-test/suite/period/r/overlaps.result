@@ -123,6 +123,29 @@ delete from t;
 alter table t add primary key(id, p without overlaps);
 insert into t values (1, '2003-01-01', '2003-03-01'),
 (1, '2003-03-01', '2003-05-01');
+# `without overlaps` is not lost on alter table
+alter table t add y int;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `id` int(11) NOT NULL,
+  `s` date NOT NULL,
+  `e` date NOT NULL,
+  `y` int(11) DEFAULT NULL,
+  PERIOD FOR `p` (`s`, `e`),
+  PRIMARY KEY (`id`,`p` WITHOUT OVERLAPS)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+alter table t drop y;
+create or replace table t1 like t;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  `s` date NOT NULL,
+  `e` date NOT NULL,
+  PERIOD FOR `p` (`s`, `e`),
+  PRIMARY KEY (`id`,`p` WITHOUT OVERLAPS)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 create or replace table t1 (x int, s date, e date,
 period for p(s,e),
 primary key(x, p without overlaps)
@@ -137,5 +160,14 @@ partition by system_time limit 2
 (partition p0 history,
 partition p1 history,
 partition pn current);
+ERROR HY000: Period WITHOUT OVERLAPS is not implemented for partitioned tables
+create or replace table t1 (x int, s date, e date,
+period for p(s,e),
+primary key(x, p without overlaps));
+alter table t1 partition by key (x);
+ERROR HY000: Period WITHOUT OVERLAPS is not implemented for partitioned tables
+create or replace table t1 (x int, s date, e date, period for p (s, e))
+partition by hash (x);
+alter table t1 add primary key (x, p without overlaps);
 ERROR HY000: Period WITHOUT OVERLAPS is not implemented for partitioned tables
 create or replace database test;

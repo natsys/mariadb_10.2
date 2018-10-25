@@ -4469,7 +4469,7 @@ static bool append_system_key_parts(THD *thd, HA_CREATE_INFO *create_info,
         my_error(ER_PERIOD_NOT_FOUND, MYF(0), key->period.str);
         return true;
       }
-      if (thd->lex->part_info)
+      if (thd->work_part_info)
       {
         my_error(ER_PERIOD_WITHOUT_OVERLAPS_PARTITIONED, MYF(0));
         return true;
@@ -8283,8 +8283,12 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     const char *dropped_key_part= NULL;
     KEY_PART_INFO *key_part= key_info->key_part;
     key_parts.empty();
+    uint key_parts_nr= key_info->user_defined_key_parts;
+    if (key_info->without_overlaps)
+      key_parts_nr-= 2;
+
     bool delete_index_stat= FALSE;
-    for (uint j=0 ; j < key_info->user_defined_key_parts ; j++,key_part++)
+    for (uint j=0 ; j < key_parts_nr ; j++,key_part++)
     {
       Field *kfield= key_part->field;
       if (!kfield)
@@ -8415,6 +8419,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       key= new Key(key_type, &tmp_name, &key_create_info,
                    MY_TEST(key_info->flags & HA_GENERATED_KEY),
                    &key_parts, key_info->option_list, DDL_options());
+      key->without_overlaps= key_info->without_overlaps;
+      key->period= table->s->period.name;
       new_key_list.push_back(key, thd->mem_root);
     }
   }
