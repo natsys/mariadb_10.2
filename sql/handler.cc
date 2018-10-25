@@ -6550,16 +6550,46 @@ int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
       continue;
 
     key_copy(check_overlaps_buffer, new_data, key_info, 0);
-    key_part_map keypart_map= (1 << key_info->user_defined_key_parts) - 1;
-    for (auto key_func: {HA_READ_KEY_OR_PREV, HA_READ_KEY_OR_NEXT})
+    if (is_update)
     {
-      int error= handler->ha_index_read_idx_map(record_buffer, key_nr,
-                                                check_overlaps_buffer,
-                                                keypart_map, key_func);
-      if (error == HA_ERR_KEY_NOT_FOUND)
+      bool key_used= false;
+      for (uint k= 0; k < key_info->user_defined_key_parts && !key_used; k++)
+        key_used= bitmap_is_set(table->write_set, key_info->key_part[k].fieldnr);
+      if (!key_used)
         continue;
+    }
+
+    int error= handler->ha_index_init(key_nr, 0);
+    if (error)
+      return error;
+
+    key_part_map keypart_map= (1 << key_info->user_defined_key_parts) - 1;
+    for (int i=0; i < 2; i++)
+    {
+      if(i == 1)
+      {
+        error= handler->ha_index_next(record_buffer);
+        if (error == HA_ERR_END_OF_FILE)
+        {
+          DBUG_PRINT("info", ("HA_ERR_END_OF_FILE"));
+          continue;
+        }
+      }
+      else
+        error= handler->ha_index_read_map(record_buffer,
+                                          check_overlaps_buffer,
+                                          keypart_map,
+                                          HA_READ_KEY_OR_PREV);
+      if (error == HA_ERR_KEY_NOT_FOUND)
+      {
+        DBUG_PRINT("info", ("HA_ERR_KEY_NOT_FOUND"));
+        continue;
+      }
       else if (error)
+      {
+        handler->ha_index_end();
         return error;
+      }
       /* In case of update it could appear that the nearest neighbour is
        * a record we are updating. It means, that there are no overlaps
        * from this side. */
@@ -6567,7 +6597,9 @@ int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
                && memcmp(old_data + table->s->null_bytes,
                          record_buffer + table->s->null_bytes,
                          table->s->reclength - table->s->null_bytes) == 0)
+      {
         continue;
+      }
 
       uint period_key_part_nr= key_info->user_defined_key_parts - 2;
       int cmp_res= 0;
@@ -6596,9 +6628,13 @@ int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
       if ((period_cmp[0][0] <= 0 && period_cmp[1][0] > 0)
           || (period_cmp[0][0] >= 0 && period_cmp[0][1] < 0))
       {
+        handler->ha_index_end();
         return HA_ERR_FOUND_DUPP_KEY;
       }
     }
+    error= handler->ha_index_end();
+    if (error)
+      return error;
   }
   return 0;
 }
