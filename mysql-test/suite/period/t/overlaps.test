@@ -132,18 +132,7 @@ show create table t1;
 create or replace table t1 (x int, s date, e date,
                             period for p(s,e),
                             primary key(x, p without overlaps)
-) with system versioning
-  partition by key (x);
-
---error ER_PERIOD_WITHOUT_OVERLAPS_PARTITIONED
-create or replace table t1 (x int, s date, e date,
-                            period for p(s,e),
-                            primary key(x, p without overlaps)
-) with system versioning
-  partition by system_time limit 2
-  (partition p0 history,
-   partition p1 history,
-   partition pn current);
+) partition by key (x);
 
 create or replace table t1 (x int, s date, e date,
                             period for p(s,e),
