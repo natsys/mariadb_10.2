@@ -20,7 +20,6 @@
   Handler-calling-functions
 */
 
-#include <initializer_list>
 #include "mariadb.h"
 #include <inttypes.h>
 #include "sql_priv.h"
@@ -6546,6 +6545,7 @@ int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
   for (uint key_nr= 0; key_nr < table_share->keys; key_nr++)
   {
     const KEY *key_info= table->key_info + key_nr;
+    const uint key_parts= key_info->user_defined_key_parts;
     if (!key_info->without_overlaps)
       continue;
 
@@ -6553,7 +6553,7 @@ int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
     if (is_update)
     {
       bool key_used= false;
-      for (uint k= 0; k < key_info->user_defined_key_parts && !key_used; k++)
+      for (uint k= 0; k < key_parts && !key_used; k++)
         key_used= bitmap_is_set(table->write_set, key_info->key_part[k].fieldnr);
       if (!key_used)
         continue;
@@ -6563,45 +6563,41 @@ int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
     if (error)
       return error;
 
-    key_part_map keypart_map= (1 << key_info->user_defined_key_parts) - 1;
-    for (int i=0; i < 2; i++)
+    for (int run= 0; run < 2; run++)
     {
-      if(i == 1)
+      if (run == 0)
       {
-        error= handler->ha_index_next(record_buffer);
-        if (error == HA_ERR_END_OF_FILE)
-        {
-          DBUG_PRINT("info", ("HA_ERR_END_OF_FILE"));
+        error = handler->ha_index_read_map(record_buffer,
+                                           check_overlaps_buffer,
+                                           key_part_map((1 << key_parts) - 1),
+                                           HA_READ_KEY_OR_PREV);
+        if (error == HA_ERR_KEY_NOT_FOUND)
           continue;
-        }
       }
       else
-        error= handler->ha_index_read_map(record_buffer,
-                                          check_overlaps_buffer,
-                                          keypart_map,
-                                          HA_READ_KEY_OR_PREV);
-      if (error == HA_ERR_KEY_NOT_FOUND)
       {
-        DBUG_PRINT("info", ("HA_ERR_KEY_NOT_FOUND"));
-        continue;
+        error = handler->ha_index_next(record_buffer);
+        if (error == HA_ERR_END_OF_FILE)
+          continue;
       }
-      else if (error)
+
+      if (error)
       {
         handler->ha_index_end();
         return error;
       }
+
       /* In case of update it could appear that the nearest neighbour is
        * a record we are updating. It means, that there are no overlaps
        * from this side. */
-      else if (is_update
-               && memcmp(old_data + table->s->null_bytes,
-                         record_buffer + table->s->null_bytes,
-                         table->s->reclength - table->s->null_bytes) == 0)
+      if (is_update && memcmp(old_data + table->s->null_bytes,
+                              record_buffer + table->s->null_bytes,
+                              table->s->reclength - table->s->null_bytes) == 0)
       {
         continue;
       }
 
-      uint period_key_part_nr= key_info->user_defined_key_parts - 2;
+      uint period_key_part_nr= key_parts - 2;
       int cmp_res= 0;
       for (uint part_nr= 0; !cmp_res && part_nr < period_key_part_nr; part_nr++)
       {
@@ -6613,9 +6609,9 @@ int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
         continue; /* key is different => no overlaps */
 
       int period_cmp[2][2]= {/* l1 > l2, l1 > r2, r1 > l2, r1 > r2 */};
-      for (int i: {0, 1})
+      for (int i= 0; i < 2; i++)
       {
-        for (int j: {0, 1})
+        for (int j= 0; j < 2; j++)
         {
           Field *lhs= key_info->key_part[period_key_part_nr + i].field;
           Field *rhs= key_info->key_part[period_key_part_nr + j].field;
