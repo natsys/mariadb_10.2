@@ -7972,3 +7972,6 @@ ER_KEY_CONTAINS_PERIOD_FIELDS
 
 ER_PERIOD_WITHOUT_OVERLAPS_PARTITIONED
         eng "Period WITHOUT OVERLAPS is not implemented for partitioned tables"
+
+ER_PERIOD_WITHOUT_OVERLAPS_NON_UNIQUE
+        eng "Period WITHOUT OVERLAPS is only allowed for unique keys"

@@ -160,4 +160,8 @@ create or replace table t1 (x int, s date, e date, period for p (s, e))
 partition by hash (x);
 alter table t1 add primary key (x, p without overlaps);
 ERROR HY000: Period WITHOUT OVERLAPS is not implemented for partitioned tables
+create or replace table t2 (x int, s date, e date,
+period for p (s, e),
+key(x, p without overlaps));
+ERROR HY000: Period WITHOUT OVERLAPS is only allowed for unique keys
 create or replace database test;

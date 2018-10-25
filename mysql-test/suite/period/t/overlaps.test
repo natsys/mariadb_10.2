@@ -145,4 +145,9 @@ create or replace table t1 (x int, s date, e date, period for p (s, e))
 --error ER_PERIOD_WITHOUT_OVERLAPS_PARTITIONED
 alter table t1 add primary key (x, p without overlaps);
 
+--error ER_PERIOD_WITHOUT_OVERLAPS_NON_UNIQUE
+create or replace table t2 (x int, s date, e date,
+                            period for p (s, e),
+                            key(x, p without overlaps));
+
 create or replace database test;
