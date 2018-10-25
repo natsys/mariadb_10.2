@@ -48,6 +48,8 @@ select * from tf;
 x
 # TRUNCATE
 truncate tf;
+ERROR HY000: Got error 10000 'Error on remote system: 4145: Cannot truncate a versioned table' from FEDERATED
+delete history from t1;
 select * from t1 for system_time all;
 x
 # REPLACE
