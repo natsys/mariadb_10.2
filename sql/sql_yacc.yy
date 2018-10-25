@@ -1027,6 +1027,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  OUTFILE
 %token  OUT_SYM                       /* SQL-2003-R */
 %token  OVER_SYM
+%token  OVERLAPS
 %token  PAGE_CHECKSUM_SYM
 %token  PARAM_MARKER
 %token  PARSE_VCOL_EXPR_SYM
@@ -7630,6 +7631,11 @@ key_list:
           key_list ',' key_part order_dir
           {
             Lex->last_key->columns.push_back($3, thd->mem_root);
+          }
+        | key_list ',' ident WITHOUT OVERLAPS
+          {
+            Lex->last_key->without_overlaps= true;
+            Lex->last_key->period= $3;
           }
         | key_part order_dir
           {

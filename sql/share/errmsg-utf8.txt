@@ -7966,3 +7966,12 @@ ER_PERIOD_CONSTRAINT_DROP
 
 ER_PERIOD_FIELD_ACCESS_BY_CONSTRAINT
         eng "CONSTRAINT `%s` uses fields from PERIOD `%s`"
+
+ER_KEY_CONTAINS_PERIOD_FIELDS
+        eng "Key %`s should not contain period fields in order to make it WITHOUT OVERLAPS"
+
+ER_PERIOD_WITHOUT_OVERLAPS_PARTITIONED
+        eng "Period WITHOUT OVERLAPS is not implemented for partitioned tables"
+
+ER_PERIOD_WITHOUT_OVERLAPS_NON_UNIQUE
+        eng "Period WITHOUT OVERLAPS is only allowed for unique keys"
