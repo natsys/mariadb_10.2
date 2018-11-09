@@ -41,6 +41,7 @@
 #include "sql_trigger.h"
 #include "sql_derived.h"
 #include "sql_show.h"
+#include "debug_sync.h"
 
 extern "C" int _my_b_net_read(IO_CACHE *info, uchar *Buffer, size_t Count);
 
@@ -119,17 +120,24 @@ static bool wsrep_load_data_split(THD *thd, const TABLE *table,
     if (hton->db_type != DB_TYPE_INNODB)
       DBUG_RETURN(false);
     WSREP_DEBUG("intermediate transaction commit in LOAD DATA");
+    wsrep_thd_set_split(thd, true);
     if (wsrep_run_wsrep_commit(thd, true) != WSREP_TRX_OK) DBUG_RETURN(true);
     if (binlog_hton->commit(binlog_hton, thd, true)) DBUG_RETURN(true);
     wsrep_post_commit(thd, true);
     hton->commit(hton, thd, true);
+    wsrep_thd_set_split(thd, false);
+    DEBUG_SYNC(thd, "intermediate_transaction_commit");
     table->file->extra(HA_EXTRA_FAKE_START_STMT);
   }
 
   DBUG_RETURN(false);
 }
 # define WSREP_LOAD_DATA_SPLIT(thd,table,info)		\
-  if (wsrep_load_data_split(thd,table,info)) DBUG_RETURN(1)
+  if (wsrep_load_data_split(thd,table,info))		\
+  {							\
+    table->auto_increment_field_not_null= FALSE;	\
+    DBUG_RETURN(1);					\
+  }
 #else /* WITH_WSREP */
 #define WSREP_LOAD_DATA_SPLIT(thd,table,info) /* empty */
 #endif /* WITH_WSREP */
@@ -1293,7 +1301,7 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
   List_iterator_fast<Item> it(fields_vars);
   Item *item;
   TABLE *table= table_list->table;
-  bool no_trans_update_stmt;
+  bool err, no_trans_update_stmt;
   CHARSET_INFO *cs= read_info.read_charset;
   DBUG_ENTER("read_xml_field");
   
@@ -1450,7 +1458,9 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
     }
     
     WSREP_LOAD_DATA_SPLIT(thd, table, info);
-    if (write_record(thd, table, &info))
+    err= write_record(thd, table, &info);
+    table->auto_increment_field_not_null= FALSE;
+    if (err)
       DBUG_RETURN(1);
     
     /*

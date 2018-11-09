@@ -6413,8 +6413,15 @@ err:
             update_binlog_end_pos(offset);
 
             signal_update();
+#ifdef WITH_WSREP
+	    if (!thd->wsrep_split_flag)
+	    {
+#endif /* WITH_WSREP */
             if ((error= rotate(false, &check_purge)))
               check_purge= false;
+#ifdef WITH_WSREP
+	    }
+#endif /* WITH_WSREP */
           }
         }
       }
@@ -7139,8 +7146,15 @@ bool MYSQL_BIN_LOG::write_incident(THD *thd)
         !(error= flush_and_sync(0)))
     {
       signal_update();
+#ifdef WITH_WSREP
+      if (!thd->wsrep_split_flag)
+      {
+#endif /* WITH_WSREP */
       if ((error= rotate(false, &check_purge)))
         check_purge= false;
+#ifdef WITH_WSREP
+      }
+#endif /* WITH_WSREP */
     }
 
     offset= my_b_tell(&log_file);
@@ -7906,6 +7920,10 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
       mark_xids_active(binlog_id, xid_count);
     }
 
+#ifdef WITH_WSREP
+    if (!leader->thd->wsrep_split_flag)
+    {
+#endif /* WITH_WSREP */
     if (rotate(false, &check_purge))
     {
       /*
@@ -7925,6 +7943,9 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
       my_error(ER_ERROR_ON_WRITE, MYF(ME_NOREFRESH), name, errno);
       check_purge= false;
     }
+#ifdef WITH_WSREP
+    }
+#endif /* WITH_WSREP */
     /* In case of binlog rotate, update the correct current binlog offset. */
     commit_offset= my_b_write_tell(&log_file);
   }

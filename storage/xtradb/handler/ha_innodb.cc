@@ -8681,23 +8681,21 @@ ha_innobase::write_row(
 
 	sql_command = thd_sql_command(user_thd);
 
+	bool is_load_data_split= false;
+
 	if ((sql_command == SQLCOM_ALTER_TABLE
 	     || sql_command == SQLCOM_OPTIMIZE
 	     || sql_command == SQLCOM_CREATE_INDEX
 #ifdef WITH_WSREP
-	     || (wsrep_on(user_thd) && wsrep_load_data_splitting &&
-		 sql_command == SQLCOM_LOAD                      &&
+	     || (is_load_data_split=
+	         sql_command == SQLCOM_LOAD &&
+	         wsrep_on(user_thd)         &&
+	         wsrep_load_data_splitting  &&
 		 !thd_test_options(
 			user_thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
 #endif /* WITH_WSREP */
 	     || sql_command == SQLCOM_DROP_INDEX)
 	    && num_write_row >= 10000) {
-#ifdef WITH_WSREP
-		if (wsrep_on(user_thd) && sql_command == SQLCOM_LOAD) {
-			WSREP_DEBUG("forced trx split for LOAD: %s", 
-				    wsrep_thd_query(user_thd));
-		}
-#endif /* WITH_WSREP */
 		/* ALTER TABLE is COMMITted at every 10000 copied rows.
 		The IX table lock for the original table has to be re-issued.
 		As this method will be called on a temporary table where the
@@ -8732,12 +8730,13 @@ no_commit:
 			;
 		} else if (src_table == prebuilt->table) {
 #ifdef WITH_WSREP
-			if (wsrep_on(user_thd)                              &&
-			    wsrep_load_data_splitting                       &&
-			    sql_command == SQLCOM_LOAD                      &&
-			    !thd_test_options(user_thd,
-			                      OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
+			if (is_load_data_split)
 			{
+				if (wsrep_on(user_thd) && sql_command == SQLCOM_LOAD) {
+					WSREP_DEBUG("forced trx split for LOAD: %s",
+						    wsrep_thd_query(user_thd));
+				}
+
 				switch (wsrep_run_wsrep_commit(user_thd, 1))
 				{
 				case WSREP_TRX_OK:
@@ -8747,6 +8746,8 @@ no_commit:
 				case WSREP_TRX_ERROR:
 				  DBUG_RETURN(1);
 				}
+
+				wsrep_thd_set_split(m_user_thd, true);
 
 				if (binlog_hton->commit(binlog_hton, user_thd, 1))
 					DBUG_RETURN(1);
@@ -8758,33 +8759,17 @@ no_commit:
 
 			/* Altering to InnoDB format */
 			innobase_commit(ht, user_thd, 1);
+#ifdef WITH_WSREP
+			if (is_load_data_split)
+			{
+				wsrep_thd_set_split(m_user_thd, false);
+			}
+#endif /* WITH_WSREP */
 			/* Note that this transaction is still active. */
 			trx_register_for_2pc(prebuilt->trx);
 			/* We will need an IX lock on the destination table. */
 			prebuilt->sql_stat_start = TRUE;
 		} else {
-#ifdef WITH_WSREP
-			if (wsrep_on(user_thd)                              &&
-			    wsrep_load_data_splitting                       &&
-			    sql_command == SQLCOM_LOAD                      &&
-			    !thd_test_options(user_thd,
-			                      OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
-			{
-				switch (wsrep_run_wsrep_commit(user_thd, 1))
-				{
-				case WSREP_TRX_OK:
-				  break;
-				case WSREP_TRX_SIZE_EXCEEDED:
-				case WSREP_TRX_CERT_FAIL:
-				case WSREP_TRX_ERROR:
-				  DBUG_RETURN(1);
-				}
-
-				if (binlog_hton->commit(binlog_hton, user_thd, 1))
-					DBUG_RETURN(1);
-				wsrep_post_commit(user_thd, TRUE);
-			}
-#endif /* WITH_WSREP */
 			/* Ensure that there are no other table locks than
 			LOCK_IX and LOCK_AUTO_INC on the destination table. */
 
