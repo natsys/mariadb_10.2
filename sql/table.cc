@@ -3212,7 +3212,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
   if (prgflag & (READ_ALL + EXTRA_RECORD))
   {
     records++;
-    if (share->versioned)
+    if (share->versioned || share->period.unique_keys)
       records++;
   }
 
@@ -7909,19 +7909,20 @@ static int period_make_insert(TABLE *table, Item *src, Field *dst)
 
 int TABLE::cut_fields_for_portion_of_time(THD *thd, const vers_select_conds_t &period_conds)
 {
-  bool lcond= period_conds.field_start->val_datetime_packed(thd)
-              < period_conds.start.item->val_datetime_packed(thd);
-  bool rcond= period_conds.field_end->val_datetime_packed(thd)
-              > period_conds.end.item->val_datetime_packed(thd);
+  auto field_start_val= period_conds.field_start->val_datetime_packed(thd);
+  auto field_end_val= period_conds.field_end->val_datetime_packed(thd);
+  auto period_start_val= period_conds.start.item->val_datetime_packed(thd);
+  auto period_end_val= period_conds.end.item->val_datetime_packed(thd);
 
   Field *start_field= field[s->period.start_fieldno];
   Field *end_field= field[s->period.end_fieldno];
 
   int res= 0;
-  if (lcond && !start_field->has_explicit_value())
+  if (field_start_val < period_start_val && !start_field->has_explicit_value())
     res= period_conds.start.item->save_in_field(start_field, true);
 
-  if (likely(!res) && rcond && !end_field->has_explicit_value())
+  if (likely(!res) && field_end_val > period_end_val
+      && !end_field->has_explicit_value())
     res= period_conds.end.item->save_in_field(end_field, true);
 
   return res;
@@ -7987,6 +7988,36 @@ int TABLE::insert_portion_of_time(THD *thd, const vers_select_conds_t &period_co
   }
 
   return res;
+}
+
+bool TABLE::check_period_overlaps(const KEY *key,
+                                  const uchar *lhs, const uchar *rhs)
+{
+  uint period_key_part_nr= key->user_defined_key_parts - 2;
+  int cmp_res= 0;
+  for (uint part_nr= 0; !cmp_res && part_nr < period_key_part_nr; part_nr++)
+  {
+    Field *f= key->key_part[part_nr].field;
+    cmp_res= f->cmp(f->ptr_in_record(lhs),
+                    f->ptr_in_record(rhs));
+  }
+  if (cmp_res)
+    return false;
+
+  Field *fields[]= {field[s->period.start_fieldno],
+                    field[s->period.end_fieldno]};
+
+  int cmp[2][2]; /* l1 > l2, l1 > r2, r1 > l2, r1 > r2 */
+  for (int i= 0; i < 2; i++)
+  {
+    for (int j= 0; j < 2; j++)
+    {
+      cmp[i][j]= fields[0]->cmp(fields[i]->ptr_in_record(lhs),
+                                fields[j]->ptr_in_record(rhs));
+    }
+  }
+
+  return (cmp[0][0] <= 0 && cmp[1][0] > 0) || (cmp[0][0] >= 0 && cmp[0][1] < 0);
 }
 
 void TABLE::vers_update_fields()

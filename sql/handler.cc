@@ -4073,6 +4073,11 @@ uint handler::get_dup_key(int error)
               m_lock_type != F_UNLCK);
   DBUG_ENTER("handler::get_dup_key");
   table->file->errkey  = (uint) -1;
+  if (overlaps_error_key != -1)
+  {
+    table->file->errkey= (uint)overlaps_error_key;
+    DBUG_RETURN(table->file->errkey);
+  }
   if (error == HA_ERR_FOUND_DUPP_KEY ||
       error == HA_ERR_FOREIGN_DUPLICATE_KEY ||
       error == HA_ERR_FOUND_DUPP_UNIQUE || error == HA_ERR_NULL_IN_SPATIAL ||
@@ -6186,6 +6191,8 @@ int handler::ha_external_lock(THD *thd, int lock_type)
     check_overlaps_handler->ha_external_lock(table->in_use, F_UNLCK);
     check_overlaps_handler->close();
     check_overlaps_handler= NULL;
+    overlaps_error_key= -1;
+    overlap_ref= NULL;
   }
 
   if (MYSQL_HANDLER_RDLOCK_DONE_ENABLED() ||
@@ -6597,33 +6604,20 @@ int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
         continue;
       }
 
-      uint period_key_part_nr= key_parts - 2;
-      int cmp_res= 0;
-      for (uint part_nr= 0; !cmp_res && part_nr < period_key_part_nr; part_nr++)
+      if (table->check_period_overlaps(key_info, new_data, record_buffer))
       {
-        Field *f= key_info->key_part[part_nr].field;
-        cmp_res= f->cmp(f->ptr_in_record(new_data),
-                        f->ptr_in_record(record_buffer));
-      }
-      if (cmp_res)
-        continue; /* key is different => no overlaps */
+        uint period_key_part_nr= key_parts - 2;
+        auto &pstart= key_info->key_part[period_key_part_nr];
+        auto &pend= key_info->key_part[period_key_part_nr + 1];
+        uchar *key_end= check_overlaps_buffer + key_info->key_length;
 
-      int period_cmp[2][2]= {/* l1 > l2, l1 > r2, r1 > l2, r1 > r2 */};
-      for (int i= 0; i < 2; i++)
-      {
-        for (int j= 0; j < 2; j++)
-        {
-          Field *lhs= key_info->key_part[period_key_part_nr + i].field;
-          Field *rhs= key_info->key_part[period_key_part_nr + j].field;
+        memcpy(key_end - 2 * pstart.length,
+               pstart.field->ptr_in_record(record_buffer), pstart.length);
+        memcpy(key_end - pend.length,
+               pend.field->ptr_in_record(record_buffer), pend.length);
+        overlaps_error_key= key_nr;
+        overlap_ref= check_overlaps_buffer;
 
-          period_cmp[i][j]= lhs->cmp(lhs->ptr_in_record(new_data),
-                                     rhs->ptr_in_record(record_buffer));
-        }
-      }
-
-      if ((period_cmp[0][0] <= 0 && period_cmp[1][0] > 0)
-          || (period_cmp[0][0] >= 0 && period_cmp[0][1] < 0))
-      {
         handler->ha_index_end();
         return HA_ERR_FOUND_DUPP_KEY;
       }

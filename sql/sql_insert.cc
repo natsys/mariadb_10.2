@@ -1649,6 +1649,29 @@ int vers_insert_history_row(TABLE *table)
   return table->file->ha_write_row(table->record[0]);
 }
 
+static void setup_period_conds(THD *thd, TABLE *table,
+                               vers_select_conds_t *period_conds)
+{
+  auto *fstart= table->field[table->s->period.start_fieldno];
+  auto *fend= table->field[table->s->period.end_fieldno];
+  auto *type_handler= fstart->type_handler();
+  auto *record= table->record;
+
+  auto portion_start= type_handler->make_and_init_table_field(
+          &fstart->field_name,
+          Record_addr(fstart->ptr - record[0] + record[2], NULL, 0),
+          *new(thd->mem_root) Item_datetime(thd), table);
+  auto portion_end= type_handler->make_and_init_table_field(
+          &fend->field_name,
+          Record_addr(fend->ptr - record[0] + record[2], NULL, 0),
+          *new(thd->mem_root) Item_datetime(thd), table);
+
+  period_conds->field_start= new(thd->mem_root) Item_field(thd, fstart);
+  period_conds->field_end=   new(thd->mem_root) Item_field(thd, fend);
+  period_conds->start.item=  new(thd->mem_root) Item_field(thd, portion_start);
+  period_conds->end.item=    new(thd->mem_root) Item_field(thd, portion_end);
+}
+
 /*
   Write a record to table with optional deleting of conflicting records,
   invoke proper triggers if needed.
@@ -1679,7 +1702,6 @@ int vers_insert_history_row(TABLE *table)
 int write_record(THD *thd, TABLE *table,COPY_INFO *info)
 {
   int error, trg_error= 0;
-  char *key=0;
   MY_BITMAP *save_read_set, *save_write_set;
   ulonglong prev_insert_id= table->file->next_insert_id;
   ulonglong insert_id_for_cur_row= 0;
@@ -1696,6 +1718,9 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
     while (unlikely(error=table->file->ha_write_row(table->record[0])))
     {
       uint key_nr;
+      vers_select_conds_t period_conds;
+      if (table->file->overlap_ref && info->handle_duplicates == DUP_REPLACE)
+        setup_period_conds(thd, table, &period_conds);
       /*
         If we do more than one iteration of this loop, from the second one the
         row will have an explicit value in the autoinc field, which was set at
@@ -1745,34 +1770,43 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
           key_nr == table->s->next_number_index &&
 	  (insert_id_for_cur_row > 0))
 	goto err;
-      if (table->file->ha_table_flags() & HA_DUPLICATE_POS)
+      error= 0;
+
+      if (table->file->ha_table_flags() & HA_DUPLICATE_POS
+          && !table->file->overlap_ref)
       {
-	if (table->file->ha_rnd_pos(table->record[1],table->file->dup_ref))
-	  goto err;
+        error= table->file->ha_rnd_pos(table->record[1], table->file->dup_ref);
       }
       else
       {
-	if (table->file->extra(HA_EXTRA_FLUSH_CACHE)) /* Not needed with NISAM */
-	{
-	  error=my_errno;
-	  goto err;
-	}
+        const auto &key= table->key_info[key_nr];
+        if (!table->file->overlap_ref)
+        {
+          if (table->file->extra(HA_EXTRA_FLUSH_CACHE)) /* Not needed with NISAM */
+            error= my_errno;
 
-	if (!key)
-	{
-	  if (!(key=(char*) my_safe_alloca(table->s->max_unique_length)))
-	  {
-	    error=ENOMEM;
-	    goto err;
-	  }
-	}
-	key_copy((uchar*) key,table->record[0],table->key_info+key_nr,0);
-        key_part_map keypart_map= (1 << table->key_info[key_nr].user_defined_key_parts) - 1;
-	if ((error= (table->file->ha_index_read_idx_map(table->record[1],
-                                                        key_nr, (uchar*) key,
-                                                        keypart_map,
-                                                        HA_READ_KEY_EXACT))))
-	  goto err;
+          if (unlikely(!table->key_buffer && !error))
+          {
+            table->key_buffer= (uchar*) thd->alloc(table->s->max_unique_length);
+            if (!table->key_buffer)
+              error= ENOMEM;
+          }
+          if (error)
+            goto err;
+          key_copy(table->key_buffer, table->record[0], &key, 0);
+        }
+        error= table->file->ha_index_init(key_nr, false);
+        if (error)
+          goto err;
+
+        auto keypart_map= key_part_map(1 << key.user_defined_key_parts) - 1;
+        uchar *key_buffer= table->file->overlap_ref ? table->file->overlap_ref
+                                                    : table->key_buffer;
+
+        error= table->file->ha_index_read_map(table->record[1],
+                                              key_buffer,
+                                              keypart_map,
+                                              HA_READ_KEY_EXACT);
       }
       if (table->vfield)
       {
@@ -1784,233 +1818,269 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
         table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_REPLACE);
         table->move_fields(table->field, table->record[0], table->record[1]);
       }
-      if (info->handle_duplicates == DUP_UPDATE)
+
+      do
       {
-        int res= 0;
-        /*
-          We don't check for other UNIQUE keys - the first row
-          that matches, is updated. If update causes a conflict again,
-          an error is returned
-        */
-	DBUG_ASSERT(table->insert_values != NULL);
-        store_record(table,insert_values);
-        restore_record(table,record[1]);
-        table->reset_default_fields();
-
-        /*
-          in INSERT ... ON DUPLICATE KEY UPDATE the set of modified fields can
-          change per row. Thus, we have to do reset_default_fields() per row.
-          Twice (before insert and before update).
-        */
-        DBUG_ASSERT(info->update_fields->elements ==
-                    info->update_values->elements);
-        if (fill_record_n_invoke_before_triggers(thd, table,
-                                                 *info->update_fields,
-                                                 *info->update_values,
-                                                 info->ignore,
-                                                 TRG_EVENT_UPDATE))
-          goto before_trg_err;
-
-        bool different_records= (!records_are_comparable(table) ||
-                                 compare_record(table));
-        /*
-          Default fields must be updated before checking view updateability.
-          This branch of INSERT is executed only when a UNIQUE key was violated
-          with the ON DUPLICATE KEY UPDATE option. In this case the INSERT
-          operation is transformed to an UPDATE, and the default fields must
-          be updated as if this is an UPDATE.
-        */
-        if (different_records && table->default_field)
+        if (info->handle_duplicates == DUP_UPDATE)
         {
-          if (table->update_default_fields(1, info->ignore))
-            goto err;
-        }
+          int res= 0;
+          /*
+            We don't check for other UNIQUE keys - the first row
+            that matches, is updated. If update causes a conflict again,
+            an error is returned
+          */
+          DBUG_ASSERT(table->insert_values != NULL);
+          store_record(table,insert_values);
+          restore_record(table,record[1]);
+          table->reset_default_fields();
 
-        /* CHECK OPTION for VIEW ... ON DUPLICATE KEY UPDATE ... */
-        res= info->table_list->view_check_option(table->in_use, info->ignore);
-        if (res == VIEW_CHECK_SKIP)
-          goto ok_or_after_trg_err;
-        if (res == VIEW_CHECK_ERROR)
-          goto before_trg_err;
+          /*
+            in INSERT ... ON DUPLICATE KEY UPDATE the set of modified fields can
+            change per row. Thus, we have to do reset_default_fields() per row.
+            Twice (before insert and before update).
+          */
+          DBUG_ASSERT(info->update_fields->elements ==
+                      info->update_values->elements);
+          if (fill_record_n_invoke_before_triggers(thd, table,
+                                                   *info->update_fields,
+                                                   *info->update_values,
+                                                   info->ignore,
+                                                   TRG_EVENT_UPDATE))
+            goto before_trg_err;
 
-        table->file->restore_auto_increment(prev_insert_id);
-        info->touched++;
-        if (different_records)
-        {
-          if (unlikely(error=table->file->ha_update_row(table->record[1],
-                                                        table->record[0])) &&
-              error != HA_ERR_RECORD_IS_THE_SAME)
+          bool different_records= (!records_are_comparable(table) ||
+                                   compare_record(table));
+          /*
+            Default fields must be updated before checking view updateability.
+            This branch of INSERT is executed only when a UNIQUE key was violated
+            with the ON DUPLICATE KEY UPDATE option. In this case the INSERT
+            operation is transformed to an UPDATE, and the default fields must
+            be updated as if this is an UPDATE.
+          */
+          if (different_records && table->default_field)
           {
-            if (info->ignore &&
-                !table->file->is_fatal_error(error, HA_CHECK_ALL))
-            {
-              if (!(thd->variables.old_behavior &
-                    OLD_MODE_NO_DUP_KEY_WARNINGS_WITH_IGNORE))
-                table->file->print_error(error, MYF(ME_WARNING));
-              goto ok_or_after_trg_err;
-            }
-            goto err;
+            if (table->update_default_fields(1, info->ignore))
+              goto err;
           }
 
-          if (error != HA_ERR_RECORD_IS_THE_SAME)
+          /* CHECK OPTION for VIEW ... ON DUPLICATE KEY UPDATE ... */
+          res= info->table_list->view_check_option(table->in_use, info->ignore);
+          if (res == VIEW_CHECK_SKIP)
+            goto ok_or_after_trg_err;
+          if (res == VIEW_CHECK_ERROR)
+            goto before_trg_err;
+
+          table->file->restore_auto_increment(prev_insert_id);
+          info->touched++;
+          if (different_records)
           {
-            info->updated++;
-            if (table->versioned())
+            if (unlikely(error=table->file->ha_update_row(table->record[1],
+                                                          table->record[0])) &&
+                error != HA_ERR_RECORD_IS_THE_SAME)
             {
+              if (info->ignore &&
+                  !table->file->is_fatal_error(error, HA_CHECK_ALL))
+              {
+                if (!(thd->variables.old_behavior &
+                      OLD_MODE_NO_DUP_KEY_WARNINGS_WITH_IGNORE))
+                  table->file->print_error(error, MYF(ME_WARNING));
+                goto ok_or_after_trg_err;
+              }
+              goto err;
+            }
+
+            if (error != HA_ERR_RECORD_IS_THE_SAME)
+            {
+              if (!table->file->has_transactions())
+                thd->transaction.stmt.modified_non_trans_table= TRUE;
+              info->updated++;
+              if (table->versioned())
+              {
+                if (table->versioned(VERS_TIMESTAMP))
+                {
+                  store_record(table, record[2]);
+                  if ((error= vers_insert_history_row(table)))
+                  {
+                    info->last_errno= error;
+                    table->file->print_error(error, MYF(0));
+                    trg_error= 1;
+                    restore_record(table, record[2]);
+                    goto ok_or_after_trg_err;
+                  }
+                  restore_record(table, record[2]);
+                }
+                info->copied++;
+              }
+            }
+            else
+              error= 0;
+            /*
+              If ON DUP KEY UPDATE updates a row instead of inserting
+              one, it's like a regular UPDATE statement: it should not
+              affect the value of a next SELECT LAST_INSERT_ID() or
+              mysql_insert_id().  Except if LAST_INSERT_ID(#) was in the
+              INSERT query, which is handled separately by
+              THD::arg_of_last_insert_id_function.
+            */
+            prev_insert_id_for_cur_row= table->file->insert_id_for_cur_row;
+            insert_id_for_cur_row= table->file->insert_id_for_cur_row= 0;
+            trg_error= (table->triggers &&
+                        table->triggers->process_triggers(thd, TRG_EVENT_UPDATE,
+                                                          TRG_ACTION_AFTER, TRUE));
+            info->copied++;
+          }
+
+          /*
+            Only update next_insert_id if the AUTO_INCREMENT value was explicitly
+            updated, so we don't update next_insert_id with the value from the
+            row being updated. Otherwise reset next_insert_id to what it was
+            before the duplicate key error, since that value is unused.
+          */
+          if (table->next_number_field_updated)
+          {
+            DBUG_ASSERT(table->next_number_field != NULL);
+
+            table->file->adjust_next_insert_id_after_explicit_value(table->next_number_field->val_int());
+          }
+          else if (prev_insert_id_for_cur_row)
+          {
+            table->file->restore_auto_increment(prev_insert_id_for_cur_row);
+          }
+        }
+        else /* DUP_REPLACE */
+        {
+          /*
+            The manual defines the REPLACE semantics that it is either
+            an INSERT or DELETE(s) + INSERT; FOREIGN KEY checks in
+            InnoDB do not function in the defined way if we allow MySQL
+            to convert the latter operation internally to an UPDATE.
+            We also should not perform this conversion if we have
+            timestamp field with ON UPDATE which is different from DEFAULT.
+            Another case when conversion should not be performed is when
+            we have ON DELETE trigger on table so user may notice that
+            we cheat here. Note that it is ok to do such conversion for
+            tables which have ON UPDATE but have no ON DELETE triggers,
+            we just should not expose this fact to users by invoking
+            ON UPDATE triggers.
+            For system versioning wa also use path through delete since we would
+            save nothing through this cheating.
+          */
+          if (last_uniq_key(table,key_nr) &&
+              !table->file->referenced_by_foreign_key() &&
+              (!table->triggers || !table->triggers->has_delete_triggers()) &&
+              !table->file->overlap_ref)
+          {
+            if (table->versioned(VERS_TRX_ID))
+            {
+              bitmap_set_bit(table->write_set, table->vers_start_field()->field_index);
+              table->vers_start_field()->store(0, false);
+            }
+            if (unlikely(error= table->file->ha_update_row(table->record[1],
+                                                           table->record[0])) &&
+                error != HA_ERR_RECORD_IS_THE_SAME)
+              goto err;
+            if (likely(!error))
+            {
+              info->deleted++;
               if (table->versioned(VERS_TIMESTAMP))
               {
                 store_record(table, record[2]);
-                if ((error= vers_insert_history_row(table)))
-                {
-                  info->last_errno= error;
-                  table->file->print_error(error, MYF(0));
-                  trg_error= 1;
-                  restore_record(table, record[2]);
-                  goto ok_or_after_trg_err;
-                }
+                error= vers_insert_history_row(table);
                 restore_record(table, record[2]);
+                if (unlikely(error))
+                  goto err;
               }
-              info->copied++;
             }
+            else
+              error= 0;   // error was HA_ERR_RECORD_IS_THE_SAME
+            thd->record_first_successful_insert_id_in_cur_stmt(table->file->insert_id_for_cur_row);
+            /*
+              Since we pretend that we have done insert we should call
+              its after triggers.
+            */
+            goto after_trg_n_copied_inc;
           }
           else
-            error= 0;
-          /*
-            If ON DUP KEY UPDATE updates a row instead of inserting
-            one, it's like a regular UPDATE statement: it should not
-            affect the value of a next SELECT LAST_INSERT_ID() or
-            mysql_insert_id().  Except if LAST_INSERT_ID(#) was in the
-            INSERT query, which is handled separately by
-            THD::arg_of_last_insert_id_function.
-          */
-          prev_insert_id_for_cur_row= table->file->insert_id_for_cur_row;
-          insert_id_for_cur_row= table->file->insert_id_for_cur_row= 0;
-          trg_error= (table->triggers &&
-                      table->triggers->process_triggers(thd, TRG_EVENT_UPDATE,
-                                                        TRG_ACTION_AFTER, TRUE));
-          info->copied++;
-        }
-
-        /*
-          Only update next_insert_id if the AUTO_INCREMENT value was explicitly
-          updated, so we don't update next_insert_id with the value from the
-          row being updated. Otherwise reset next_insert_id to what it was
-          before the duplicate key error, since that value is unused.
-        */
-        if (table->next_number_field_updated)
-        {
-          DBUG_ASSERT(table->next_number_field != NULL);
-
-          table->file->adjust_next_insert_id_after_explicit_value(table->next_number_field->val_int());
-        }
-        else if (prev_insert_id_for_cur_row)
-        {
-          table->file->restore_auto_increment(prev_insert_id_for_cur_row);
-        }
-        goto ok_or_after_trg_err;
-      }
-      else /* DUP_REPLACE */
-      {
-	/*
-	  The manual defines the REPLACE semantics that it is either
-	  an INSERT or DELETE(s) + INSERT; FOREIGN KEY checks in
-	  InnoDB do not function in the defined way if we allow MySQL
-	  to convert the latter operation internally to an UPDATE.
-          We also should not perform this conversion if we have 
-          timestamp field with ON UPDATE which is different from DEFAULT.
-          Another case when conversion should not be performed is when
-          we have ON DELETE trigger on table so user may notice that
-          we cheat here. Note that it is ok to do such conversion for
-          tables which have ON UPDATE but have no ON DELETE triggers,
-          we just should not expose this fact to users by invoking
-          ON UPDATE triggers.
-          For system versioning wa also use path through delete since we would
-          save nothing through this cheating.
-        */
-        if (last_uniq_key(table,key_nr) &&
-            !table->file->referenced_by_foreign_key() &&
-            (!table->triggers || !table->triggers->has_delete_triggers()))
-        {
-          if (table->versioned(VERS_TRX_ID))
           {
-            bitmap_set_bit(table->write_set, table->vers_start_field()->field_index);
-            table->vers_start_field()->store(0, false);
-          }
-          if (unlikely(error= table->file->ha_update_row(table->record[1],
-                                                         table->record[0])) &&
-              error != HA_ERR_RECORD_IS_THE_SAME)
-            goto err;
-          if (likely(!error))
-          {
-            info->deleted++;
-            if (table->versioned(VERS_TIMESTAMP))
+            if (table->triggers &&
+                table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
+                                                  TRG_ACTION_BEFORE, TRUE))
+              goto before_trg_err;
+
+            if (!table->versioned(VERS_TIMESTAMP))
+              error= table->file->ha_delete_row(table->record[1]);
+            else
             {
               store_record(table, record[2]);
-              error= vers_insert_history_row(table);
+              restore_record(table, record[1]);
+              table->vers_update_end();
+              error= table->file->ha_update_row(table->record[1],
+                                                table->record[0]);
               restore_record(table, record[2]);
-              if (unlikely(error))
-                goto err;
             }
-          }
-          else
-            error= 0;   // error was HA_ERR_RECORD_IS_THE_SAME
-          thd->record_first_successful_insert_id_in_cur_stmt(table->file->insert_id_for_cur_row);
-          /*
-            Since we pretend that we have done insert we should call
-            its after triggers.
-          */
-          goto after_trg_n_copied_inc;
-        }
-        else
-        {
-          if (table->triggers &&
-              table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
-                                                TRG_ACTION_BEFORE, TRUE))
-            goto before_trg_err;
+            if (unlikely(error))
+              goto err;
+            if (!table->versioned(VERS_TIMESTAMP))
+              info->deleted++;
+            else
+              info->updated++;
+            if (!table->file->has_transactions())
+              thd->transaction.stmt.modified_non_trans_table= TRUE;
+            if (table->triggers &&
+                table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
+                                                  TRG_ACTION_AFTER, TRUE))
+            {
+              trg_error= 1;
+              goto ok_or_after_trg_err;
+            }
 
-          if (!table->versioned(VERS_TIMESTAMP))
-            error= table->file->ha_delete_row(table->record[1]);
-          else
-          {
-            store_record(table, record[2]);
-            restore_record(table, record[1]);
-            table->vers_update_end();
-            error= table->file->ha_update_row(table->record[1],
-                                              table->record[0]);
-            restore_record(table, record[2]);
+            if (likely(!error) && table->file->overlap_ref)
+            {
+              store_record(table, record[2]);
+              restore_record(table, record[1]);
+              error= table->insert_portion_of_time(thd, period_conds,
+                                                   info->copied);
+              restore_record(table, record[2]);
+            }
+            /* Let us attempt do write_row() once more */
           }
-          if (unlikely(error))
+        }
+        if(table->file->overlap_ref)
+        {
+          error= table->file->ha_index_next(table->record[1]);
+          if (error && error != HA_ERR_END_OF_FILE)
             goto err;
-          if (!table->versioned(VERS_TIMESTAMP))
-            info->deleted++;
-          else
-            info->updated++;
-          if (!table->file->has_transactions())
-            thd->transaction.stmt.modified_non_trans_table= TRUE;
-          if (table->triggers &&
-              table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
-                                                TRG_ACTION_AFTER, TRUE))
-          {
-            trg_error= 1;
-            goto ok_or_after_trg_err;
-          }
-          /* Let us attempt do write_row() once more */
+        }
+      } while (table->file->overlap_ref
+               && error != HA_ERR_END_OF_FILE
+               && table->check_period_overlaps(&table->key_info[key_nr],
+                                               table->record[1],
+                                               table->record[0]));
+
+      if (table->file->inited != handler::NONE)
+      {
+        error= table->file->ha_index_end();
+        if (error)
+        {
+          trg_error= 1;
+          goto ok_or_after_trg_err;
         }
       }
+      if (info->handle_duplicates == DUP_UPDATE)
+        goto ok_or_after_trg_err;
+      /*
+        If more than one iteration of the above while loop is done, from
+        the second one the row being inserted will have an explicit
+        value in the autoinc field, which was set at the first call of
+        handler::update_auto_increment(). This value is saved to avoid
+        thd->insert_id_for_cur_row becoming 0. Use this saved autoinc
+        value.
+       */
+      if (table->file->insert_id_for_cur_row == 0)
+        table->file->insert_id_for_cur_row= insert_id_for_cur_row;
+
+      thd->record_first_successful_insert_id_in_cur_stmt(table->file->insert_id_for_cur_row);
     }
-    
-    /*
-      If more than one iteration of the above while loop is done, from
-      the second one the row being inserted will have an explicit
-      value in the autoinc field, which was set at the first call of
-      handler::update_auto_increment(). This value is saved to avoid
-      thd->insert_id_for_cur_row becoming 0. Use this saved autoinc
-      value.
-     */
-    if (table->file->insert_id_for_cur_row == 0)
-      table->file->insert_id_for_cur_row= insert_id_for_cur_row;
-      
-    thd->record_first_successful_insert_id_in_cur_stmt(table->file->insert_id_for_cur_row);
     /*
       Restore column maps if they where replaced during an duplicate key
       problem.
@@ -2040,8 +2110,11 @@ after_trg_n_copied_inc:
                                                 TRG_ACTION_AFTER, TRUE));
 
 ok_or_after_trg_err:
-  if (key)
-    my_safe_afree(key,table->s->max_unique_length);
+  if (table->file->inited != handler::NONE)
+  {
+    error= table->file->ha_index_end();
+    trg_error = trg_error || error;
+  }
   if (!table->file->has_transactions())
     thd->transaction.stmt.modified_non_trans_table= TRUE;
   DBUG_RETURN(trg_error);
@@ -2052,8 +2125,8 @@ err:
   
 before_trg_err:
   table->file->restore_auto_increment(prev_insert_id);
-  if (key)
-    my_safe_afree(key, table->s->max_unique_length);
+  if (table->file->inited != handler::NONE)
+    table->file->ha_index_end();
   table->column_bitmaps_set(save_read_set, save_write_set);
   DBUG_RETURN(1);
 }

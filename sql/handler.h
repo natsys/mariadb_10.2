@@ -2872,10 +2872,12 @@ protected:
   ha_rows estimation_rows_to_insert;
   uchar *check_overlaps_buffer;
   handler *check_overlaps_handler;
+  int overlaps_error_key;
 public:
   handlerton *ht;                 /* storage engine of this handler */
   uchar *ref;				/* Pointer to current row */
   uchar *dup_ref;			/* Pointer to duplicate row */
+  uchar *overlap_ref;                   /* Pointer to overlapping row */
 
   ha_statistics stats;
 
@@ -3008,7 +3010,8 @@ public:
     :table_share(share_arg), table(0),
     estimation_rows_to_insert(0),
     check_overlaps_buffer(NULL), check_overlaps_handler(NULL),
-    ht(ht_arg), ref(0), end_range(NULL),
+    overlaps_error_key(-1),
+    ht(ht_arg), ref(0), overlap_ref(NULL), end_range(NULL),
     implicit_emptied(0),
     mark_trx_read_write_done(0),
     check_table_binlog_row_based_done(0),
