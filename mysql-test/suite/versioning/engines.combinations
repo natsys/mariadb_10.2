@@ -10,3 +10,7 @@ default-storage-engine=myisam
 [traditional]
 default-storage-engine=myisam
 sql-mode=traditional
+
+[heap]
+default-storage-engine=memory
+

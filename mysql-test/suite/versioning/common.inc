@@ -50,6 +50,10 @@ if ($MTR_COMBINATION_TRADITIONAL)
 {
   --let $MTR_COMBINATION_TIMESTAMP= 1
 }
+if ($MTR_COMBINATION_HEAP)
+{
+  --let $MTR_COMBINATION_TIMESTAMP= 1
+}
 if ($MTR_COMBINATION_TRX_ID)
 {
   let $sys_datatype_expl= bigint(20) unsigned;
