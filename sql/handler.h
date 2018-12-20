@@ -2064,8 +2064,6 @@ struct Table_scope_and_contents_source_st
                                 int select_count= 0);
 
 
-  bool vers_native(THD *thd) const;
-
   void init()
   {
     bzero(this, sizeof(*this));
@@ -3421,6 +3419,10 @@ public:
     return (pre_inited == INDEX ?
             ha_pre_index_end() :
             pre_inited == RND ? ha_pre_rnd_end() : 0 );
+  }
+  virtual bool vers_can_native(THD *thd)
+  {
+    return ht->flags & HTON_NATIVE_SYS_VERSIONING;
   }
 
   /**

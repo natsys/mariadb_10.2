@@ -4601,6 +4601,7 @@ public:
                                    const char *path,
                                    const char *db,
                                    const char *table_name,
+                                   const char *orig_table_name,
                                    bool open_in_engine,
                                    bool open_internal_tables);
 
@@ -4640,7 +4641,8 @@ private:
                                 const char *table_name);
   TMP_TABLE_SHARE *create_temporary_table(handlerton *hton, LEX_CUSTRING *frm,
                                           const char *path, const char *db,
-                                          const char *table_name);
+                                          const char *table_name,
+                                          const char *orig_table_name);
   TABLE *find_temporary_table(const char *key, uint key_length,
                               Temporary_table_state state);
   TABLE *open_temporary_table(TMP_TABLE_SHARE *share, const char *alias,
