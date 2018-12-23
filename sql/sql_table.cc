@@ -8466,23 +8466,6 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     }
   }
 
-  if (table->versioned())
-  {
-    uint versioned_fields= 0;
-    field_it.rewind();
-    while (Create_field *f= field_it++)
-    {
-      if (!(f->flags & VERS_UPDATE_UNVERSIONED_FLAG))
-        versioned_fields++;
-    }
-    if (!(alter_info->flags & ALTER_DROP_SYSTEM_VERSIONING) &&
-        versioned_fields == VERSIONING_FIELDS)
-    {
-      my_error(ER_VERS_TABLE_MUST_HAVE_COLUMNS, MYF(0), table->s->table_name.str);
-      goto err;
-    }
-  }
-
   if (!create_info->comment.str)
   {
     create_info->comment.str= table->s->comment.str;
@@ -9407,6 +9390,12 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
 
   if (mysql_prepare_alter_table(thd, table, create_info, alter_info,
                                 &alter_ctx))
+  {
+    DBUG_RETURN(true);
+  }
+
+  if (create_info->vers_check_system_fields(thd, alter_info,
+                                            table->s->table_name, table->s->db))
   {
     DBUG_RETURN(true);
   }

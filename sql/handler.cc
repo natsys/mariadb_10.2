@@ -6978,8 +6978,7 @@ bool Table_scope_and_contents_source_st::vers_native(THD *thd) const
 }
 
 bool Table_scope_and_contents_source_st::vers_fix_system_fields(
-  THD *thd, Alter_info *alter_info, const TABLE_LIST &create_table,
-  bool create_select)
+  THD *thd, Alter_info *alter_info, const TABLE_LIST &create_table)
 {
   DBUG_ASSERT(!(alter_info->flags & ALTER_DROP_SYSTEM_VERSIONING));
 
@@ -7018,29 +7017,6 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
 
   if (vers_info.fix_implicit(thd, alter_info))
     return true;
-
-  int plain_cols= 0; // columns don't have WITH or WITHOUT SYSTEM VERSIONING
-  int vers_cols= 0; // columns have WITH SYSTEM VERSIONING
-  it.rewind();
-  while (const Create_field *f= it++)
-  {
-    if (vers_info.is_start(*f) || vers_info.is_end(*f))
-      continue;
-
-    if (f->versioning == Column_definition::VERSIONING_NOT_SET)
-      plain_cols++;
-    else if (f->versioning == Column_definition::WITH_VERSIONING)
-      vers_cols++;
-  }
-
-  if (!thd->lex->tmp_table() &&
-    // CREATE from SELECT (Create_fields are not yet added)
-    !create_select && vers_cols == 0 && (plain_cols == 0 || !vers_info))
-  {
-    my_error(ER_VERS_TABLE_MUST_HAVE_COLUMNS, MYF(0),
-             create_table.table_name.str);
-    return true;
-  }
 
   return false;
 }
@@ -7147,15 +7123,7 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
     return false;
   }
 
-  if (fix_implicit(thd, alter_info))
-    return true;
-
-  if ((alter_info->flags & ALTER_ADD_SYSTEM_VERSIONING) &&
-      create_info->vers_check_system_fields(thd, alter_info,
-                                            share->table_name, share->db))
-      return true;
-
-  return false;
+  return fix_implicit(thd, alter_info);
 }
 
 bool
@@ -7278,9 +7246,39 @@ static void require_trx_id(const char *field, const char *table)
 
 bool Table_scope_and_contents_source_st::vers_check_system_fields(
   THD *thd, Alter_info *alter_info, const Lex_table_name &table_name,
-  const Lex_table_name &db)
+  const Lex_table_name &db, int select_count)
 {
   if (!(options & HA_VERSIONED_TABLE))
+    return false;
+
+  if (!(alter_info->flags & ALTER_DROP_SYSTEM_VERSIONING))
+  {
+    uint versioned_fields= 0;
+    uint fieldnr= 0;
+    List_iterator<Create_field> field_it(alter_info->create_list);
+    while (Create_field *f= field_it++)
+    {
+      bool is_dup= false;
+      if (fieldnr >= alter_info->create_list.elements - select_count)
+      {
+        List_iterator<Create_field> dup_it(alter_info->create_list);
+        for (Create_field *dup= dup_it++; !is_dup && dup != f; dup= dup_it++)
+          is_dup= my_strcasecmp(default_charset_info,
+                                dup->field_name.str, f->field_name.str) == 0;
+      }
+
+      if (!(f->flags & VERS_UPDATE_UNVERSIONED_FLAG) && !is_dup)
+        versioned_fields++;
+      fieldnr++;
+    }
+    if (versioned_fields == VERSIONING_FIELDS)
+    {
+      my_error(ER_VERS_TABLE_MUST_HAVE_COLUMNS, MYF(0), table_name.str);
+      return true;
+    }
+  }
+
+  if (!(alter_info->flags & ALTER_ADD_SYSTEM_VERSIONING))
     return false;
 
   bool native= vers_native(thd);

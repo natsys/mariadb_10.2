@@ -495,5 +495,13 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `i` int(11) DEFAULT NULL
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+# MDEV-16490 It's possible to make a system versioned table without any versioning field
+create or replace table t1 (x int without system versioning)
+with system versioning
+select 1 as y;
+create or replace table t1 (x int without system versioning)
+with system versioning
+select 1 as x;
+ERROR HY000: Table `t1` must have at least one versioned column
 drop database test;
 create database test;
