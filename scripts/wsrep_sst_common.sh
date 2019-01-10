@@ -274,7 +274,7 @@ wsrep_check_programs()
 }
 
 #
-# user can specify xtrabackup specific settings that will be used during sst
+# user can specify mariabackup specific settings that will be used during sst
 # process like encryption, etc.....
 # parse such configuration option. (group for xb settings is [sst] in my.cnf
 #
