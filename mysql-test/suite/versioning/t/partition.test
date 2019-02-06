@@ -448,6 +448,20 @@ partition by system_time (
 insert into t1 values (1), (2);
 explain select max(pk) from t1;
 
+--echo #
+--echo # MDEV-18136 Server crashes in Item_func_dyncol_create::prepare_arguments
+--echo #
+create or replace table t1 (pk int) with system versioning
+partition by system_time interval 7 second (
+  partition ver_p1 history,
+  partition ver_pn current);
+alter table t1
+partition by system_time interval column_get(column_create(7,7), 7 as int) second (
+  partition ver_p1 history,
+  partition ver_pn current);
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+
 --echo # Test cleanup
 drop database test;
 create database test;
