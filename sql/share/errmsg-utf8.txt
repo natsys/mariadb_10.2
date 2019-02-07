@@ -7836,7 +7836,7 @@ ER_PARTITION_WRONG_TYPE
         eng "Wrong partitioning type, expected type: %`s"
 
 WARN_VERS_PART_FULL
-        eng "Versioned table %`s.%`s: partition %`s is full, add more HISTORY partitions"
+        eng "Versioned table %`s.%`s: last HISTORY partition (%`s) is out of %s, need more HISTORY partitions"
 
 WARN_VERS_PARAMETERS
         eng "Maybe missing parameters: %s"
@@ -7935,3 +7935,5 @@ ER_USER_IS_BLOCKED
         eng "User is blocked because of too many credential errors; unblock with 'FLUSH PRIVILEGES'"
 ER_TRUNCATE_ILLEGAL_VERS
         eng "Cannot truncate a versioned table"
+ER_PART_STARTS_BEYOND_INTERVAL
+        eng "%`s: STARTS is too late, first history partition may exceed INTERVAL value"
