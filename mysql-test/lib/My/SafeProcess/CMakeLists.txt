@@ -14,13 +14,16 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
 
 
- IF (WIN32)
+IF (WIN32)
   ADD_EXECUTABLE(my_safe_process safe_process_win.cc)
   ADD_EXECUTABLE(my_safe_kill safe_kill_win.cc)
   TARGET_LINK_LIBRARIES(my_safe_kill dbghelp psapi)
 ELSE()
   ADD_EXECUTABLE(my_safe_process safe_process.cc)
 ENDIF()
+
+ADD_EXECUTABLE(wsrep_mtr_check wsrep_mtr_check.c)
+TARGET_LINK_LIBRARIES(wsrep_mtr_check ${LIBDL})
 
 IF(NOT INSTALL_MYSQLTESTDIR)
   RETURN()
