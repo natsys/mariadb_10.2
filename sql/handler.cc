@@ -7342,8 +7342,7 @@ bool Vers_parse_info::check_sys_fields(const Lex_table_name &table_name,
 
     sys_flag|= found_flag;
 
-    if ((f->type_handler() == &type_handler_datetime2 ||
-          f->type_handler() == &type_handler_timestamp2) &&
+    if (f->type_handler() == &type_handler_timestamp2 &&
         f->length == MAX_DATETIME_FULL_WIDTH)
     {
       f_check_unit= VERS_TIMESTAMP;

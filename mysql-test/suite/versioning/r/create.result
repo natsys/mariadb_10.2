@@ -506,5 +506,12 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `i` int(11) DEFAULT NULL
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+create table t (
+a int,
+row_start datetime(6) generated always as row start,
+row_end datetime(6) generated always as row end,
+period for system_time(row_start, row_end)
+) with system versioning;
+ERROR HY000: `row_start` must be of type TIMESTAMP(6) for system-versioned table `t`
 drop database test;
 create database test;

@@ -371,5 +371,13 @@ create or replace table t1 (i int) with system versioning as select 1 as i;
 --replace_result $default_engine DEFAULT_ENGINE
 show create table t1;
 
+--error ER_VERS_FIELD_WRONG_TYPE
+create table t (
+  a int,
+  row_start datetime(6) generated always as row start,
+  row_end datetime(6) generated always as row end,
+  period for system_time(row_start, row_end)
+) with system versioning;
+
 drop database test;
 create database test;
