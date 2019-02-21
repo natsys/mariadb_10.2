@@ -622,6 +622,7 @@ typedef struct system_variables
   ulong optimizer_selectivity_sampling_limit;
   ulong optimizer_use_condition_selectivity;
   ulong use_stat_tables;
+  double sample_percentage;
   ulong histogram_size;
   ulong histogram_type;
   ulong preload_buff_size;
@@ -2151,25 +2152,13 @@ extern "C" void my_message_sql(uint error, const char *str, myf MyFlags);
   It must be specified as a first base class of THD, so that increment is
   done before any other THD constructors and decrement - after any other THD
   destructors.
+
+  Destructor unblocks close_conneciton() if there are no more THD's left.
 */
 struct THD_count
 {
   THD_count() { thread_count++; }
-
-
-  /**
-    Decrements thread_count.
-
-    Unblocks close_conneciton() if there are no more THD's left.
-  */
-  ~THD_count()
-  {
-#ifndef DBUG_OFF
-    uint32_t t=
-#endif
-    thread_count--;
-    DBUG_ASSERT(t > 0);
-  }
+  ~THD_count() { thread_count--; }
 };
 
 
@@ -5032,6 +5021,8 @@ public:
                                LOG_SLOW_DISABLE_ADMIN);
     query_plan_flags|= QPLAN_ADMIN;
   }
+
+  bool having_pushdown;
 };
 
 /** A short cut for thd->get_stmt_da()->set_ok_status(). */

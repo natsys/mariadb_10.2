@@ -135,7 +135,6 @@ static const alter_table_operations INNOBASE_ALTER_INSTANT
 	| ALTER_ADD_VIRTUAL_COLUMN
 	| INNOBASE_FOREIGN_OPERATIONS
 	| ALTER_COLUMN_EQUAL_PACK_LENGTH
-	| ALTER_COLUMN_EQUAL_PACK_LENGTH_EXT
 	| ALTER_COLUMN_UNVERSIONED
 	| ALTER_DROP_VIRTUAL_COLUMN;
 
@@ -270,7 +269,7 @@ inline void dict_table_t::prepare_instant(const dict_table_t& old,
 			ut_ad(!not_redundant());
 			for (unsigned i = index.n_fields; i--; ) {
 				ut_ad(index.fields[i].col->same_format(
-					      *oindex.fields[i].col, true));
+					      *oindex.fields[i].col));
 			}
 		}
 #endif
@@ -458,13 +457,9 @@ inline void dict_index_t::instant_add_field(const dict_index_t& instant)
 	as this index. Fields for any added columns are appended at the end. */
 #ifndef DBUG_OFF
 	for (unsigned i = 0; i < n_fields; i++) {
-		DBUG_ASSERT(fields[i].prefix_len
-			    == instant.fields[i].prefix_len);
-		DBUG_ASSERT(fields[i].fixed_len
-			    == instant.fields[i].fixed_len
-			    || !table->not_redundant());
-		DBUG_ASSERT(instant.fields[i].col->same_format(
-				    *fields[i].col, !table->not_redundant()));
+		DBUG_ASSERT(fields[i].same(instant.fields[i]));
+		DBUG_ASSERT(instant.fields[i].col->same_format(*fields[i]
+							       .col));
 		/* Instant conversion from NULL to NOT NULL is not allowed. */
 		DBUG_ASSERT(!fields[i].col->is_nullable()
 			    || instant.fields[i].col->is_nullable());
@@ -540,7 +535,10 @@ inline bool dict_table_t::instant_column(const dict_table_t& table,
 
 		if (const dict_col_t* o = find(old_cols, col_map, n_cols, i)) {
 			c.def_val = o->def_val;
-			ut_ad(c.same_format(*o, !not_redundant()));
+			DBUG_ASSERT(!((c.prtype ^ o->prtype)
+				      & ~(DATA_NOT_NULL | DATA_VERSIONED)));
+			DBUG_ASSERT(c.mtype == o->mtype);
+			DBUG_ASSERT(c.len >= o->len);
 
 			if (o->vers_sys_start()) {
 				ut_ad(o->ind == vers_start);
@@ -1752,10 +1750,6 @@ ha_innobase::check_if_supported_inplace_alter(
 {
 	DBUG_ENTER("check_if_supported_inplace_alter");
 
-	DBUG_ASSERT(!(ALTER_COLUMN_EQUAL_PACK_LENGTH_EXT
-		      & ha_alter_info->handler_flags)
-		    || !m_prebuilt->table->not_redundant());
-
 	if ((ha_alter_info->handler_flags
 	     & INNOBASE_ALTER_VERSIONED_REBUILD)
 	    && altered_table->versioned(VERS_TIMESTAMP)) {
@@ -1789,6 +1783,16 @@ ha_innobase::check_if_supported_inplace_alter(
 	}
 
 	update_thd();
+
+	/* MDEV-12026 FIXME: Implement and allow
+	innodb_checksum_algorithm=full_crc32 for page_compressed! */
+	if (m_prebuilt->table->space
+	    && m_prebuilt->table->space->full_crc32()
+	    && altered_table->s->option_struct
+	    && altered_table->s->option_struct->page_compressed) {
+		ut_ad(!table->s->option_struct->page_compressed);
+		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
+	}
 
 	if (ha_alter_info->handler_flags
 	    & ~(INNOBASE_INPLACE_IGNORE
@@ -2951,7 +2955,7 @@ innobase_col_to_mysql(
 
 	switch (col->mtype) {
 	case DATA_INT:
-		ut_ad(len <= flen);
+		ut_ad(len == flen);
 
 		/* Convert integer data from Innobase to little-endian
 		format, sign bit restored to normal */
@@ -4122,7 +4126,7 @@ innobase_check_foreigns(
 @param[in,out]	heap		Memory heap where allocated
 @param[out]	dfield		InnoDB data field to copy to
 @param[in]	field		MySQL value for the column
-@param[in]	old_field	Old field or NULL if new col is added	
+@param[in]	old_field	Old column if altering; NULL for ADD COLUMN
 @param[in]	comp		nonzero if in compact format. */
 static void innobase_build_col_map_add(
 	mem_heap_t*	heap,
@@ -4141,14 +4145,13 @@ static void innobase_build_col_map_add(
 		return;
 	}
 
-	ulint	size	= field->pack_length();
+	const Field& from = old_field ? *old_field : *field;
+	ulint	size	= from.pack_length();
 
 	byte*	buf	= static_cast<byte*>(mem_heap_alloc(heap, size));
 
-	const byte*	mysql_data = old_field ? old_field->ptr : field->ptr;
-
 	row_mysql_store_col_in_innobase_format(
-		dfield, buf, true, mysql_data, size, comp);
+		dfield, buf, true, from.ptr, size, comp);
 }
 
 /** Construct the translation table for reordering, dropping or
@@ -5547,6 +5550,11 @@ static bool innobase_instant_try(
 				    dict_table_get_col_name(user_table, i)));
 		DBUG_ASSERT(old || col->is_added());
 
+		ut_d(const Create_field* new_field = cf_it++);
+		/* new_field->field would point to an existing column.
+		If it is NULL, the column was added by this ALTER TABLE. */
+		ut_ad(!new_field->field == !old);
+
 		if (col->is_added()) {
 			dfield_set_data(d, col->def_val.data,
 					col->def_val.len);
@@ -5580,18 +5588,14 @@ static bool innobase_instant_try(
 						mem_heap_alloc(ctx->heap, len))
 					: NULL, true, (*af)->ptr, len,
 					dict_table_is_comp(user_table));
+				ut_ad(new_field->field->pack_length() == len);
+
 			}
 		}
 
-		ut_d(const Create_field* new_field = cf_it++);
-		/* new_field->field would point to an existing column.
-		If it is NULL, the column was added by this ALTER TABLE. */
-		ut_ad(!new_field->field == !old);
-
 		bool update = old && (!ctx->first_alter_pos
 				      || i < ctx->first_alter_pos - 1);
-		ut_ad(!old || col->same_format(
-			      *old, !user_table->not_redundant()));
+		DBUG_ASSERT(!old || col->same_format(*old));
 		if (update
 		    && old->prtype == d->type.prtype) {
 			/* The record is already present in SYS_COLUMNS. */
@@ -5680,8 +5684,6 @@ add_all_virtual:
 		NULL, trx, ctx->heap, NULL);
 
 	dberr_t err = DB_SUCCESS;
-	DBUG_EXECUTE_IF("ib_instant_error",
-			err = DB_OUT_OF_FILE_SPACE; goto func_exit;);
 	if (rec_is_metadata(rec, *index)) {
 		ut_ad(page_rec_is_user_rec(rec));
 		if (!page_has_next(block->frame)
@@ -9059,7 +9061,7 @@ innobase_rename_or_enlarge_column_try(
 		and ROW_FORMAT is not REDUNDANT and mbminlen<mbmaxlen.
 		That is, we treat a UTF-8 CHAR(n) column somewhat like
 		a VARCHAR. */
-		ut_ad(!user_table->not_redundant() || col->len == len);
+		ut_ad(col->len == len);
 		break;
 	case DATA_BINARY:
 	case DATA_VARCHAR:
@@ -9067,11 +9069,6 @@ innobase_rename_or_enlarge_column_try(
 	case DATA_DECIMAL:
 	case DATA_BLOB:
 		break;
-	case DATA_INT:
-		if (!user_table->not_redundant()) {
-			break;
-		}
-		/* fall through */
 	default:
 		ut_ad(col->prtype == prtype);
 		ut_ad(col->mtype == mtype);
@@ -9127,7 +9124,6 @@ innobase_rename_or_enlarge_columns_try(
 
 	if (!(ha_alter_info->handler_flags
 	      & (ALTER_COLUMN_EQUAL_PACK_LENGTH
-		 | ALTER_COLUMN_EQUAL_PACK_LENGTH_EXT
 		 | ALTER_COLUMN_NAME))) {
 		DBUG_RETURN(false);
 	}
@@ -9176,7 +9172,6 @@ innobase_rename_or_enlarge_columns_cache(
 {
 	if (!(ha_alter_info->handler_flags
 	      & (ALTER_COLUMN_EQUAL_PACK_LENGTH
-		 | ALTER_COLUMN_EQUAL_PACK_LENGTH_EXT
 		 | ALTER_COLUMN_NAME))) {
 		return;
 	}

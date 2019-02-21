@@ -234,7 +234,7 @@
 #define OPTIMIZER_SWITCH_SPLIT_MATERIALIZED        (1ULL << 31)
 #define OPTIMIZER_SWITCH_COND_PUSHDOWN_FOR_SUBQUERY (1ULL << 32)
 #define OPTIMIZER_SWITCH_USE_ROWID_FILTER          (1ULL << 33)
-
+#define OPTIMIZER_SWITCH_COND_PUSHDOWN_FROM_HAVING (1ULL << 34)
 
 #define OPTIMIZER_SWITCH_DEFAULT   (OPTIMIZER_SWITCH_INDEX_MERGE | \
                                     OPTIMIZER_SWITCH_INDEX_MERGE_UNION | \
@@ -262,8 +262,10 @@
                                     OPTIMIZER_SWITCH_ORDERBY_EQ_PROP | \
                                     OPTIMIZER_SWITCH_COND_PUSHDOWN_FOR_DERIVED | \
                                     OPTIMIZER_SWITCH_SPLIT_MATERIALIZED | \
-                                    OPTIMIZER_SWITCH_COND_PUSHDOWN_FOR_SUBQUERY |\
-                                    OPTIMIZER_SWITCH_USE_ROWID_FILTER)
+                                    OPTIMIZER_SWITCH_COND_PUSHDOWN_FOR_SUBQUERY | \
+                                    OPTIMIZER_SWITCH_USE_ROWID_FILTER | \
+                                    OPTIMIZER_SWITCH_COND_PUSHDOWN_FROM_HAVING | \
+                                    OPTIMIZER_SWITCH_OPTIMIZE_JOIN_BUFFER_SIZE)
 
 /*
   Replication uses 8 bytes to store SQL_MODE in the binary log. The day you
@@ -358,11 +360,6 @@
   data dictionary without changing table rows
 */
 #define IS_EQUAL_PACK_LENGTH 2
-/**
-  new_field has a representation that is compatible with the old type
-  when the storage engine advertises HA_EXTENDED_TYPES_CONVERSION
-*/
-#define IS_EQUAL_PACK_LENGTH_EXT 3
 
 enum enum_parsing_place
 {

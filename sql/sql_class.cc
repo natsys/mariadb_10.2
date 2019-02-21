@@ -859,6 +859,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier, bool skip_global_sys_var_lock)
   create_tmp_table_for_derived= FALSE;
   save_prep_leaf_list= FALSE;
   org_charset= 0;
+  having_pushdown= FALSE;
   /* Restore THR_THD */
   set_current_thd(old_THR_THD);
 }
@@ -5987,7 +5988,8 @@ int THD::decide_logging_format(TABLE_LIST *tables)
     binlog by filtering rules.
   */
 #ifdef WITH_WSREP
-  if (WSREP_CLIENT_NNULL(this) && variables.wsrep_trx_fragment_size > 0)
+  if (WSREP_CLIENT_NNULL(this) && wsrep_thd_is_local(this) &&
+      variables.wsrep_trx_fragment_size > 0)
   {
     if (!is_current_stmt_binlog_format_row())
     {
