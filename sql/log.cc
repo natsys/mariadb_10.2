@@ -74,6 +74,8 @@ LOGGER logger;
 const char *log_bin_index= 0;
 const char *log_bin_basename= 0;
 
+bool opt_binlog_order_commits= false;
+
 MYSQL_BIN_LOG mysql_bin_log(&sync_binlog_period);
 
 static bool test_if_number(const char *str,
@@ -8834,6 +8836,41 @@ TC_LOG::run_commit_ordered(THD *thd, bool all)
     if (!ht->commit_ordered)
       continue;
     ht->commit_ordered(ht, thd, all);
+    #ifdef WITH_WSREP
+      /* What is interim_commit?
+      - Galera enforces ordering based on replication order (order in which
+        transaction write-sets are replicated to group channel).
+      - This is enforced using CommitMonitor.
+      - CommitMonitor is grabbed during transaction prepare stage and
+        released once transaction is committed. This enforces that
+        transaction are committed in order of their global_seqno_.
+      - Interim commit optimization help us to release commit monitor before
+        real-commit happens. This is possible only when server enforces
+        binlog-order-commits. With binlog-order-commits server ensures that
+        the transaction goes through flush, sync and commit stages only in
+        said order and so adding the transaction thread to flush stage
+        ensures commit ordering will be enforced there-by allowing us
+        to release commit ordering monitor earlier.
+      - This optimization is not enabled if MySQL has disabled
+        binlog-order-commits (in this case we rely on default ordering).
+
+      Group Commit has leader and follower concept.
+      Follower add themselves to the queue and leader is responsible for
+      completing action on behalf of follower.
+      Say a use-case where-in follower is appended to queue but not yet
+      interim_committed and leader get the slot to execute the action.
+
+      It is quite possible that leader may end-up running post_commit action
+      even before follower execute interim_commit. This could be allowed but
+      what if leader is schedule to run post_commit and in meantime follower
+      execute the interim_commit where-in it will create a redundant action
+      execution. (This is redundant action is error in normal flow and not
+      feasible to allow exception in such case). */
+      if (opt_binlog_order_commits)
+      {
+        wsrep_interim_commit(thd);
+      }
+    #endif /* WITH_WSREP */
     DEBUG_SYNC(thd, "commit_after_run_commit_ordered");
   }
 }

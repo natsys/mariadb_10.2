@@ -27,8 +27,6 @@ return "No my_print_defaults" unless $epath;
 push @::global_suppressions,
   (
      qr(WSREP: Could not open saved state file for reading: .*),
-     qr(WSREP: Could not open state file for reading: .*),
-     qr|WSREP: access file\(.*gvwstate.dat\) failed\(No such file or directory\)|,
    );
 
 $ENV{PATH}="$epath:$ENV{PATH}";

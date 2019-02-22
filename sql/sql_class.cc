@@ -645,6 +645,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier, bool skip_global_sys_var_lock)
    wsrep_applier_closing(false),
    wsrep_client_thread(false),
    wsrep_apply_toi(false),
+   wsrep_void_applier_trx(true),
    wsrep_po_handle(WSREP_PO_INITIALIZER),
    wsrep_po_cnt(0),
    wsrep_apply_format(0),

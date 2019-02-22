@@ -2,7 +2,7 @@
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; version 2 of the License.x1
+   the Free Software Foundation; version 2 of the License.
 
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -767,6 +767,8 @@ done:
   wsrep_args.unordered_cb    = wsrep_unordered_cb;
   wsrep_args.sst_donate_cb   = wsrep_sst_donate_cb;
   wsrep_args.synced_cb       = wsrep_synced_cb;
+  wsrep_args.abort_cb        = wsrep_abort_cb;
+  wsrep_args.pfs_instr_cb    = NULL;
 
   rcode = wsrep->init(wsrep, &wsrep_args);
 
@@ -1682,6 +1684,7 @@ static int wsrep_TOI_begin(THD *thd, const char *db_, const char *table_,
     my_message(ER_LOCK_DEADLOCK, "WSREP replication failed. Check "
                "your wsrep connection state and retry the query.", MYF(0));
     wsrep_keys_free(&key_arr);
+    wsrep_cleanup_transaction(thd);
     rc= -1;
   }
   else {
@@ -1762,10 +1765,15 @@ static int wsrep_RSU_begin(THD *thd, const char *db_, const char *table_)
   {
     WSREP_WARN("pause failed %lld for schema: %s, query: %s", (long long)seqno,
                thd->get_db(), thd->query());
+
+    /* Pause fail so rollback desync action too. */
+    wsrep->resync(wsrep);
+
     return(1);
   }
   WSREP_DEBUG("paused at %lld", (long long)seqno);
   thd->variables.wsrep_on = 0;
+  DEBUG_SYNC(thd,"wsrep_RSU_begin_acquired");
   return 0;
 }
 

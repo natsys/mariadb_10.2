@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA
+   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
 /*! @file Dummy wsrep API implementation. */
@@ -19,6 +19,7 @@
 #include "wsrep_api.h"
 
 #include <errno.h>
+#include <stdbool.h>
 #include <string.h>
 
 /*! Dummy backend context. */
@@ -84,15 +85,10 @@ static wsrep_status_t dummy_options_set(
 
 static char* dummy_options_get (wsrep_t* w)
 {
-  char *options;
-
-  WSREP_DBUG_ENTER(w);
-  options= WSREP_DUMMY(w)->options;
-
-  if (options)
-    options= strdup(WSREP_DUMMY(w)->options);
-
-  return options;
+    WSREP_DBUG_ENTER(w);
+    if (WSREP_DUMMY(w)->options)
+        return strdup(WSREP_DUMMY(w)->options);
+    return NULL;
 }
 
 static wsrep_status_t dummy_connect(
@@ -119,6 +115,17 @@ static wsrep_status_t dummy_recv(wsrep_t* w,
     return WSREP_OK;
 }
 
+static wsrep_status_t dummy_replicate(
+    wsrep_t* w,
+    const wsrep_conn_id_t   conn_id    __attribute__((unused)),
+    wsrep_ws_handle_t*      ws_handle  __attribute__((unused)),
+    uint32_t                flags      __attribute__((unused)),
+    wsrep_trx_meta_t*       meta       __attribute__((unused)))
+{
+    WSREP_DBUG_ENTER(w);
+    return WSREP_OK;
+}
+
 static wsrep_status_t dummy_pre_commit(
     wsrep_t* w,
     const wsrep_conn_id_t   conn_id    __attribute__((unused)),
@@ -130,9 +137,52 @@ static wsrep_status_t dummy_pre_commit(
     return WSREP_OK;
 }
 
+static wsrep_status_t dummy_replicate_pre_commit(
+    wsrep_t* w,
+    const wsrep_conn_id_t   conn_id    __attribute__((unused)),
+    wsrep_ws_handle_t*      ws_handle  __attribute__((unused)),
+    uint32_t                flags      __attribute__((unused)),
+    wsrep_trx_meta_t*       meta       __attribute__((unused)))
+{
+    WSREP_DBUG_ENTER(w);
+    return WSREP_OK;
+}
+
+static wsrep_status_t dummy_interim_commit(
+    wsrep_t* w,
+    wsrep_ws_handle_t*  ws_handle  __attribute__((unused)))
+{
+    WSREP_DBUG_ENTER(w);
+    return WSREP_OK;
+}
+
 static wsrep_status_t dummy_post_commit(
     wsrep_t* w,
     wsrep_ws_handle_t*  ws_handle  __attribute__((unused)))
+{
+    WSREP_DBUG_ENTER(w);
+    return WSREP_OK;
+}
+
+static wsrep_status_t dummy_applier_pre_commit(
+    wsrep_t* w,
+    void*    trx_handle    __attribute__((unused)))
+{
+    WSREP_DBUG_ENTER(w);
+    return WSREP_OK;
+}
+
+static wsrep_status_t dummy_applier_interim_commit(
+    wsrep_t* w,
+    void*    trx_handle    __attribute__((unused)))
+{
+    WSREP_DBUG_ENTER(w);
+    return WSREP_OK;
+}
+
+static wsrep_status_t dummy_applier_post_commit(
+    wsrep_t* w,
+    void*    trx_handle    __attribute__((unused)))
 {
     WSREP_DBUG_ENTER(w);
     return WSREP_OK;
@@ -170,7 +220,7 @@ static wsrep_status_t dummy_append_key(
     const wsrep_key_t*     key        __attribute__((unused)),
     const size_t           key_num    __attribute__((unused)),
     const wsrep_key_type_t key_type   __attribute__((unused)),
-    const wsrep_bool_t     copy       __attribute__((unused)))
+    const bool             copy       __attribute__((unused)))
 {
     WSREP_DBUG_ENTER(w);
     return WSREP_OK;
@@ -182,7 +232,7 @@ static wsrep_status_t dummy_append_data(
     const struct wsrep_buf* data       __attribute__((unused)),
     const size_t            count      __attribute__((unused)),
     const wsrep_data_type_t type       __attribute__((unused)),
-    const wsrep_bool_t      copy       __attribute__((unused)))
+    const bool              copy       __attribute__((unused)))
 {
     WSREP_DBUG_ENTER(w);
     return WSREP_OK;
@@ -300,6 +350,13 @@ static void dummy_stats_reset (wsrep_t* w)
     WSREP_DBUG_ENTER(w);
 }
 
+static void dummy_fetch_pfs_info (
+    wsrep_t* w, wsrep_node_info_t* nodes __attribute__((unused)),
+    uint32_t size __attribute__((unused)))
+{
+    WSREP_DBUG_ENTER(w);
+}
+
 static wsrep_seqno_t dummy_pause (wsrep_t* w)
 {
     WSREP_DBUG_ENTER(w);
@@ -325,10 +382,10 @@ static wsrep_status_t dummy_resync (wsrep_t* w)
 }
 
 static wsrep_status_t dummy_lock (wsrep_t* w,
-                                  const char*  s __attribute__((unused)),
-                                  wsrep_bool_t r __attribute__((unused)),
-                                  uint64_t     o __attribute__((unused)),
-                                  int64_t      t __attribute__((unused)))
+                                  const char* s __attribute__((unused)),
+                                  bool        r __attribute__((unused)),
+                                  uint64_t    o __attribute__((unused)),
+                                  int64_t     t __attribute__((unused)))
 {
     WSREP_DBUG_ENTER(w);
     return WSREP_NOT_IMPLEMENTED;
@@ -342,13 +399,13 @@ static wsrep_status_t dummy_unlock (wsrep_t* w,
     return WSREP_OK;
 }
 
-static wsrep_bool_t dummy_is_locked (wsrep_t* w,
-                                     const char*   s __attribute__((unused)),
-                                     uint64_t*     o __attribute__((unused)),
-                                     wsrep_uuid_t* t __attribute__((unused)))
+static bool dummy_is_locked (wsrep_t* w,
+                             const char*   s __attribute__((unused)),
+                             uint64_t*     o __attribute__((unused)),
+                             wsrep_uuid_t* t __attribute__((unused)))
 {
     WSREP_DBUG_ENTER(w);
-    return 0;
+    return false;
 }
 
 static wsrep_t dummy_iface = {
@@ -360,8 +417,14 @@ static wsrep_t dummy_iface = {
     &dummy_connect,
     &dummy_disconnect,
     &dummy_recv,
+    &dummy_replicate,
     &dummy_pre_commit,
+    &dummy_replicate_pre_commit,
+    &dummy_interim_commit,
     &dummy_post_commit,
+    &dummy_applier_pre_commit,
+    &dummy_applier_interim_commit,
+    &dummy_applier_post_commit,
     &dummy_post_rollback,
     &dummy_replay_trx,
     &dummy_abort_pre_commit,
@@ -379,6 +442,7 @@ static wsrep_t dummy_iface = {
     &dummy_stats_get,
     &dummy_stats_free,
     &dummy_stats_reset,
+    &dummy_fetch_pfs_info,
     &dummy_pause,
     &dummy_resume,
     &dummy_desync,

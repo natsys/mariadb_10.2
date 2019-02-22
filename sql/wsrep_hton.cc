@@ -45,6 +45,7 @@ void wsrep_cleanup_transaction(THD *thd)
   thd->wsrep_trx_meta.depends_on= WSREP_SEQNO_UNDEFINED;
   thd->wsrep_exec_mode= LOCAL_STATE;
   thd->wsrep_affected_rows= 0;
+  thd->wsrep_void_applier_trx= true;
   thd->wsrep_skip_wsrep_GTID= false;
   return;
 }
@@ -111,6 +112,53 @@ void wsrep_register_hton(THD* thd, bool all)
   }
 }
 
+extern my_bool opt_log_slave_updates;
+
+/*
+  Calls wsrep->interim_commit() for given transactions that have
+  got seqno from provider (must commit) and don't require replaying.
+ */
+void wsrep_interim_commit(THD* thd)
+{
+  if (!WSREP(thd)) return;
+
+  /* Interim Commit Optimization can be used only if log_slave_updates is
+  ON that ensures all slave thread (including wsrep replication threads)
+  binlogs the events there-by following group commit protocol.
+  Even if one thread doesn't follow group commit protocol interim
+  commit optimization will not work.
+  Interim commit optimization rely on ordered commit of MySQL.
+  If this feature is turned-off then skip this optimization. */
+  if (!opt_log_slave_updates || !opt_binlog_order_commits)
+    return;
+
+  switch (thd->wsrep_exec_mode)
+  {
+  case LOCAL_COMMIT:
+    {
+      DBUG_ASSERT(thd->wsrep_trx_meta.gtid.seqno != WSREP_SEQNO_UNDEFINED);
+      if (wsrep->interim_commit(wsrep, &thd->wsrep_ws_handle))
+      {
+        DBUG_PRINT("wsrep", ("set committed fail"));
+        WSREP_WARN("set committed fail: %llu %d",
+                   (long long)thd->real_id, thd->get_stmt_da()->status());
+      }
+      break;
+    }
+ case LOCAL_STATE: break;
+ case REPL_RECV:
+   {
+     if (thd->wsrep_ws_handle.opaque &&
+         thd->wsrep_conflict_state != REPLAYING)
+        /* Interim-commit hook will stop commit ordering. */
+        wsrep->applier_interim_commit(wsrep, thd->wsrep_ws_handle.opaque);
+     break;
+   }
+  default: break;
+  }
+}
+
+
 /*
   Calls wsrep->post_commit() for locally executed transactions that have
   got seqno from provider (must commit) and don't require replaying.
@@ -138,7 +186,10 @@ void wsrep_post_commit(THD* thd, bool all)
       /* non-InnoDB statements may have populated events in stmt cache
         => cleanup
       */
-      WSREP_DEBUG("cleanup transaction for LOCAL_STATE");
+      if (thd->wsrep_conflict_state != MUST_REPLAY)
+      {
+        WSREP_DEBUG("cleanup transaction for LOCAL_STATE");
+      }
       /*
         Run post-rollback hook to clean up in the case if
         some keys were populated for the transaction in provider
@@ -147,12 +198,47 @@ void wsrep_post_commit(THD* thd, bool all)
         rolls back to savepoint after first operation.
       */
       if (all && thd->wsrep_conflict_state != MUST_REPLAY &&
+          thd->wsrep_conflict_state != REPLAYING &&
           wsrep && wsrep->post_rollback(wsrep, &thd->wsrep_ws_handle))
       {
         WSREP_WARN("post_rollback fail: %llu %d",
 		(long long)thd->thread_id, thd->get_stmt_da()->status());
       }
-      wsrep_cleanup_transaction(thd);
+      if (thd->wsrep_conflict_state != MUST_REPLAY &&
+          thd->wsrep_conflict_state != REPLAYING)
+      {
+        wsrep_cleanup_transaction(thd);
+      }
+      break;
+    }
+    case REPL_RECV:
+    {
+      /* There are cases when replicated transaction are empty and there is no
+      need to commit such transaction but given that they have a valid seqno
+      assigned we need to update commit monitor by enter and leaving it.
+      Empty transaction use case: CTAS, pre-executed action on cluster node
+      acting as slave to an independent master. */
+
+      /* Also note that replay transaction are executed with exec_code=REPL_RECV
+      So ensure we check for the wsrep_conflict_state. */
+
+      if (thd->wsrep_void_applier_trx &&
+          thd->wsrep_ws_handle.opaque &&
+          thd->wsrep_conflict_state != REPLAYING &&
+          thd->wsrep_applier)
+        wsrep->applier_pre_commit(wsrep, thd->wsrep_ws_handle.opaque);
+
+      if (thd->wsrep_ws_handle.opaque &&
+          thd->wsrep_conflict_state != REPLAYING)
+      {
+        // WSREP_DEBUG("Committed repl-transaction with global-seqno-no: %lu",
+        //            thd->wsrep_trx_meta.gtid.seqno);
+        /* Post-commit hook will stop commit ordering. */
+        wsrep->applier_post_commit(wsrep, thd->wsrep_ws_handle.opaque);
+        thd->wsrep_ws_handle.opaque = 0;
+      }
+
+      thd->wsrep_void_applier_trx= true;
       break;
     }
     default: break;
@@ -196,6 +282,7 @@ static int wsrep_prepare(handlerton *hton, THD *thd, bool all)
 
   if (thd->wsrep_exec_mode == REPL_RECV)
   {
+    thd->wsrep_void_applier_trx= false;
     DBUG_RETURN(0);
   }
 
@@ -207,15 +294,7 @@ static int wsrep_prepare(handlerton *hton, THD *thd, bool all)
       !thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) &&
       (thd->variables.wsrep_on && !wsrep_trans_cache_is_empty(thd)))
   {
-    int res= wsrep_run_wsrep_commit(thd, all);
-    if (res != 0)
-    {
-      if (res == WSREP_TRX_SIZE_EXCEEDED)
-        res= EMSGSIZE;
-      else
-        res= EDEADLK;                           // for a better error message
-    }
-    DBUG_RETURN (res);
+    DBUG_RETURN (wsrep_replicate(thd));
   }
   DBUG_RETURN(0);
 }
@@ -269,7 +348,7 @@ static int wsrep_rollback(handlerton *hton, THD *thd, bool all)
   }
 
   if ((all || !thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) &&
-      thd->variables.wsrep_on && thd->wsrep_conflict_state != MUST_REPLAY)
+      (thd->variables.wsrep_on && thd->wsrep_conflict_state != MUST_REPLAY))
   {
     if (wsrep && wsrep->post_rollback(wsrep, &thd->wsrep_ws_handle))
     {
@@ -485,7 +564,8 @@ wsrep_run_wsrep_commit(THD *thd, bool all)
     DBUG_RETURN(WSREP_TRX_OK);
   }
 
-  if (WSREP_UNDEFINED_TRX_ID == thd->wsrep_ws_handle.trx_id)
+  if (WSREP_UNDEFINED_TRX_ID == thd->wsrep_ws_handle.trx_id &&
+      !thd->wsrep_replicate_GTID)
   {
     WSREP_WARN("SQL statement was ineffective  thd: %lld  buf: %zu\n"
                "schema: %s \n"
@@ -498,7 +578,7 @@ wsrep_run_wsrep_commit(THD *thd, bool all)
   else if (!rcode)
   {
     if (WSREP_OK == rcode && wsrep)
-      rcode = wsrep->pre_commit(wsrep,
+      rcode = wsrep->replicate_pre_commit(wsrep,
                                 (wsrep_conn_id_t)thd->thread_id,
                                 &thd->wsrep_ws_handle,
                                 WSREP_FLAG_COMMIT |
@@ -550,7 +630,10 @@ wsrep_run_wsrep_commit(THD *thd, bool all)
       set to NO_CONFLICT and commit proceeds as usual.
     */
     if (thd->wsrep_conflict_state == MUST_ABORT)
+    {
+        thd->killed = NOT_KILLED;
         thd->wsrep_conflict_state= NO_CONFLICT;
+    }
 
     if (thd->wsrep_conflict_state != NO_CONFLICT)
     {
@@ -561,7 +644,7 @@ wsrep_run_wsrep_commit(THD *thd, bool all)
     }
     thd->wsrep_exec_mode= LOCAL_COMMIT;
     DBUG_ASSERT(thd->wsrep_trx_meta.gtid.seqno != WSREP_SEQNO_UNDEFINED);
-    /* Override XID iff it was generated by mysql */
+    /* Override XID if it was generated by mysql */
     if (thd->transaction.xid_state.xid.get_my_xid())
     {
       wsrep_xid_init(&thd->transaction.xid_state.xid,
@@ -615,13 +698,424 @@ wsrep_run_wsrep_commit(THD *thd, bool all)
   DBUG_RETURN(WSREP_TRX_OK);
 }
 
+enum wsrep_trx_status wsrep_replicate(THD *thd)
+{
+  int rcode= -1;
+  size_t data_len= 0;
+  IO_CACHE *cache;
+  int replay_round= 0;
+  DBUG_ENTER("wsrep_replicate");
+
+  if (thd->get_stmt_da()->is_error()) {
+    WSREP_DEBUG("commit issue, error: %d %s",
+                thd->get_stmt_da()->sql_errno(), thd->get_stmt_da()->message());
+  }
+
+  DEBUG_SYNC(thd, "wsrep_before_replication");
+
+  if (thd->slave_thread && !opt_log_slave_updates) DBUG_RETURN(WSREP_TRX_OK);
+
+  if (thd->wsrep_exec_mode == REPL_RECV) {
+
+    mysql_mutex_lock(&thd->LOCK_thd_data);
+    if (thd->wsrep_conflict_state == MUST_ABORT) {
+      if (wsrep_debug)
+        WSREP_INFO("WSREP: must abort for BF");
+      DBUG_PRINT("wsrep", ("BF apply commit fail"));
+      thd->wsrep_conflict_state = NO_CONFLICT;
+      mysql_mutex_unlock(&thd->LOCK_thd_data);
+      //
+      // TODO: test all calls of the rollback.
+      // rollback must happen automagically innobase_rollback(hton, thd, 1);
+      //
+      DBUG_RETURN(WSREP_TRX_ERROR);
+    }
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
+  }
+
+  if (thd->wsrep_exec_mode != LOCAL_STATE) DBUG_RETURN(WSREP_TRX_OK);
+
+  if (thd->wsrep_consistency_check == CONSISTENCY_CHECK_RUNNING) {
+    WSREP_DEBUG("commit for consistency check: %s", thd->query());
+    DBUG_RETURN(WSREP_TRX_OK);
+  }
+
+  DBUG_PRINT("wsrep", ("replicating commit"));
+
+  mysql_mutex_lock(&thd->LOCK_thd_data);
+  if (thd->wsrep_conflict_state == MUST_ABORT) {
+    DBUG_PRINT("wsrep", ("replicate commit fail"));
+    thd->wsrep_conflict_state = ABORTED;
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
+    if (wsrep_debug) {
+      WSREP_INFO("innobase_commit, abort %s",
+                 (thd->query()) ? thd->query() : "void");
+    }
+    DBUG_RETURN(WSREP_TRX_CERT_FAIL);
+  }
+
+  mysql_mutex_lock(&LOCK_wsrep_replaying);
+
+  DBUG_PRINT("info", ("wsrep_replaying: %d  wsrep_conflict_state: %d  killed: %d  shutdown_in_progress: %d",
+                      (int) wsrep_replaying, (int) thd->wsrep_conflict_state,
+                      (int) thd->killed,
+                      (int) shutdown_in_progress));
+
+  while (wsrep_replaying > 0                       &&
+         thd->wsrep_conflict_state == NO_CONFLICT  &&
+         thd->killed == NOT_KILLED            &&
+         !shutdown_in_progress)
+  {
+
+    mysql_mutex_unlock(&LOCK_wsrep_replaying);
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
+
+    mysql_mutex_lock(&thd->mysys_var->mutex);
+    thd_proc_info(thd, "WSREP waiting on replaying");
+    thd->mysys_var->current_mutex= &LOCK_wsrep_replaying;
+    thd->mysys_var->current_cond=  &COND_wsrep_replaying;
+    mysql_mutex_unlock(&thd->mysys_var->mutex);
+
+    mysql_mutex_lock(&LOCK_wsrep_replaying);
+    // Using timedwait is a hack to avoid deadlock in case if BF victim
+    // misses the signal.
+    struct timespec wtime = {0, 1000000};
+    mysql_cond_timedwait(&COND_wsrep_replaying, &LOCK_wsrep_replaying,
+			 &wtime);
+
+    if (replay_round++ % 100000 == 0)
+      WSREP_DEBUG("commit waiting for replaying: replayers %d, thd: %lld "
+                  "conflict: %d (round: %d)",
+		  wsrep_replaying, (longlong) thd->thread_id,
+                  thd->wsrep_conflict_state, replay_round);
+
+    mysql_mutex_unlock(&LOCK_wsrep_replaying);
+
+    mysql_mutex_lock(&thd->mysys_var->mutex);
+    thd->mysys_var->current_mutex= 0;
+    thd->mysys_var->current_cond=  0;
+    mysql_mutex_unlock(&thd->mysys_var->mutex);
+
+    mysql_mutex_lock(&thd->LOCK_thd_data);
+    mysql_mutex_lock(&LOCK_wsrep_replaying);
+  }
+  mysql_mutex_unlock(&LOCK_wsrep_replaying);
+
+  if (thd->wsrep_conflict_state == MUST_ABORT) {
+    DBUG_PRINT("wsrep", ("replicate commit fail"));
+    thd->wsrep_conflict_state = ABORTED;
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
+    WSREP_DEBUG("innobase_commit abort after replaying wait %s",
+                (thd->query()) ? thd->query() : "void");
+    DBUG_RETURN(WSREP_TRX_CERT_FAIL);
+  }
+
+  thd->wsrep_query_state = QUERY_COMMITTING;
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
+
+  cache = get_trans_log(thd);
+  rcode = 0;
+  if (cache) {
+    thd->binlog_flush_pending_rows_event(true);
+    rcode = wsrep_write_cache(wsrep, thd, cache, &data_len);
+    if (WSREP_OK != rcode) {
+      WSREP_ERROR("rbr write fail, data_len: %zu, %d", data_len, rcode);
+      DBUG_RETURN(WSREP_TRX_SIZE_EXCEEDED);
+    }
+  }
+
+  DBUG_PRINT("info", ("rcode: %d  wsrep_conflict_state: %d",
+                      rcode, thd->wsrep_conflict_state));
+
+  if (data_len == 0)
+  {
+    if (thd->get_stmt_da()->is_ok()              &&
+        thd->get_stmt_da()->affected_rows() > 0  &&
+        !binlog_filter->is_on())
+    {
+      WSREP_DEBUG("empty rbr buffer, query: %s, "
+                 "affected rows: %llu, "
+                 "changed tables: %d, "
+                 "sql_log_bin: %d, "
+                 "wsrep status (%d %d %d)",
+                 thd->query(), thd->get_stmt_da()->affected_rows(),
+                 stmt_has_updated_trans_table(thd), thd->variables.sql_log_bin,
+                 thd->wsrep_exec_mode, thd->wsrep_query_state,
+                 thd->wsrep_conflict_state);
+    }
+    else
+    {
+      WSREP_DEBUG("empty rbr buffer, query: %s", thd->query());
+    }
+    thd->wsrep_query_state= QUERY_EXEC;
+    DBUG_RETURN(WSREP_TRX_OK);
+  }
+
+  if (WSREP_UNDEFINED_TRX_ID == thd->wsrep_ws_handle.trx_id &&
+      !thd->wsrep_replicate_GTID)
+  {
+    WSREP_WARN("SQL statement was ineffective  thd: %lld  buf: %zu\n"
+               "schema: %s \n"
+	       "QUERY: %s\n"
+	       " => Skipping replication",
+	       (longlong) thd->thread_id, data_len,
+               thd->get_db(), thd->query());
+    rcode = WSREP_TRX_FAIL;
+  }
+  else if (!rcode)
+  {
+    if (WSREP_OK == rcode && wsrep)
+      rcode = wsrep->replicate(wsrep,
+                                (wsrep_conn_id_t)thd->thread_id,
+                                &thd->wsrep_ws_handle,
+                                WSREP_FLAG_COMMIT |
+                                ((thd->wsrep_PA_safe) ?
+                                 0ULL : WSREP_FLAG_PA_UNSAFE),
+                                &thd->wsrep_trx_meta);
+
+    DBUG_PRINT("info", ("rcode after pre_commit: %d", rcode));
+
+    if (rcode == WSREP_TRX_MISSING) {
+      WSREP_WARN("Transaction missing in provider, thd: %lld  schema: %s  SQL: %s",
+                 (longlong) thd->thread_id,
+                 thd->get_db(), thd->query());
+      rcode = WSREP_TRX_FAIL;
+    } else if (rcode == WSREP_BF_ABORT) {
+      WSREP_DEBUG("thd: %lld  seqno: %lld  BF aborted by provider, will replay",
+                  (longlong) thd->thread_id,
+                  (longlong) thd->wsrep_trx_meta.gtid.seqno);
+      mysql_mutex_lock(&thd->LOCK_thd_data);
+      thd->wsrep_conflict_state = MUST_REPLAY;
+      DBUG_ASSERT(wsrep_thd_trx_seqno(thd) > 0);
+      mysql_mutex_unlock(&thd->LOCK_thd_data);
+      mysql_mutex_lock(&LOCK_wsrep_replaying);
+      wsrep_replaying++;
+      WSREP_DEBUG("replaying increased: %d, thd: %lld",
+                  wsrep_replaying, (longlong) thd->thread_id);
+      mysql_mutex_unlock(&LOCK_wsrep_replaying);
+    }
+  } else {
+    WSREP_ERROR("I/O error reading from thd's binlog iocache: "
+                "errno=%d, io cache code=%d", my_errno, cache->error);
+    DBUG_ASSERT(0); // failure like this can not normally happen
+    DBUG_RETURN(WSREP_TRX_ERROR);
+  }
+
+  mysql_mutex_lock(&thd->LOCK_thd_data);
+
+  DEBUG_SYNC(thd, "wsrep_after_replication");
+
+  DBUG_PRINT("info", ("rcode: %d  wsrep_conflict_state: %d",
+                      rcode, thd->wsrep_conflict_state));
+
+  switch(rcode) {
+  case 0:
+    /*
+      About MUST_ABORT: We assume that even if thd conflict state was set
+      to MUST_ABORT, underlying transaction was not rolled back or marked
+      as deadlock victim in QUERY_COMMITTING state. Conflict state is
+      set to NO_CONFLICT and commit proceeds as usual.
+    */
+    if (thd->wsrep_conflict_state == MUST_ABORT)
+    {
+        thd->killed = NOT_KILLED;
+        thd->wsrep_conflict_state= NO_CONFLICT;
+    }
+
+    if (thd->wsrep_conflict_state != NO_CONFLICT)
+    {
+      WSREP_WARN("thd: %llu  seqno: %lld  conflict state %d after post commit",
+                 (longlong) thd->thread_id,
+                 (longlong) thd->wsrep_trx_meta.gtid.seqno,
+                 thd->wsrep_conflict_state);
+    }
+
+    /* We avoid updating the wsrep_exec_mode to LOCAL_COMMIT till we are done
+    with pre-commit hook. */
+
+    DBUG_ASSERT(thd->wsrep_trx_meta.gtid.seqno != WSREP_SEQNO_UNDEFINED);
+    /* Override XID if it was generated by mysql */
+    if (thd->transaction.xid_state.xid.get_my_xid())
+    {
+      wsrep_xid_init(&thd->transaction.xid_state.xid,
+                     thd->wsrep_trx_meta.gtid.uuid,
+                     thd->wsrep_trx_meta.gtid.seqno);
+    }
+    DBUG_PRINT("wsrep", ("replicating commit success"));
+    break;
+  case WSREP_BF_ABORT:
+    DBUG_ASSERT(thd->wsrep_trx_meta.gtid.seqno != WSREP_SEQNO_UNDEFINED);
+    /* fall through */
+  case WSREP_TRX_FAIL:
+    WSREP_DEBUG("commit failed for reason: %d", rcode);
+    DBUG_PRINT("wsrep", ("replicating commit fail"));
+
+    thd->wsrep_query_state= QUERY_EXEC;
+
+    if (thd->wsrep_conflict_state == MUST_ABORT) {
+      thd->wsrep_conflict_state= ABORTED;
+    }
+    else
+    {
+      WSREP_DEBUG("conflict state: %d", thd->wsrep_conflict_state);
+      if (thd->wsrep_conflict_state == NO_CONFLICT)
+      {
+        thd->wsrep_conflict_state = CERT_FAILURE;
+        WSREP_LOG_CONFLICT(NULL, thd, FALSE);
+      }
+    }
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
+
+    DBUG_RETURN(WSREP_TRX_CERT_FAIL);
+
+  case WSREP_SIZE_EXCEEDED:
+    WSREP_ERROR("transaction size exceeded");
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
+    DBUG_RETURN(WSREP_TRX_SIZE_EXCEEDED);
+  case WSREP_CONN_FAIL:
+    WSREP_ERROR("connection failure");
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
+    DBUG_RETURN(WSREP_TRX_ERROR);
+  default:
+    WSREP_ERROR("unknown connection failure");
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
+    DBUG_RETURN(WSREP_TRX_ERROR);
+  }
+
+  /* We avoid updating wsrep_query_state state to QUERY_EXEC
+  that should be done as part of pre_commit_hook. */
+
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
+
+  DBUG_RETURN(WSREP_TRX_OK);
+}
+
+enum wsrep_trx_status wsrep_pre_commit(THD *thd)
+{
+  int rcode= -1;
+
+  DBUG_ENTER("wsrep_pre_commit");
+
+  DBUG_ASSERT(thd->wsrep_query_state == QUERY_COMMITTING);
+
+  rcode = wsrep->pre_commit(wsrep,
+                            (wsrep_conn_id_t)thd->thread_id,
+                            &thd->wsrep_ws_handle,
+                            WSREP_FLAG_COMMIT |
+                            ((thd->wsrep_PA_safe) ?
+                             0ULL : WSREP_FLAG_PA_UNSAFE),
+                            &thd->wsrep_trx_meta);
+
+  DBUG_PRINT("info", ("rcode after pre_commit: %d", rcode));
+
+  if (rcode == WSREP_TRX_MISSING) {
+    WSREP_WARN("Transaction missing in provider, thd: %lld  schema: %s  SQL: %s",
+               (longlong) thd->thread_id,
+               thd->get_db(), thd->query());
+    rcode = WSREP_TRX_FAIL;
+  } else if (rcode == WSREP_BF_ABORT) {
+    WSREP_DEBUG("thd: %lld  seqno: %lld  BF aborted by provider, will replay",
+                (longlong) thd->thread_id,
+                (longlong) thd->wsrep_trx_meta.gtid.seqno);
+    mysql_mutex_lock(&thd->LOCK_thd_data);
+    thd->wsrep_conflict_state = MUST_REPLAY;
+    DBUG_ASSERT(wsrep_thd_trx_seqno(thd) > 0);
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
+    mysql_mutex_lock(&LOCK_wsrep_replaying);
+    wsrep_replaying++;
+    WSREP_DEBUG("replaying increased: %d, thd: %lld",
+                wsrep_replaying, (longlong) thd->thread_id);
+    mysql_mutex_unlock(&LOCK_wsrep_replaying);
+  }
+
+  DEBUG_SYNC(thd, "wsrep_after_replication");
+
+  mysql_mutex_lock(&thd->LOCK_thd_data);
+
+  DBUG_PRINT("info", ("rcode: %d  wsrep_conflict_state: %d",
+                      rcode, thd->wsrep_conflict_state));
+
+  switch(rcode) {
+  case 0:
+    /*
+      About MUST_ABORT: We assume that even if thd conflict state was set
+      to MUST_ABORT, underlying transaction was not rolled back or marked
+      as deadlock victim in QUERY_COMMITTING state. Conflict state is
+      set to NO_CONFLICT and commit proceeds as usual.
+    */
+    if (thd->wsrep_conflict_state == MUST_ABORT)
+    {
+        thd->killed = NOT_KILLED;
+        thd->wsrep_conflict_state= NO_CONFLICT;
+    }
+
+    if (thd->wsrep_conflict_state != NO_CONFLICT)
+    {
+      WSREP_WARN("thd: %llu  seqno: %lld  conflict state %d after pre-commit",
+                 (longlong) thd->thread_id,
+                 (longlong) thd->wsrep_trx_meta.gtid.seqno,
+                 thd->wsrep_conflict_state);
+    }
+    thd->wsrep_exec_mode= LOCAL_COMMIT;
+    DBUG_PRINT("wsrep", ("pre-commit success"));
+  break;
+  case WSREP_BF_ABORT:
+    {
+      wsrep_trx_meta_t meta;
+      meta.gtid= WSREP_GTID_UNDEFINED;
+      wsrep_xid_init(&thd->transaction.xid_state.xid,
+                     meta.gtid.uuid, meta.gtid.seqno);
+    }
+    /* fall through */
+  case WSREP_PRECOMMIT_ABORT:
+  case WSREP_TRX_FAIL:
+    WSREP_DEBUG("pre-commit action failed for reason: %d", rcode);
+    DBUG_PRINT("wsrep", ("pre-commit fail"));
+
+    thd->wsrep_query_state= QUERY_EXEC;
+
+    if (thd->wsrep_conflict_state == MUST_ABORT) {
+      thd->wsrep_conflict_state= ABORTED;
+    }
+    else
+    {
+      WSREP_DEBUG("conflict state: %d", thd->wsrep_conflict_state);
+      if (thd->wsrep_conflict_state == NO_CONFLICT)
+      {
+        thd->wsrep_conflict_state = CERT_FAILURE;
+        WSREP_LOG_CONFLICT(NULL, thd, FALSE);
+      }
+    }
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
+
+    DBUG_RETURN(WSREP_TRX_CERT_FAIL);
+
+  case WSREP_SIZE_EXCEEDED:
+    WSREP_ERROR("transaction size exceeded");
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
+    DBUG_RETURN(WSREP_TRX_SIZE_EXCEEDED);
+  case WSREP_CONN_FAIL:
+    WSREP_ERROR("connection failure");
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
+    DBUG_RETURN(WSREP_TRX_ERROR);
+  default:
+    WSREP_ERROR("unknown connection failure");
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
+    DBUG_RETURN(WSREP_TRX_ERROR);
+  }
+
+  thd->wsrep_query_state= QUERY_EXEC;
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
+
+  DBUG_RETURN(WSREP_TRX_OK);
+}
 
 static int wsrep_hton_init(void *p)
 {
   wsrep_hton= (handlerton *)p;
   //wsrep_hton->state=opt_bin_log ? SHOW_OPTION_YES : SHOW_OPTION_NO;
   wsrep_hton->state= SHOW_OPTION_YES;
-  wsrep_hton->db_type=(legacy_db_type)0;
+  wsrep_hton->db_type=DB_TYPE_WSREP;
   wsrep_hton->savepoint_offset= sizeof(my_off_t);
   wsrep_hton->close_connection= wsrep_close_connection;
   wsrep_hton->savepoint_set= wsrep_savepoint_set;
@@ -630,6 +1124,7 @@ static int wsrep_hton_init(void *p)
   wsrep_hton->rollback= wsrep_rollback;
   wsrep_hton->prepare= wsrep_prepare;
   wsrep_hton->flags= HTON_NOT_USER_SELECTABLE | HTON_HIDDEN; // todo: fix flags
+  wsrep_hton->slot= HA_SLOT_UNDEF;
   return 0;
 }
 

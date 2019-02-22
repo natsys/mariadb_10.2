@@ -1072,6 +1072,12 @@ public:
 
 #ifdef WITH_WSREP
 	os_event_t	wsrep_event;	/* event waited for in srv_conc_slot */
+	/* During recovery, prepare state transaction may be committed
+	or rollback. If a transaction is committed then xid of such
+	transaction should be persisted to sys_header under wsrep-xid
+	section to record successful commit-recovery of the said
+	transaction. */
+	XID*		wsrep_recover_xid;
 #endif /* WITH_WSREP */
 
 	rw_trx_hash_element_t *rw_trx_hash_element;

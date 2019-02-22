@@ -52,7 +52,7 @@ Remove the undo log segment from the rseg slot if it is too big for reuse.
 @param[in,out]	undo		undo log
 @param[in,out]	mtr		mini-transaction */
 void
-trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr);
+trx_purge_add_undo_to_history(trx_t* trx, trx_undo_t*& undo, mtr_t* mtr);
 /*******************************************************************//**
 This function runs a purge batch.
 @return number of undo log pages handled in the batch */

@@ -414,6 +414,28 @@ process::wait ()
   return err_;
 }
 
+void process::terminate ()
+{
+  if (pid_)
+  {
+    /*
+      If we have an appropriated system call, then we try
+      to terminate entire process group:
+    */
+/*
+#if _XOPEN_SOURCE >= 500 || _DEFAULT_SOURCE || _BSD_SOURCE
+    if (killpg(pid_, SIGTERM))
+#else
+    if (kill(pid_, SIGTERM))
+#endif
+*/
+    {
+      WSREP_WARN("Unable to terminate process: %s: %d (%s)",
+                 str_, errno, strerror(errno));
+    }
+  }
+}
+
 thd::thd (my_bool won) : init(), ptr(new THD(0))
 {
   if (ptr)

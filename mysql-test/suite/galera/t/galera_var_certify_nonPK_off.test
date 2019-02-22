@@ -39,5 +39,9 @@ DROP TABLE t2;
 
 --connection node_1
 call mtr.add_suppression("SQL statement was ineffective");
+CALL mtr.add_suppression("WSREP: Table without explict primary key \\(not-recommended\\)");
+
+--connection node_2
+CALL mtr.add_suppression("WSREP: Table without explict primary key \\(not-recommended\\)");
 
 --source include/galera_end.inc

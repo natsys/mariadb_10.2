@@ -137,6 +137,16 @@ static wsrep_cb_status_t wsrep_apply_events(THD*        thd,
         delete ev;
         continue;
       }
+      /*
+         gtid_pre_statement_checks will fail on the subsequent statement
+         if the bits below are set. So we don't mark the thd to run in
+         transaction mode yet, and assume there will be such a "BEGIN"
+         log event that will set those appropriately.
+      */
+      thd->variables.option_bits&= ~OPTION_BEGIN;
+      thd->server_status&= ~SERVER_STATUS_IN_TRANS;
+      assert(event == 1);
+      break;
     }
 #endif /* GTID_SUPPORT */
     default:
@@ -186,6 +196,8 @@ static wsrep_cb_status_t wsrep_apply_events(THD*        thd,
     if (thd->wsrep_conflict_state == MUST_ABORT) {
       WSREP_WARN("RBR event apply failed, rolling back: %lld",
                  (long long) wsrep_thd_trx_seqno(thd));
+      /* Check for comments in Relay_log_info::cleanup_context */
+      trans_rollback_stmt(thd);
       trans_rollback(thd);
       thd->locked_tables_list.unlock_locked_tables(thd);
       /* Release transactional metadata locks. */
@@ -349,16 +361,30 @@ static wsrep_cb_status_t wsrep_rollback(THD* const thd)
   thd_proc_info(thd, "Rolled back");
 #endif /* WSREP_PROC_INFO */
 
+  thd->wsrep_rgi->cleanup_context(thd, false);
+#ifdef GTID_SUPPORT
+  thd->variables.gtid_next.set_automatic();
+#endif /* GTID_SUPPORT */
+
   return rcode;
 }
 
 wsrep_cb_status_t wsrep_commit_cb(void*         const     ctx,
+                                  const void*             trx_handle,
                                   uint32_t      const     flags,
                                   const wsrep_trx_meta_t* meta,
                                   wsrep_bool_t* const     exit,
                                   bool          const     commit)
 {
   THD* const thd((THD*)ctx);
+
+  /* Applier transaction delays entering CommitMonitor so
+  cache the needed params that can aid entering CommitMonitor
+  post prepare stage.
+  Replay of local transaction uses the same path as applying of
+  transaction but CommitMonitor protocol is different for it. */
+  if (trx_handle && thd->wsrep_conflict_state != REPLAYING)
+    thd->wsrep_ws_handle.opaque= const_cast<void*>(trx_handle);
 
   assert(meta->gtid.seqno == wsrep_thd_trx_seqno(thd));
 
@@ -372,8 +398,25 @@ wsrep_cb_status_t wsrep_commit_cb(void*         const     ctx,
   /* Cleanup */
   wsrep_set_apply_format(thd, NULL);
   thd->mdl_context.release_transactional_locks();
+
+  if (thd->wsrep_applier)
+  {
+    /* This function is meant to initiate a commit after write-set has been
+    applied. This generally will be done by applier thread to replicate
+    action that some other node has executed.
+    There is an exception here: A local action may also follow this route
+    of applying write-set followed by commit if local transaction is forced
+    to rollback. Galera replay_transaction flow will try to use write-set
+    in that case instead of re-running the complete transaction.
+    In latter case it is not adviable to free the mem_root as follow-up
+    action associated with user thread will need it and so this action
+    is executed only when wsrep_applier = true which suggest true applier
+    (Note: this flags is set to false for user thread even though it is using
+     write-set to complete the action) */
+    free_root(thd->mem_root,MYF(MY_KEEP_PREALLOC));
+  }
+
   thd->reset_query();                           /* Mutex protected */
-  free_root(thd->mem_root,MYF(MY_KEEP_PREALLOC));
   thd->tx_isolation= (enum_tx_isolation) thd->variables.tx_isolation;
 
   if (wsrep_slave_count_change < 0 && commit && WSREP_CB_SUCCESS == rcode)

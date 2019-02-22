@@ -51,22 +51,44 @@ void
 trx_rseg_update_wsrep_checkpoint(
 	trx_rsegf_t*	rseg_header,
 	const XID*	xid,
-	mtr_t*		mtr)
+	mtr_t*		mtr,
+	bool		recovery)
 {
 	ut_ad(wsrep_is_wsrep_xid(xid));
 
-#ifdef UNIV_DEBUG
 	/* Check that seqno is monotonically increasing */
 	long long xid_seqno = wsrep_xid_seqno(xid);
 	const byte* xid_uuid = wsrep_xid_uuid(xid);
 
-	if (!memcmp(xid_uuid, wsrep_uuid, sizeof wsrep_uuid)) {
-		ut_ad(xid_seqno > wsrep_seqno);
-	} else {
+	if (!memcmp(xid_uuid, wsrep_uuid, sizeof wsrep_uuid))
+	{
+		if (recovery)
+		{
+		    /* When recovery happens prepare transactions
+		    are revived based on undo-log entries in InnoDB.
+		    This order may not match with the commit order
+		    logged to binlog.
+		    Sequence matching is not needed for MySQL
+		    as standalone. Aim is to just ensure that all
+		    prepare stage transaction are marked as committed.
+		    But with the wsrep the commit order of recover transaction
+		    should be same as it would be if transaction are running
+		    normally or we need to ensure that only the latest seen
+		    xid is updated and persisted as wsrep recover position
+		    co-ordinates. */
+		    if (xid_seqno <= wsrep_seqno)
+			return;
+		}
+		else
+		{
+		    ut_ad(xid_seqno > wsrep_seqno);
+		}
+	}
+	else
+	{
 		memcpy(wsrep_uuid, xid_uuid, sizeof wsrep_uuid);
 	}
 	wsrep_seqno = xid_seqno;
-#endif /* UNIV_DEBUG */
 
 	mlog_write_ulint(TRX_RSEG_WSREP_XID_FORMAT + rseg_header,
 			 uint32_t(xid->formatID),

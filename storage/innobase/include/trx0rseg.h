@@ -269,12 +269,14 @@ trx_rsegf_get_nth_undo(const trx_rsegf_t* rsegf, ulint n)
 /** Update the WSREP XID information in rollback segment header.
 @param[in,out]	rseg_header	rollback segment header
 @param[in]	xid		WSREP XID
-@param[in,out]	mtr		mini-transaction */
+@param[in,out]	mtr		mini-transaction
+@param[in]	recovery	running recovery */
 void
 trx_rseg_update_wsrep_checkpoint(
 	trx_rsegf_t*	rseg_header,
 	const XID*	xid,
-	mtr_t*		mtr);
+	mtr_t*		mtr,
+	bool		recovery = false);
 
 /** Update WSREP checkpoint XID in first rollback segment header
 as part of wsrep_set_SE_checkpoint() when it is guaranteed that there

@@ -4681,6 +4681,7 @@ public:
   bool                      wsrep_PA_safe;
   bool                      wsrep_converted_lock_session;
   bool                      wsrep_apply_toi; /* applier processing in TOI */
+  bool                      wsrep_void_applier_trx;
   enum wsrep_exec_mode      wsrep_exec_mode;
   query_id_t                wsrep_last_query_id;
   enum wsrep_query_state    wsrep_query_state;

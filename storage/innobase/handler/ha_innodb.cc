@@ -1735,6 +1735,11 @@ innobase_srv_conc_exit_innodb(
 
 	trx_t*			trx = prebuilt->trx;
 
+#ifdef WITH_WSREP
+	if (wsrep_on(trx->mysql_thd) &&
+	    wsrep_thd_is_BF(trx->mysql_thd, FALSE)) return;
+#endif /* WITH_WSREP */
+
 	/* This is to avoid making an unnecessary function call. */
 	if (trx->declared_to_be_inside_innodb
 	    && trx->n_tickets_to_enter_innodb == 0) {
@@ -8153,15 +8158,32 @@ set_max_autoinc:
 				/* This should filter out the negative
 				values set explicitly by the user. */
 				if (auto_inc <= col_max_value) {
-					ut_a(m_prebuilt->autoinc_increment > 0);
-
 					ulonglong	offset;
 					ulonglong	increment;
 					dberr_t		err;
 
-					offset = m_prebuilt->autoinc_offset;
-					increment = m_prebuilt->autoinc_increment;
-
+#ifdef WITH_WSREP
+					/* Applier threads which are processing
+					ROW events and don't go through server
+					level autoinc processing, therefore
+					m_prebuilt autoinc values don't get
+					properly assigned. Fetch values from
+					server side. */
+					if (wsrep_on(m_user_thd) &&
+					    wsrep_thd_exec_mode(m_user_thd) == REPL_RECV)
+                                        {
+					    wsrep_thd_auto_increment_variables(
+						m_user_thd, &offset, &increment);
+					}
+					else
+					{
+#endif /* WITH_WSREP */
+					    ut_a(m_prebuilt->autoinc_increment > 0);
+					    offset = m_prebuilt->autoinc_offset;
+					    increment = m_prebuilt->autoinc_increment;
+#ifdef WITH_WSREP
+					}
+#endif /* WITH_WSREP */
 					auto_inc = innobase_next_autoinc(
 						auto_inc,
 						1, increment, offset,
@@ -8849,10 +8871,32 @@ ha_innobase::update_row(
 		/* A value for an AUTO_INCREMENT column
 		was specified in the UPDATE statement. */
 
+		ulonglong	offset;
+		ulonglong	increment;
+#ifdef WITH_WSREP
+		/* Applier threads which are processing
+		ROW events and don't go through server
+		level autoinc processing, therefore
+		m_prebuilt autoinc values don't get
+		properly assigned. Fetch values from
+		server side. */
+		if (wsrep_on(m_user_thd) &&
+		    wsrep_thd_exec_mode(m_user_thd) == REPL_RECV)
+		{
+                    wsrep_thd_auto_increment_variables(
+			m_user_thd, &offset, &increment);
+		}
+		else
+		{
+#endif /* WITH_WSREP */
+		    offset = m_prebuilt->autoinc_offset;
+		    increment = m_prebuilt->autoinc_increment;
+#ifdef WITH_WSREP
+		}
+#endif /* WITH_WSREP */
+
 		autoinc = innobase_next_autoinc(
-			autoinc, 1,
-			m_prebuilt->autoinc_increment,
-			m_prebuilt->autoinc_offset,
+			autoinc, 1, increment, offset,
 			innobase_get_int_col_max_value(
 				table->found_next_number_field));
 
@@ -10499,7 +10543,8 @@ ha_innobase::wsrep_append_keys(
 					   key_info->name.str);
 			}
 			/* !hasPK == table with no PK, must append all non-unique keys */
-			if (!hasPK || key_info->flags & HA_NOSAME ||
+			if ((!hasPK && wsrep_certify_nonPK) ||
+				key_info->flags & HA_NOSAME ||
 			    ((tab &&
 			      referenced_by_foreign_key2(tab, idx)) ||
 			     (!tab && referenced_by_foreign_key()))) {
@@ -10564,6 +10609,20 @@ ha_innobase::wsrep_append_keys(
 			}
 		}
 		DBUG_RETURN(0);
+	}
+
+	/* If certification of table with non-PK is blocked by setting
+	relevant configuration option wsrep_certify_nonPK = OFF/0 then
+	ensure that thd->wsrep_ws_handle->trx_id = WSREP_UNDEFINED_TRX_ID.
+	If not then make sure you set it to WSREP_UNDEFINED_TRX_ID.
+	But what may cause trx_id to set if append-key is blocked ?
+	CREATE TABLE ... SELECT statement will cause a fake_trx_id to set
+	while processing SELECT statement. */
+	if (!key_appended && !wsrep_certify_nonPK) {
+		WSREP_WARN("Table without explict primary key (not-recommended)"
+			   " and certification of nonPK table is OFF too");
+		wsrep_ws_handle_for_trx(
+			wsrep_thd_ws_handle(thd), WSREP_UNDEFINED_TRX_ID);
 	}
 
 	DBUG_RETURN(0);
@@ -16560,10 +16619,9 @@ ha_innobase::get_auto_increment(
 			if (!wsrep_on(m_user_thd)) {
 				current = autoinc
 					- m_prebuilt->autoinc_increment;
+				current = innobase_next_autoinc(
+					current, 1, increment, offset, col_max_value);
 			}
-
-			current = innobase_next_autoinc(
-				current, 1, increment, offset, col_max_value);
 
 			dict_table_autoinc_initialize(
 				m_prebuilt->table, current);
@@ -16962,6 +17020,9 @@ innobase_commit_by_xid(
 	}
 
 	if (trx_t* trx = trx_get_trx_by_xid(xid)) {
+#ifdef WITH_WSREP
+		trx->wsrep_recover_xid = xid;
+#endif /* WITH_WSREP */
 		/* use cases are: disconnected xa, slave xa, recovery */
 		innobase_commit_low(trx);
 		ut_ad(trx->mysql_thd == NULL);

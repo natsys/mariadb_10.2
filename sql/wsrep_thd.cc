@@ -57,6 +57,10 @@ void wsrep_client_rollback(THD *thd)
 
   thd->wsrep_conflict_state= ABORTING;
   mysql_mutex_unlock(&thd->LOCK_thd_data);
+
+  /* Check for comments in Relay_log_info::cleanup_context */
+  trans_rollback_stmt(thd);
+
   trans_rollback(thd);
 
   if (thd->locked_tables_mode && thd->lock)
@@ -269,7 +273,7 @@ void wsrep_replay_transaction(THD *thd)
                                     (void *)thd);
 
       wsrep_return_from_bf_mode(thd, &shadow);
-      if (thd->wsrep_conflict_state!= REPLAYING)
+      if (thd->wsrep_conflict_state != REPLAYING)
         WSREP_WARN("lost replaying mode: %d", thd->wsrep_conflict_state );
 
       mysql_mutex_lock(&thd->LOCK_thd_data);
@@ -278,6 +282,7 @@ void wsrep_replay_transaction(THD *thd)
       {
       case WSREP_OK:
         thd->wsrep_conflict_state= NO_CONFLICT;
+        thd->killed= NOT_KILLED;
         wsrep->post_commit(wsrep, &thd->wsrep_ws_handle);
         WSREP_DEBUG("trx_replay successful for: %lld %lld",
                     (longlong) thd->thread_id, (longlong) thd->real_id);
@@ -496,7 +501,7 @@ static void wsrep_rollback_process(THD *thd)
       mysql_mutex_unlock(&LOCK_wsrep_rollback);
 
       mysql_mutex_lock(&aborting->LOCK_thd_data);
-      if (aborting->wsrep_conflict_state== ABORTED)
+      if (aborting->wsrep_conflict_state == ABORTED)
       {
         WSREP_DEBUG("WSREP, thd already aborted: %llu state: %d",
                     (long long)aborting->real_id,
@@ -675,4 +680,37 @@ bool wsrep_thd_has_explicit_locks(THD *thd)
 {
   assert(thd);
   return thd->mdl_context.has_explicit_locks();
+}
+
+/*
+  Get auto increment variables for THD. Use global settings for
+  applier threads.
+ */
+void wsrep_thd_auto_increment_variables(THD* thd,
+                                        unsigned long long* offset,
+                                        unsigned long long* increment)
+{
+  if (thd->wsrep_exec_mode == REPL_RECV &&
+      thd->wsrep_conflict_state != REPLAYING)
+  {
+    *offset= global_system_variables.auto_increment_offset;
+    *increment= global_system_variables.auto_increment_increment;
+  }
+  else
+  {
+    *offset= thd->variables.auto_increment_offset;
+    *increment= thd->variables.auto_increment_increment;
+  }
+}
+
+bool wsrep_safe_to_persist_xid(THD* thd)
+{
+  /* Rollback of transaction too also invoke persist of XID.
+  Avoid persisting XID in this use-case. */
+  bool safe_to_persist_xid= false;
+  if (thd->wsrep_conflict_state == NO_CONFLICT      ||
+      thd->wsrep_conflict_state == REPLAYING        ||
+      thd->wsrep_conflict_state == RETRY_AUTOCOMMIT)
+    safe_to_persist_xid= true;
+  return(safe_to_persist_xid);
 }

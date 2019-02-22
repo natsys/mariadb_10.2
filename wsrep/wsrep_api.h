@@ -48,6 +48,7 @@
 #define WSREP_H
 
 #include <stdint.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <time.h>
@@ -62,7 +63,7 @@ extern "C" {
  *                                                                        *
  **************************************************************************/
 
-#define WSREP_INTERFACE_VERSION "25"
+#define WSREP_INTERFACE_VERSION "31"
 
 /*! Empty backend spec */
 #define WSREP_NONE "none"
@@ -158,6 +159,7 @@ typedef enum wsrep_status
     WSREP_CONN_FAIL,       //!< error in client connection, must abort
     WSREP_NODE_FAIL,       //!< error in node state, wsrep must reinit
     WSREP_FATAL,           //!< fatal error, server must abort
+    WSREP_PRECOMMIT_ABORT, //!< transaction was aborted before commencing pre-commit
     WSREP_NOT_IMPLEMENTED  //!< feature not implemented
 } wsrep_status_t;
 
@@ -386,6 +388,7 @@ typedef enum wsrep_cb_status (*wsrep_apply_cb_t) (
  */
 typedef enum wsrep_cb_status (*wsrep_commit_cb_t) (
     void*                   recv_ctx,
+    const void*             trx_handle,
     uint32_t                flags,
     const wsrep_trx_meta_t* meta,
     wsrep_bool_t*           exit,
@@ -451,6 +454,138 @@ typedef enum wsrep_cb_status (*wsrep_sst_donate_cb_t) (
  */
 typedef void (*wsrep_synced_cb_t) (void* app_ctx);
 
+/*!
+ * @brief different instruments that we want to monitor through PFS.
+ */
+typedef enum wsrep_pfs_instr_type
+{
+    WSREP_PFS_INSTR_TYPE_UNKNOWN,
+    WSREP_PFS_INSTR_TYPE_MUTEX,
+    WSREP_PFS_INSTR_TYPE_CONDVAR,
+    WSREP_PFS_INSTR_TYPE_THREAD,
+    WSREP_PFS_INSTR_TYPE_FILE
+} wsrep_pfs_instr_type_t;
+
+/*!
+ * @brief type of operation on instruments to monitor.
+ */
+typedef enum wsrep_pfs_instr_ops
+{
+    WSREP_PFS_INSTR_OPS_UNKNOWN,
+    WSREP_PFS_INSTR_OPS_INIT,
+    WSREP_PFS_INSTR_OPS_DESTROY,
+    WSREP_PFS_INSTR_OPS_LOCK,
+    WSREP_PFS_INSTR_OPS_UNLOCK,
+    WSREP_PFS_INSTR_OPS_WAIT,
+    WSREP_PFS_INSTR_OPS_TIMEDWAIT,
+    WSREP_PFS_INSTR_OPS_SIGNAL,
+    WSREP_PFS_INSTR_OPS_BROADCAST,
+    WSREP_PFS_INSTR_OPS_CREATE,
+    WSREP_PFS_INSTR_OPS_OPEN,
+    WSREP_PFS_INSTR_OPS_CLOSE,
+    WSREP_PFS_INSTR_OPS_DELETE
+} wsrep_pfs_instr_ops_t;
+
+/*!
+ * @brief name/tag of different instruments.
+ */
+typedef enum wsrep_pfs_instr_tag
+{
+    /* Mutex tag */
+    WSREP_PFS_INSTR_TAG_CERT_MUTEX = 0,
+    WSREP_PFS_INSTR_TAG_STATS_MUTEX,
+    WSREP_PFS_INSTR_TAG_DUMMY_GCS_MUTEX,
+    WSREP_PFS_INSTR_TAG_SERVICE_THD_MUTEX,
+    WSREP_PFS_INSTR_TAG_IST_RECEIVER_MUTEX,
+    WSREP_PFS_INSTR_TAG_LOCAL_MONITOR_MUTEX,
+    WSREP_PFS_INSTR_TAG_APPLY_MONITOR_MUTEX,
+    WSREP_PFS_INSTR_TAG_COMMIT_MONITOR_MUTEX,
+    WSREP_PFS_INSTR_TAG_ASYNC_SENDER_MONITOR_MUTEX,
+    WSREP_PFS_INSTR_TAG_IST_RECEIVER_MONITOR_MUTEX,
+    WSREP_PFS_INSTR_TAG_SST_MUTEX,
+    WSREP_PFS_INSTR_TAG_INCOMING_MUTEX,
+    WSREP_PFS_INSTR_TAG_SAVED_STATE_MUTEX,
+    WSREP_PFS_INSTR_TAG_TRX_HANDLE_MUTEX,
+    WSREP_PFS_INSTR_TAG_WSDB_TRX_MUTEX,
+    WSREP_PFS_INSTR_TAG_WSDB_CONN_MUTEX,
+    WSREP_PFS_INSTR_TAG_PROFILE_MUTEX,
+    WSREP_PFS_INSTR_TAG_GCACHE_MUTEX,
+    WSREP_PFS_INSTR_TAG_PROTSTACK_MUTEX,
+    WSREP_PFS_INSTR_TAG_PRODCONS_MUTEX,
+    WSREP_PFS_INSTR_TAG_GCOMMCONN_MUTEX,
+    WSREP_PFS_INSTR_TAG_RECVBUF_MUTEX,
+    WSREP_PFS_INSTR_TAG_MEMPOOL_MUTEX,
+
+    /* CondVar tag */
+    WSREP_PFS_INSTR_TAG_DUMMY_GCS_CONDVAR,
+    WSREP_PFS_INSTR_TAG_SERVICE_THD_CONDVAR,
+    WSREP_PFS_INSTR_TAG_SERVICE_THD_FLUSH_CONDVAR,
+    WSREP_PFS_INSTR_TAG_IST_RECEIVER_CONDVAR,
+    WSREP_PFS_INSTR_TAG_IST_CONSUMER_CONDVAR,
+    WSREP_PFS_INSTR_TAG_LOCAL_MONITOR_CONDVAR,
+    WSREP_PFS_INSTR_TAG_APPLY_MONITOR_CONDVAR,
+    WSREP_PFS_INSTR_TAG_COMMIT_MONITOR_CONDVAR,
+    WSREP_PFS_INSTR_TAG_ASYNC_SENDER_MONITOR_CONDVAR,
+    WSREP_PFS_INSTR_TAG_IST_RECEIVER_MONITOR_CONDVAR,
+    WSREP_PFS_INSTR_TAG_SST_CONDVAR,
+    WSREP_PFS_INSTR_TAG_PRODCONS_CONDVAR,
+    WSREP_PFS_INSTR_TAG_GCACHE_CONDVAR,
+    WSREP_PFS_INSTR_TAG_RECVBUF_CONDVAR,
+
+    /* Thread tag */
+    WSREP_PFS_INSTR_TAG_SERVICE_THD_THREAD,
+    WSREP_PFS_INSTR_TAG_IST_RECEIVER_THREAD,
+    WSREP_PFS_INSTR_TAG_IST_ASYNC_SENDER_THREAD,
+    WSREP_PFS_INSTR_TAG_WRITESET_CHECKSUM_THREAD,
+    WSREP_PFS_INSTR_TAG_GCACHE_REMOVEFILE_THREAD,
+    WSREP_PFS_INSTR_TAG_RECEIVER_THREAD,
+    WSREP_PFS_INSTR_TAG_GCOMMCONN_THREAD,
+
+    /* File tag */
+    WSREP_PFS_INSTR_TAG_RECORDSET_FILE,
+    WSREP_PFS_INSTR_TAG_RINGBUFFER_FILE,
+    WSREP_PFS_INSTR_TAG_GCACHE_PAGE_FILE,
+    WSREP_PFS_INSTR_TAG_GRASTATE_FILE,
+    WSREP_PFS_INSTR_TAG_GVWSTATE_FILE
+
+} wsrep_pfs_instr_tag_t;
+
+/*!
+ * @brief a callback to create PFS instrumented mutex/condition variables
+ * threads/file-instances
+ *
+ *
+ * @param type          mutex/condition variable/thread/file-instance
+ * @param ops           add/init or remove/destory mutex/condition variable
+ * @param tag           tag/name of instrument to monitor
+ * @param value         created mutex/condition variable/file-descriptor.
+ * @param alliedvalue   allied value for supporting operation.
+                        for example: while waiting for cond-var corresponding
+                        mutex is passes through this variable.
+ * @param ts            if cond-var then time to wait
+                        if file then name of the file.
+ */
+typedef void (*wsrep_pfs_instr_cb_t) (
+    wsrep_pfs_instr_type_t        type,
+    wsrep_pfs_instr_ops_t         ops,
+    wsrep_pfs_instr_tag_t         tag,
+    void**                        value,
+    void**                        alliedvalue,
+    const void*                   ts);
+
+typedef wsrep_pfs_instr_cb_t gu_pfs_instr_cb_t;
+
+/*!
+ * @brief a callback to signal application that wsrep provider was
+ * terminated abnormally. In this case, the application can perform
+ * the critical steps to clean its state, for example, it can terminate
+ * the child processes associated with the SST.
+ *
+ * This callback is called after wsrep library was terminated
+ * abnormally using abort() call.
+ */
+typedef void (*wsrep_abort_cb_t) (void);
+
 
 /*!
  * Initialization parameters for wsrep provider.
@@ -484,6 +619,15 @@ struct wsrep_init_args
     /* State Snapshot Transfer callbacks */
     wsrep_sst_donate_cb_t sst_donate_cb;   //!< starting to donate
     wsrep_synced_cb_t     synced_cb;       //!< synced with group
+
+    /* Abnormal termination callback: */
+    wsrep_abort_cb_t      abort_cb;        //!< wsrep provider terminated
+                                           //!< abnormally
+
+   /* Instrument mutex/condition variables through MySQL Performance
+   Schema infrastructure. Callback help in creating these mutexes in MySQL
+   space with needed infrastructure to register them. */
+   wsrep_pfs_instr_cb_t   pfs_instr_cb;    //!< register for pfs instrumentation
 };
 
 
@@ -502,12 +646,33 @@ struct wsrep_stats_var
     const char*      name;     //!< variable name
     wsrep_var_type_t type;     //!< variable value type
     union {
-        int64_t     _integer64;
+        int64_t     _int64;
         double      _double;
         const char* _string;
     } value;                   //!< variable value
 };
 
+/*! Structure to copy-over node information exposed through PFS. */
+#define WSREP_HOSTNAME_LENGTH		64
+#define WSREP_STATUS_LENGTH		64
+
+typedef struct
+{
+    /* User assigned host-name */
+    char host_name[WSREP_HOSTNAME_LENGTH + 1];
+
+    /* System assigned UUID */
+    char uuid[WSREP_UUID_STR_LEN + 1];
+
+    /* Status PRIMARY/NON_PRIMARY */
+    char status[WSREP_STATUS_LENGTH + 1];
+
+    /* local index */
+    uint64_t local_index;
+
+    /* Segment of node */
+    uint32_t segment;
+} wsrep_node_info_t;
 
 /*! Abstract data buffer structure */
 typedef struct wsrep_buf
@@ -672,8 +837,35 @@ struct wsrep {
     wsrep_status_t (*recv)(wsrep_t* wsrep, void* recv_ctx);
 
   /*!
-   * @brief Replicates/logs result of transaction to other nodes and allocates
-   * required resources.
+   * @brief Replicates the given write-set on group channel.
+   * This API will not mark start of the execution. That will be done by
+   * pre_commit api below.
+   *
+   * Must be called before transaction commit. Returns success code, which
+   * caller must check.
+   * In case of WSREP_OK, starts commit critical section, transaction can
+   * commit. Otherwise transaction must rollback.
+   *
+   * @param wsrep      provider handle
+   * @param ws_handle  writeset of committing transaction
+   * @param conn_id    connection ID
+   * @param flags      fine tuning the replication WSREP_FLAG_*
+   * @param meta       transaction meta data
+   *
+   * @retval WSREP_OK         cluster-wide commit succeeded
+   * @retval WSREP_TRX_FAIL   must rollback transaction
+   * @retval WSREP_CONN_FAIL  must close client connection
+   * @retval WSREP_NODE_FAIL  must close all connections and reinit
+   */
+    wsrep_status_t (*replicate)(wsrep_t*                wsrep,
+                                wsrep_conn_id_t         conn_id,
+                                wsrep_ws_handle_t*      ws_handle,
+                                uint32_t                flags,
+                                wsrep_trx_meta_t*       meta);
+
+  /*!
+   * @brief Execute pre-commit hook that mark start of execution by entering
+   * Apply and Commit Monitor.
    *
    * Must be called before transaction commit. Returns success code, which
    * caller must check.
@@ -698,6 +890,42 @@ struct wsrep {
                                  wsrep_trx_meta_t*       meta);
 
   /*!
+   * @brief Replicates/logs result of transaction to other nodes and allocates
+   * required resources.
+   *
+   * Must be called before transaction commit. Returns success code, which
+   * caller must check.
+   * In case of WSREP_OK, starts commit critical section, transaction can
+   * commit. Otherwise transaction must rollback.
+   *
+   * @param wsrep      provider handle
+   * @param ws_handle  writeset of committing transaction
+   * @param conn_id    connection ID
+   * @param flags      fine tuning the replication WSREP_FLAG_*
+   * @param meta       transaction meta data
+   *
+   * @retval WSREP_OK         cluster-wide commit succeeded
+   * @retval WSREP_TRX_FAIL   must rollback transaction
+   * @retval WSREP_CONN_FAIL  must close client connection
+   * @retval WSREP_NODE_FAIL  must close all connections and reinit
+   */
+    wsrep_status_t (*replicate_pre_commit)(wsrep_t*                wsrep,
+                                           wsrep_conn_id_t         conn_id,
+                                           wsrep_ws_handle_t*      ws_handle,
+                                           uint32_t                flags,
+                                           wsrep_trx_meta_t*       meta);
+
+  /*!
+   * @brief Exit the critical section (CommitMonitor)
+   *
+   * @param wsrep      provider handle
+   * @param ws_handle  writeset of committing transaction
+   * @retval WSREP_OK  post_commit succeeded
+   */
+    wsrep_status_t (*interim_commit) (wsrep_t*            wsrep,
+                                      wsrep_ws_handle_t*  ws_handle);
+
+  /*!
    * @brief Releases resources after transaction commit.
    *
    * Ends commit critical section.
@@ -708,6 +936,49 @@ struct wsrep {
    */
     wsrep_status_t (*post_commit) (wsrep_t*            wsrep,
                                    wsrep_ws_handle_t*  ws_handle);
+
+  /*!
+   * @brief Enforce commit ordering for applier thread by entering
+   * Commit Monitor.
+   *
+   * @param wsrep      provider handle
+   * @param trx_handle  writeset of committing transaction
+   *
+   * @retval WSREP_OK         cluster-wide commit succeeded
+   * @retval WSREP_TRX_FAIL   must rollback transaction
+   * @retval WSREP_CONN_FAIL  must close client connection
+   * @retval WSREP_NODE_FAIL  must close all connections and reinit
+   */
+    wsrep_status_t (*applier_pre_commit)(wsrep_t*    wsrep,
+                                         void*       trx_handle);
+
+  /*!
+   * @brief Mark end of commit ordering by leaving Commit Monitor.
+   *
+   * @param wsrep      provider handle
+   * @param trx_handle  writeset of committing transaction
+   *
+   * @retval WSREP_OK         cluster-wide commit succeeded
+   * @retval WSREP_TRX_FAIL   must rollback transaction
+   * @retval WSREP_CONN_FAIL  must close client connection
+   * @retval WSREP_NODE_FAIL  must close all connections and reinit
+   */
+    wsrep_status_t (*applier_interim_commit)(wsrep_t*   wsrep,
+                                             void*      trx_handle);
+
+  /*!
+   * @brief Mark end of commit ordering by leaving Commit Monitor.
+   *
+   * @param wsrep      provider handle
+   * @param trx_handle  writeset of committing transaction
+   *
+   * @retval WSREP_OK         cluster-wide commit succeeded
+   * @retval WSREP_TRX_FAIL   must rollback transaction
+   * @retval WSREP_CONN_FAIL  must close client connection
+   * @retval WSREP_NODE_FAIL  must close all connections and reinit
+   */
+    wsrep_status_t (*applier_post_commit)(wsrep_t*   wsrep,
+                                          void*      trx_handle);
 
   /*!
    * @brief Releases resources after transaction rollback.
@@ -823,8 +1094,8 @@ struct wsrep {
    *
    * Whenever a new connection ID is passed to wsrep provider through
    * any of the API calls, a connection context is allocated for this
-   * connection. This call is to explicitly notify provider fo connection
-   * closing.
+   * connection. This call is to explicitly notify provider to close the
+   * connection.
    *
    * @param wsrep       provider handle
    * @param conn_id     connection ID
@@ -973,7 +1244,7 @@ struct wsrep {
                                const char* donor_spec);
 
   /*!
-   * @brief Returns an array fo status variables.
+   * @brief Returns an array of status variables.
    *        Array is terminated by Null variable name.
    *
    * @param wsrep provider handle
@@ -995,6 +1266,15 @@ struct wsrep {
    * @param wsrep provider handle.
    */
     void (*stats_reset) (wsrep_t* wsrep);
+
+  /*!
+   * @brief Get node information to expose through PFS
+   *
+   * @param wsrep     provider handle.
+   * @param var_array array of node information to populate.
+   * @param size      size of array.
+   */
+    void (*fetch_pfs_info) (wsrep_t* wsrep, wsrep_node_info_t* nodes, uint32_t size);
 
   /*!
    * @brief Pauses writeset applying/committing.

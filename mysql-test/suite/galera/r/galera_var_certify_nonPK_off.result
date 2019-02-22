@@ -26,5 +26,8 @@ DROP TABLE t1;
 DROP TABLE t2;
 connection node_1;
 call mtr.add_suppression("SQL statement was ineffective");
+CALL mtr.add_suppression("WSREP: Table without explict primary key \\(not-recommended\\)");
+connection node_2;
+CALL mtr.add_suppression("WSREP: Table without explict primary key \\(not-recommended\\)");
 disconnect node_2;
 disconnect node_1;

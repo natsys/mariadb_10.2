@@ -26,13 +26,16 @@ int wsrep_trx_order_before(THD *, THD *)
 enum wsrep_conflict_state wsrep_thd_conflict_state(THD *, my_bool)
 { return NO_CONFLICT; }
 
-int wsrep_is_wsrep_xid(const XID*)
+int wsrep_is_wsrep_xid(const XID *)
 { return 0; }
 
-long long wsrep_xid_seqno(const XID* x)
+bool wsrep_safe_to_persist_xid(THD *)
+{ return false; }
+
+long long wsrep_xid_seqno(const XID *)
 { return -1; }
 
-const unsigned char* wsrep_xid_uuid(const XID*)
+const unsigned char* wsrep_xid_uuid(const XID *)
 {
     static const unsigned char uuid[16] = {0};
     return uuid;
@@ -80,11 +83,20 @@ void wsrep_lock_rollback()
 int wsrep_on(THD *thd)
 { return 0; }
 
-void wsrep_post_commit(THD*, bool)
+void wsrep_post_commit(THD *, bool)
 { }
 
 enum wsrep_trx_status wsrep_run_wsrep_commit(THD *, bool)
 { return WSREP_TRX_ERROR; }
+
+enum wsrep_trx_status wsrep_replicate(THD *)
+{ return WSREP_TRX_ERROR; }
+
+enum wsrep_trx_status wsrep_pre_commit(THD *)
+{ return WSREP_TRX_ERROR; }
+
+void wsrep_interim_commit(THD *)
+{ }
 
 void wsrep_thd_LOCK(THD *)
 { }
@@ -133,6 +145,14 @@ longlong wsrep_thd_trx_seqno(THD *)
 
 struct wsrep_ws_handle* wsrep_thd_ws_handle(THD *)
 { return 0; }
+
+void wsrep_thd_auto_increment_variables(THD *thd,
+                                        unsigned long long *offset,
+                                        unsigned long long *increment)
+{
+  *offset= thd->variables.auto_increment_offset;
+  *increment= thd->variables.auto_increment_increment;
+}
 
 int wsrep_trx_is_aborting(THD *)
 { return 0; }

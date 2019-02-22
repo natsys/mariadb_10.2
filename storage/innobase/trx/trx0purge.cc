@@ -207,7 +207,7 @@ Remove the undo log segment from the rseg slot if it is too big for reuse.
 @param[in,out]	undo		undo log
 @param[in,out]	mtr		mini-transaction */
 void
-trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
+trx_purge_add_undo_to_history(trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 {
 	DBUG_PRINT("trx", ("commit(" TRX_ID_FMT "," TRX_ID_FMT ")",
 			   trx->id, trx->no));
@@ -282,9 +282,21 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 		  && srv_fast_shutdown));
 
 #ifdef	WITH_WSREP
-	if (wsrep_is_wsrep_xid(trx->xid)) {
+	/* Update latest MySQL wsrep XID in trx sys header.
+	If given transaction is marked for replay then avoid updating
+	the xid while the trx is being rolled back. */
+	if (wsrep_is_wsrep_xid(trx->xid)
+	    && wsrep_safe_to_persist_xid(trx->mysql_thd))
+	{
 		trx_rseg_update_wsrep_checkpoint(rseg_header, trx->xid, mtr);
 	}
+	else if (trx->wsrep_recover_xid
+	    && wsrep_is_wsrep_xid(trx->wsrep_recover_xid))
+	{
+		trx_rseg_update_wsrep_checkpoint(
+		    rseg_header, trx->wsrep_recover_xid, mtr, true);
+	}
+	trx->wsrep_recover_xid = NULL;
 #endif
 
 	if (trx->mysql_log_file_name && *trx->mysql_log_file_name) {

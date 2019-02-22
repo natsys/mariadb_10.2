@@ -487,6 +487,7 @@ enum legacy_db_type
   DB_TYPE_TOKUDB=43,
   DB_TYPE_SEQUENCE=44,
   DB_TYPE_FIRST_DYNAMIC=45,
+  DB_TYPE_WSREP=46,
   DB_TYPE_DEFAULT=127 // Must be last
 };
 /*

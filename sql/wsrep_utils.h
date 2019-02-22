@@ -281,6 +281,7 @@ public:
     int   error() { return err_; }
     int   wait ();
     const char* cmd() { return str_; }
+    void terminate ();
 };
 
 class thd

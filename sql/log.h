@@ -1144,6 +1144,8 @@ extern LOGGER logger;
 extern const char *log_bin_index;
 extern const char *log_bin_basename;
 
+extern bool opt_binlog_order_commits;
+
 /**
   Turns a relative log binary log path into a full path, based on the
   opt_bin_logname or opt_relay_logname.
