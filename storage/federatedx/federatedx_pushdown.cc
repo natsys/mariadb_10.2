@@ -124,7 +124,7 @@ int ha_federatedx_derived_handler::next_row()
   if ((rc= txn->acquire(share, table->in_use, TRUE, iop)))
     DBUG_RETURN(rc);
 
-  if (!(row= (*iop)->fetch_row(stored_result)))
+  if (!(row= (*iop)->fetch_row(stored_result, NULL)))
     DBUG_RETURN(HA_ERR_END_OF_FILE);
 
   /* Convert row to internal format */
@@ -249,7 +249,7 @@ int ha_federatedx_select_handler::next_row()
   if ((rc= txn->acquire(share, table->in_use, TRUE, iop)))
     DBUG_RETURN(rc);
 
-  if (!(row= (*iop)->fetch_row(stored_result)))
+  if (!(row= (*iop)->fetch_row(stored_result, NULL)))
     DBUG_RETURN(HA_ERR_END_OF_FILE);
 
   /* Convert row to internal format */
