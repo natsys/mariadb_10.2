@@ -5932,8 +5932,8 @@ the generated partition syntax in a correct manner.
 
       // In case of PARTITION BY KEY(), check if primary key has changed
       // System versioning also implicitly adds/removes primary key parts
-      if (alter_info->partition_flags == 0 && part_info->list_of_part_fields
-          && part_info->part_field_list.elements == 0 && !*partition_changed)
+      if (alter_info->partition_flags == 0 && part_info->list_of_part_fields &&
+          part_info->part_field_list.elements == 0 && !*partition_changed)
       {
         if (alter_info->flags & (ALTER_DROP_SYSTEM_VERSIONING
                                  | ALTER_ADD_SYSTEM_VERSIONING))
