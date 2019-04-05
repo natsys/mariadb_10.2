@@ -1,4 +1,4 @@
-package My::Suite::GALERA_3NODES;
+package My::Suite::GALERA_3NODES_SR;
 use File::Basename;
 use My::Find;
 
