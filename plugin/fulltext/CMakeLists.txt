@@ -13,5 +13,8 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA
 
+set(CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO} -DNDEBUG")
+set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -DNDEBUG")
+
 MYSQL_ADD_PLUGIN(ftexample plugin_example.c
   MODULE_ONLY MODULE_OUTPUT_NAME "mypluglib" COMPONENT Test)

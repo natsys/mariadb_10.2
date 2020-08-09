@@ -213,3 +213,13 @@ ERROR HY000: Function 'simple_parser' is not defined
 DROP TABLE articles;
 UNINSTALL PLUGIN simple_parser;
 ERROR 42000: PLUGIN simple_parser does not exist
+# InnoDB FTS needs token positions.
+INSTALL PLUGIN simple_parser SONAME 'mypluglib';
+CREATE TABLE articles(
+a TEXT DEFAULT NULL,
+b TEXT DEFAULT NULL,
+FULLTEXT (a, b) WITH PARSER simple_parser
+) ENGINE=InnoDB;
+INSERT INTO articles VALUES ('111', '1234 1234 1234');
+DROP TABLE articles;
+UNINSTALL PLUGIN simple_parser;

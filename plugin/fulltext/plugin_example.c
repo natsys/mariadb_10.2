@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <mysql/plugin.h>
+#include <my_global.h>
 
 #if !defined(__attribute__) && (defined(__cplusplus) || !defined(__GNUC__)  || __GNUC__ == 2 && __GNUC_MINOR__ < 8)
 #define __attribute__(A)
@@ -147,8 +148,12 @@ static int simple_parser_deinit(MYSQL_FTPARSER_PARAM *param
 
 static void add_word(MYSQL_FTPARSER_PARAM *param, const char *word, size_t len)
 {
+  ssize_t position = word - param->doc;
   MYSQL_FTPARSER_BOOLEAN_INFO bool_info=
-    { FT_TOKEN_WORD, 0, 0, 0, 0, ' ', 0 };
+    { FT_TOKEN_WORD, 0, 0, 0, 0, 0, ' ', 0 };
+
+  assert(position >= 0 && position <= UINT_MAX);
+  bool_info.position= (uint)position;
 
   param->mysql_add_word(param, word, (int)len, &bool_info);
 }
