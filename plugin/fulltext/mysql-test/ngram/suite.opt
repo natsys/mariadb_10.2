@@ -1,0 +1,4 @@
+--plugin-load-add=$FULLTEXT_NGRAM_SO
+--loose-innodb
+--loose-enable-innodb_ft_index_table
+--loose-innodb_ft_index_cache

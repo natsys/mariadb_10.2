@@ -1,0 +1,93 @@
+# Check 'ngram_token_size' variable.
+#
+# It's a global variable.
+SELECT @@global.ngram_token_size;
+@@global.ngram_token_size
+2
+SHOW GLOBAL VARIABLES LIKE 'ngram_token_size';
+Variable_name	Value
+ngram_token_size	2
+SELECT * FROM information_schema.global_variables WHERE variable_name='ngram_token_size';
+VARIABLE_NAME	VARIABLE_VALUE
+NGRAM_TOKEN_SIZE	2
+#
+# Not a session variable.
+SELECT @@session.ngram_token_size;
+ERROR HY000: Variable 'ngram_token_size' is a GLOBAL variable
+SHOW SESSION VARIABLES LIKE 'ngram_token_size';
+Variable_name	Value
+ngram_token_size	2
+SELECT * FROM information_schema.session_variables WHERE variable_name='ngram_token_size';
+VARIABLE_NAME	VARIABLE_VALUE
+NGRAM_TOKEN_SIZE	2
+#
+# 0 is outside allowed range [1, 10], so it's changed to 1.
+SET GLOBAL ngram_token_size= 0;
+Warnings:
+Warning	1292	Truncated incorrect ngram_token_size value: '0'
+SELECT * FROM information_schema.global_variables WHERE variable_name='ngram_token_size';
+VARIABLE_NAME	VARIABLE_VALUE
+NGRAM_TOKEN_SIZE	1
+#
+# 10 is an acceptable value.
+SET GLOBAL ngram_token_size= 10;
+SELECT * FROM information_schema.global_variables WHERE variable_name='ngram_token_size';
+VARIABLE_NAME	VARIABLE_VALUE
+NGRAM_TOKEN_SIZE	10
+#
+# 1 is an acceptable value.
+SET GLOBAL ngram_token_size= 1;
+SELECT * FROM information_schema.global_variables WHERE variable_name='ngram_token_size';
+VARIABLE_NAME	VARIABLE_VALUE
+NGRAM_TOKEN_SIZE	1
+#
+# 11 is outside allowed range [1, 10], so it's changed to 10.
+SET GLOBAL ngram_token_size= 11;
+Warnings:
+Warning	1292	Truncated incorrect ngram_token_size value: '11'
+SELECT * FROM information_schema.global_variables WHERE variable_name='ngram_token_size';
+VARIABLE_NAME	VARIABLE_VALUE
+NGRAM_TOKEN_SIZE	10
+#
+# Try 3-grams.
+SET GLOBAL ngram_token_size= 3;
+CREATE TABLE t (str TEXT, FULLTEXT INDEX (str) WITH PARSER ngram) Engine=InnoDB;
+INSERT INTO t VALUES
+('Lorem ipsum dolor sit amet, consectetur adipiscing elit.'),
+('Maecenas non pellentesque odio.'),
+('Sed fermentum egestas sapien vel consequat.');
+# Only one row contains substring "api".
+SELECT str FROM t WHERE MATCH(str) AGAINST('api');
+str
+Sed fermentum egestas sapien vel consequat.
+# "lent" is parsed into ("len", "ent") list. Two rows contain at least one of the tokens.
+SELECT str FROM t WHERE MATCH(str) AGAINST('lent*');
+str
+Maecenas non pellentesque odio.
+Sed fermentum egestas sapien vel consequat.
+# "zzz" is not present anywhere, so result is empty.
+SELECT str FROM t WHERE MATCH(str) AGAINST('zzzz');
+str
+# "piz" cannot be found anywhere, but "api" is in one of the rows.
+SELECT str FROM t WHERE MATCH(str) AGAINST('apiz');
+str
+Sed fermentum egestas sapien vel consequat.
+#
+# Try switching to 2-grams while keeping the index.
+SET GLOBAL ngram_token_size= 2;
+# "api" is now parsed into ("ap", "pi"). Since index only contains 3-grams, nothing is found.
+SELECT str FROM t WHERE MATCH(str) AGAINST('api');
+str
+#
+# Switching back to 3-grams makes index usable again.
+SET GLOBAL ngram_token_size= 3;
+SELECT str FROM t WHERE MATCH(str) AGAINST('api');
+str
+Sed fermentum egestas sapien vel consequat.
+#
+# Try matching in boolean mode.
+SELECT str FROM t WHERE MATCH(str) AGAINST('+ent -api' IN BOOLEAN MODE);
+str
+Maecenas non pellentesque odio.
+#
+DROP TABLE t;

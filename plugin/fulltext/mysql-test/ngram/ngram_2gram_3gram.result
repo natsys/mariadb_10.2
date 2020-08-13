@@ -1,0 +1,31 @@
+CREATE TABLE t (str TEXT) Engine=InnoDB;
+INSERT INTO t VALUES ('abcd efghijk lm n'), ('o p q rs tuv wxyz');
+# Try 2-grams.
+ALTER TABLE t ADD FULLTEXT INDEX str_idx (str) WITH PARSER 2gram;
+Warnings:
+Warning	124	InnoDB rebuilding table to add column FTS_DOC_ID
+# Single letter is too short to be a 2-gram.
+SELECT str FROM t WHERE MATCH(str) AGAINST('b');
+str
+# 'bc' is a valid 2gram.
+SELECT str FROM t WHERE MATCH(str) AGAINST('bc');
+str
+abcd efghijk lm n
+# 'tuv' is parsed into list ('tu', 'uv').
+SELECT str FROM t WHERE MATCH(str) AGAINST('tuv');
+str
+o p q rs tuv wxyz
+ALTER TABLE t DROP INDEX str_idx;
+# Try 3-grams.
+ALTER TABLE t ADD FULLTEXT INDEX str_idx (str) WITH PARSER 3gram;
+# Single letter is too short to be a 3-gram.
+SELECT str FROM t WHERE MATCH(str) AGAINST('b');
+str
+# Two letters are not enough to be considered a 3-gram.
+SELECT str FROM t WHERE MATCH(str) AGAINST('bc');
+str
+# 'tuv' is a valid 3-gram.
+SELECT str FROM t WHERE MATCH(str) AGAINST('tuv');
+str
+o p q rs tuv wxyz
+DROP TABLE t;

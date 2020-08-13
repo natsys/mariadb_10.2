@@ -1,0 +1,25 @@
+# Ngram fulltext parser basic functionality.
+
+SET NAMES utf8mb4;
+SELECT @@ngram_token_size;
+
+let $engine_index= 3;
+while ($engine_index) {
+  if ($engine_index == 3) { let $engine= InnoDB; }
+  if ($engine_index == 2) { let $engine= MyISAM; }
+  if ($engine_index == 1) { let $engine= Maria; }
+
+  let $charset_index= 6;
+  while ($charset_index) {
+    if ($charset_index == 6) { let $charset= utf8mb4; }
+    if ($charset_index == 5) { let $charset= big5; }
+    if ($charset_index == 4) { let $charset= gbk; }
+    if ($charset_index == 3) { let $charset= gb2312; }
+    if ($charset_index == 2) { let $charset= sjis; }
+    if ($charset_index == 1) { let $charset= ujis; }
+
+    source ngram_basic.inc;
+    dec $charset_index;
+  }
+  dec $engine_index;
+}

@@ -1,0 +1,9 @@
+SET NAMES utf8mb4;
+CREATE TABLE t (str TEXT, FULLTEXT INDEX (str) WITH PARSER ngram) Engine=InnoDB CHARSET=UCS2;
+ERROR HY000: Column 'str' cannot be part of FULLTEXT index
+CREATE TABLE t (str TEXT, FULLTEXT INDEX (str) WITH PARSER ngram) Engine=InnoDB CHARSET=UTF16;
+ERROR HY000: Column 'str' cannot be part of FULLTEXT index
+CREATE TABLE t (str TEXT, FULLTEXT INDEX (str) WITH PARSER ngram) Engine=InnoDB CHARSET=UTF16LE;
+ERROR HY000: Column 'str' cannot be part of FULLTEXT index
+CREATE TABLE t (str TEXT, FULLTEXT INDEX (str) WITH PARSER ngram) Engine=InnoDB CHARSET=UTF32;
+ERROR HY000: Column 'str' cannot be part of FULLTEXT index

@@ -1,0 +1,15 @@
+# Encoding with mbminlen >= 2.
+
+SET NAMES utf8mb4;
+
+--error 1283
+CREATE TABLE t (str TEXT, FULLTEXT INDEX (str) WITH PARSER ngram) Engine=InnoDB CHARSET=UCS2;
+
+--error 1283
+CREATE TABLE t (str TEXT, FULLTEXT INDEX (str) WITH PARSER ngram) Engine=InnoDB CHARSET=UTF16;
+
+--error 1283
+CREATE TABLE t (str TEXT, FULLTEXT INDEX (str) WITH PARSER ngram) Engine=InnoDB CHARSET=UTF16LE;
+
+--error 1283
+CREATE TABLE t (str TEXT, FULLTEXT INDEX (str) WITH PARSER ngram) Engine=InnoDB CHARSET=UTF32;

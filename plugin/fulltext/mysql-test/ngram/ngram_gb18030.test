@@ -1,0 +1,9 @@
+# Same as ngram_basic.test, but for GB18030 character set.
+# GB18030 character set is not supported yet, so this test is not enabled.
+
+SET NAMES utf8mb4;
+SELECT @@ngram_token_size;
+
+--let $engine= InnoDB
+--let $charset= gb18030
+--source ngram_basic.inc

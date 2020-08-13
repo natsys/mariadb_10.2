@@ -18,3 +18,7 @@ set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -DNDEBUG")
 
 MYSQL_ADD_PLUGIN(ftexample plugin_example.c
   MODULE_ONLY MODULE_OUTPUT_NAME "mypluglib" COMPONENT Test)
+
+# n-gram parser
+MYSQL_ADD_PLUGIN(ftngram ngram_parser/plugin_ngram.cc
+  MODULE_ONLY MODULE_OUTPUT_NAME "fulltext_ngram")
